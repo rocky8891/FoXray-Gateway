@@ -1,0 +1,19 @@
+{
+  "name": "GFWList 分流",
+  "profile": "gfwlist",
+  "rules": [
+    {
+      "name": "常用境外服务",
+      "enabled": true,
+      "type": "domain",
+      "action": "proxy",
+      "targets": [
+        "google.com",
+        "youtube.com",
+        "github.com"
+      ],
+      "network": "tcp,udp",
+      "port": ""
+    }
+  ]
+}

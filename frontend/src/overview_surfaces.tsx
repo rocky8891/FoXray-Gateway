@@ -1,0 +1,326 @@
+import { ColorInput } from "./color_input";
+import { OverviewSettingsCard } from "./overview_settings_card";
+import { themedAppearance } from "./theme_appearance";
+import type { CSSProperties, ReactNode } from "react";
+import { record, type Dict } from "./api";
+import { Field, NumberInput, SettingsSection } from "./ui";
+
+const layers = [
+  ["container", "页面容器"],
+  ["card", "监控卡片"],
+  ["detail", "指标卡片"],
+] as const;
+
+export function overviewSurfaceError(value: unknown): string {
+  if (value === undefined) return "";
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return "卡片外观格式无效";
+  for (const [key, raw] of Object.entries(value)) {
+    const s = record(raw);
+    if (
+      !layers.some(([id]) => id === key) ||
+      Object.keys(s).some(
+        (key) =>
+          ![
+            "enabled",
+            "color",
+            "opacity",
+            "blur",
+            "border_enabled",
+            "border_color",
+            "border_opacity",
+            "shadow",
+          ].includes(key),
+      ) ||
+      typeof s.enabled !== "boolean" ||
+      !/^#[0-9a-f]{6}$/i.test(String(s.color))
+    )
+      return "卡片外观格式或颜色无效";
+    if (
+      !Number.isInteger(s.opacity) ||
+      Number(s.opacity) < 0 ||
+      Number(s.opacity) > 100
+    )
+      return "背景不透明度须为0～100的整数";
+    if (!Number.isInteger(s.blur) || Number(s.blur) < 0 || Number(s.blur) > 40)
+      return "毛玻璃模糊须为0～40的整数";
+    if (s.border_enabled !== undefined && typeof s.border_enabled !== "boolean")
+      return "边框开关无效";
+    if (
+      s.border_color !== undefined &&
+      !/^#[0-9a-f]{6}$/i.test(String(s.border_color))
+    )
+      return "边框颜色无效";
+    if (
+      s.border_opacity !== undefined &&
+      (!Number.isInteger(s.border_opacity) ||
+        Number(s.border_opacity) < 0 ||
+        Number(s.border_opacity) > 100)
+    )
+      return "边框不透明度须为0～100的整数";
+    if (
+      s.shadow !== undefined &&
+      (!Number.isInteger(s.shadow) ||
+        Number(s.shadow) < 0 ||
+        Number(s.shadow) > 40)
+    )
+      return "阴影须为0～40的整数";
+  }
+  return "";
+}
+
+export function overviewTextError(value: unknown): string {
+  if (value === undefined) return "";
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return "指标文字格式无效";
+  for (const [key, n] of Object.entries(value))
+    if (
+      !["label_size", "value_size"].includes(key) ||
+      !Number.isInteger(n) ||
+      Number(n) < (key === "label_size" ? 8 : 12) ||
+      Number(n) > (key === "label_size" ? 24 : 40)
+    )
+      return "指标名称字号须为8～24，数值字号须为12～40的整数";
+  return "";
+}
+
+export function overviewSurfaceVariables(value: unknown): CSSProperties {
+  const p = themedAppearance(value),
+    surfaces = record(p.overview_surfaces),
+    text = record(p.overview_text);
+  const variables: Record<string, string> = {
+    "--wg-ring-color": /^#[0-9a-f]{6}$/i.test(
+      String(p.services_wireguard_ring_color),
+    )
+      ? String(p.services_wireguard_ring_color)
+      : "var(--line)",
+    "--wg-circle-axis": String(p.services_wireguard_axis || "auto"),
+    "--wg-circle-size": String(Number(p.services_wireguard_diameter || 0)),
+    "--wg-label-size": `${Number(p.services_wireguard_label_size || 14)}px`,
+    "--wg-value-size": `${Number(p.services_wireguard_value_size || 24)}px`,
+    "--overview-label-size": `${Math.min(24, Math.max(8, Number(text.label_size) || 14))}px`,
+    "--overview-value-size": `${Math.min(40, Math.max(12, Number(text.value_size) || 24))}px`,
+  };
+  const rgba = (color: unknown, opacity: unknown) => {
+    if (!/^#[0-9a-f]{6}$/i.test(String(color))) return undefined;
+    const c = String(color),
+      rgb = [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+    return `rgba(${rgb.join(",")},${Math.max(0, Math.min(100, Number(opacity))) / 100})`;
+  };
+  for (const [id] of layers) {
+    const s = record(surfaces[id]);
+    if (s.enabled === true) {
+      const paint = rgba(s.color, s.opacity);
+      if (paint) {
+        variables[`--overview-${id}-paint`] = paint;
+        variables[`--overview-${id}-blur`] = `${Number(s.blur) || 0}px`;
+      }
+    }
+    if (s.enabled === true) {
+      const edge = rgba(s.border_color, s.border_opacity);
+      if (edge) {
+        variables[`--overview-${id}-edge`] = edge;
+        variables[`--overview-${id}-shadow`] =
+          Number(s.shadow) > 0
+            ? `0 4px ${Number(s.shadow)}px ${rgba(s.border_color, 22)}`
+            : "none";
+      }
+    }
+  }
+  const ring = String(p.services_wireguard_ring_color || "#3b4451");
+  if (
+    p.services_wireguard_ring_color ||
+    p.services_wireguard_ring_opacity !== undefined
+  )
+    variables["--wg-ring-color"] = rgba(
+      ring,
+      p.services_wireguard_ring_opacity ?? 100,
+    )!;
+  variables["--wg-ring-shadow"] =
+    Number(p.services_wireguard_ring_shadow) > 0
+      ? `0 0 ${Number(p.services_wireguard_ring_shadow)}px ${rgba(ring, 40)}`
+      : "none";
+  return variables as CSSProperties;
+}
+
+export function OverviewSurfaceSettings({
+  presentation,
+  onChange,
+  onTextChange,
+  actions,
+}: {
+  actions?: ReactNode;
+  presentation: Dict;
+  onChange: (value: Dict) => void;
+  onTextChange: (value: Dict) => void;
+}) {
+  const surfaces = record(presentation.overview_surfaces);
+  return (
+    <OverviewSettingsCard
+      title="卡片外观"
+      actions={actions}
+      info="三种主页共用分层外观，每层独立设置；开启自定义后生效，关闭恢复主题配色。透明度只作用于背景，文字保持清晰。毛玻璃模糊卡片背后的内容，背景完全不透明时效果不明显。"
+    >
+      <OverviewTextFields presentation={presentation} onChange={onTextChange} />
+      {layers.map(([id, title]) => {
+        const s = {
+          enabled: false,
+          color: "#171f2b",
+          opacity: 80,
+          blur: 12,
+          border_enabled: false,
+          border_color: "#40516a",
+          border_opacity: 60,
+          shadow: 12,
+          ...record(surfaces[id]),
+        };
+        const set = (key: string, value: unknown) =>
+          onChange({
+            ...surfaces,
+            [id]: {
+              ...s,
+              [key]: value,
+              border_enabled: key === "enabled" ? value : s.enabled,
+            },
+          });
+        return (
+          <div className="overview-surface-row" key={id}>
+            <label className="check">
+              <input
+                type="checkbox"
+                aria-label={`${title}自定义外观`}
+                checked={s.enabled === true}
+                onChange={(e) => set("enabled", e.target.checked)}
+              />
+              {title}
+            </label>
+            <div className="form-grid">
+              <Field label="背景颜色">
+                <ColorInput
+                  aria-label={`${title}背景颜色`}
+                  value={String(s.color)}
+                  disabled={!s.enabled}
+                  onChange={(color) => set("color", color)}
+                />
+              </Field>
+              <Field
+                label="透明度（%）"
+                validateNumber
+                info="背景透明程度：0%完全不透明，100%完全透明；只影响背景，不影响文字。"
+              >
+                <NumberInput
+                  aria-label={`${title}不透明度`}
+                  min={0}
+                  max={100}
+                  value={100 - Number(s.opacity)}
+                  disabled={!s.enabled}
+                  onChange={(e) => set("opacity", 100 - Number(e.target.value))}
+                />
+              </Field>
+              <Field
+                label="毛玻璃"
+                validateNumber
+                info="背景模糊强度，0关闭，最大40；背景存在透明度时更容易看到效果。"
+              >
+                <NumberInput
+                  aria-label={`${title}毛玻璃模糊`}
+                  min={0}
+                  max={40}
+                  value={Number(s.blur)}
+                  disabled={!s.enabled}
+                  onChange={(e) => set("blur", Number(e.target.value))}
+                />
+              </Field>
+            </div>
+            <div className="form-grid">
+              <Field label="边框颜色">
+                <ColorInput
+                  aria-label={`${title}边框颜色`}
+                  value={String(s.border_color)}
+                  disabled={!s.enabled}
+                  onChange={(color) => set("border_color", color)}
+                />
+              </Field>
+              <Field
+                label="透明度（%）"
+                validateNumber
+                info="边框透明程度：0%完全不透明，100%完全透明。"
+              >
+                <NumberInput
+                  aria-label={`${title}边框不透明度`}
+                  min={0}
+                  max={100}
+                  value={100 - Number(s.border_opacity)}
+                  disabled={!s.enabled}
+                  onChange={(e) =>
+                    set("border_opacity", 100 - Number(e.target.value))
+                  }
+                />
+              </Field>
+              <Field
+                label="阴影"
+                validateNumber
+                info="0关闭阴影，数值越大阴影越柔和。服务器指标卡片不应用自定义边框与阴影。"
+              >
+                <NumberInput
+                  aria-label={`${title}阴影柔化`}
+                  min={0}
+                  max={40}
+                  value={Number(s.shadow)}
+                  disabled={!s.enabled}
+                  onChange={(e) => set("shadow", Number(e.target.value))}
+                />
+              </Field>
+            </div>
+          </div>
+        );
+      })}
+    </OverviewSettingsCard>
+  );
+}
+
+function OverviewTextFields({
+  presentation,
+  onChange,
+}: {
+  presentation: Dict;
+  onChange: (value: Dict) => void;
+}) {
+  const text = {
+    label_size: 14,
+    value_size: 24,
+    ...record(presentation.overview_text),
+  };
+  return (
+    <SettingsSection
+      className="overview-text-card"
+      title="指标文字"
+      info="三种主页共用。名称与数值分别设置；同一卡片字号保持一致，空间不足时统一缩小，保证单行完整显示。"
+    >
+      <div className="form-grid">
+        <Field label="指标名称字号（px）" validateNumber>
+          <NumberInput
+            aria-label="指标名称字号"
+            min={8}
+            max={24}
+            value={Number(text.label_size)}
+            onChange={(e) =>
+              onChange({ ...text, label_size: Number(e.target.value) })
+            }
+          />
+        </Field>
+        <Field label="指标数值字号（px）" validateNumber>
+          <NumberInput
+            aria-label="指标数值字号"
+            min={12}
+            max={40}
+            value={Number(text.value_size)}
+            onChange={(e) =>
+              onChange({ ...text, value_size: Number(e.target.value) })
+            }
+          />
+        </Field>
+      </div>
+    </SettingsSection>
+  );
+}

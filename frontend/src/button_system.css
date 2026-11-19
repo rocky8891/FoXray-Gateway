@@ -1,0 +1,197 @@
+/* FoXray 0.9.1: semantic control sizes, loaded after page layout styles.
+ * Geometry is authoritative here; pages may select a size, never redefine it.
+ * Important declarations retire legacy page-specific important overrides.
+ */
+:root {
+  --button-height-regular: 42px;
+  --button-height-compact: 32px;
+  --button-text-size: 13px;
+  --button-text-weight: 650;
+  --button-line-height: 20px;
+  --button-icon-size: 18px;
+  --button-gap: 6px;
+  --button-danger: #ff668a;
+}
+html[data-theme="light"] {
+  --button-danger: #bb2445;
+}
+.button {
+  --control-height: var(--button-height-regular);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: var(--control-height) !important;
+  min-height: var(--control-height) !important;
+  max-height: var(--control-height) !important;
+  padding: 0 12px !important;
+  gap: var(--button-gap) !important;
+  font-family: inherit !important;
+  font-size: var(--button-text-size) !important;
+  font-weight: var(--button-text-weight) !important;
+  line-height: var(--button-line-height) !important;
+  border: 1px solid var(--line);
+  border-radius: var(--radius) !important;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.button > svg {
+  width: var(--button-icon-size) !important;
+  height: var(--button-icon-size) !important;
+  flex: none;
+}
+:is(
+    .table-wrap,
+    .management-card,
+    .node-card,
+    .subscription-card,
+    .list-filter-popup,
+    .resource-pagination,
+    .task-center-footer,
+    .task-detail-heading,
+    .task-toast,
+    .header-tools
+  )
+  .button,
+.modal > .modal-heading > .button,
+.button[data-control-size="compact"],
+.button.copy-details {
+  --control-height: var(--button-height-compact);
+}
+.button[data-control-size="regular"],
+:is(.management-toolbar, .save-card-footer) .button {
+  --control-height: var(--button-height-regular);
+}
+.button:is([data-control-icon="true"], .list-tool-button, .page-arrow) {
+  width: var(--control-height) !important;
+  min-width: var(--control-height) !important;
+  max-width: var(--control-height) !important;
+  padding: 0 !important;
+}
+.management-toolbar :is(.more-actions-trigger, .list-tool-button) {
+  --control-height: var(--button-height-regular);
+}
+.management-query-tools > .search {
+  height: var(--button-height-regular);
+}
+.management-query-tools > .search input {
+  height: calc(var(--button-height-regular) - 2px);
+  font-size: var(--button-text-size);
+}
+.management-view-switch,
+.management-view-switch:has(.resource-export) {
+  gap: var(--button-gap);
+}
+.management-query-tools .list-tool-button {
+  background: var(--button);
+  border-color: var(--line);
+}
+.management-query-tools .list-tool-button.active {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+.column-filter .list-tool-button {
+  --control-height: var(--button-height-compact);
+}
+.overview-side-tools :is(.button, .icon-select-trigger) {
+  flex-basis: var(--button-height-regular);
+  width: var(--button-height-regular) !important;
+  min-width: var(--button-height-regular) !important;
+  max-width: var(--button-height-regular) !important;
+  height: var(--button-height-regular) !important;
+  min-height: var(--button-height-regular) !important;
+  max-height: var(--button-height-regular) !important;
+  padding: 0 !important;
+}
+.button:not(:disabled):focus-visible,
+.page-number:focus-visible,
+.action-menu-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+header .header-status > .header-tools {
+  grid-template-columns: 64px repeat(2, var(--button-height-compact));
+  gap: var(--button-gap);
+  min-height: var(--button-height-compact);
+}
+header .header-tools .task-center-trigger {
+  width: 64px !important;
+  min-width: 64px !important;
+  max-width: 64px !important;
+  padding-inline: 4px !important;
+}
+@media (max-width: 599px) {
+  header .header-status > .header-tools {
+    grid-template-columns: repeat(3, var(--button-height-compact));
+  }
+  header .header-tools .task-center-trigger {
+    width: var(--button-height-compact) !important;
+    min-width: var(--button-height-compact) !important;
+    max-width: var(--button-height-compact) !important;
+    padding: 0 !important;
+  }
+}
+.button.danger {
+  color: var(--button-danger);
+  background: color-mix(in srgb, var(--button-danger) 10%, var(--card));
+  border-color: color-mix(in srgb, var(--button-danger) 40%, var(--line));
+}
+.button.danger:not(:disabled):hover {
+  background: color-mix(in srgb, var(--button-danger) 18%, var(--card));
+}
+.detection-control > .button {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+.detection-control .list-tool-button {
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+}
+.resource-pagination :is(.page-number, select, input) {
+  height: var(--button-height-compact);
+  min-height: var(--button-height-compact);
+  font-size: var(--button-text-size);
+  line-height: var(--button-line-height);
+}
+.resource-pagination .page-number {
+  min-width: var(--button-height-compact);
+  padding: 0 6px;
+  font-weight: var(--button-text-weight);
+  border-radius: var(--radius);
+}
+.action-menu-item {
+  min-height: var(--button-height-compact);
+  font-family: inherit;
+  font-size: var(--button-text-size);
+  font-weight: var(--button-text-weight);
+  line-height: var(--button-line-height);
+  border-radius: var(--radius);
+}
+.action-menu-item.danger {
+  color: var(--button-danger);
+}
+:is(
+  header nav .nav-tab,
+  .secondary-nav button,
+  .module-tabs > button,
+  .subtabs > button,
+  .monitor-settings-tabs > button,
+  .monitor-view-switch > button,
+  .task-center-tabs > button
+) {
+  font-family: inherit;
+  font-size: var(--button-text-size);
+  font-weight: var(--button-text-weight);
+  line-height: var(--button-line-height);
+}
+.task-center-tabs > button[aria-selected="true"] {
+  background: transparent;
+  color: var(--text);
+}
+.button[data-control-size="compact"] {
+  --control-height: var(--button-height-compact);
+}

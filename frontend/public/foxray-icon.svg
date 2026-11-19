@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="emblem-title">
+<title id="emblem-title">FoXray Gateway — FoXray-Gateway-icon_v3.6B — transparent, without outer circle</title>
+<g transform="translate(54 53) scale(.82)">
+<defs>
+  <linearGradient id="fur" x1="150" y1="120" x2="358" y2="411" gradientUnits="userSpaceOnUse"><stop stop-color="#FFAE50" /><stop offset=".55" stop-color="#EC7C32" /><stop offset="1" stop-color="#BE4F2A" /></linearGradient>
+  <linearGradient id="muzzle" x1="240" y1="290" x2="271" y2="421" gradientUnits="userSpaceOnUse"><stop stop-color="#FFF1D2" /><stop offset="1" stop-color="#E4BC81" /></linearGradient>
+  <linearGradient id="inner" x1="130" y1="100" x2="190" y2="222" gradientUnits="userSpaceOnUse"><stop stop-color="#754333" /><stop offset="1" stop-color="#E6BC83" /></linearGradient>
+  <clipPath id="leftEye"><path d="M153 246C167 222 213 219 240 247C240 274 217 290 192 284C171 280 158 267 153 246Z" /></clipPath>
+  <clipPath id="rightEye"><path d="M301 255C315 234 347 236 369 258C368 280 350 293 331 287C315 283 305 271 301 255Z" /></clipPath>
+</defs>
+<path d="M121 209Q97 150 94 58Q94 44 106 52Q173 88 211 158Z" fill="#B8592F" />
+<path d="M112 79Q158 111 187 159L132 190Q115 139 112 79Z" fill="url(#inner)" />
+<path d="M310 164Q342 112 397 107Q410 105 405 119L375 227Z" fill="#A84D2D" />
+<path d="M338 171Q357 144 387 130L368 203Z" fill="#704036" />
+<path d="M119 190Q158 144 213 149Q242 125 254 143Q270 126 283 149Q340 151 372 199Q392 227 391 268Q415 305 401 340Q390 371 360 390Q335 413 301 440Q284 454 263 447Q210 430 177 401Q125 394 102 363Q84 339 87 317L74 319Q85 298 92 281L81 278Q100 260 100 237Q102 210 119 190Z" fill="url(#fur)" />
+<path d="M120 198Q148 164 192 165" fill="none" stroke="#FFC271" stroke-width="8" stroke-linecap="round" opacity=".35" />
+<path d="M110 306Q138 281 172 297Q210 316 250 327Q280 313 319 308Q358 306 381 322Q396 337 380 356Q353 384 318 400Q296 423 271 430Q234 424 203 403Q170 393 145 369Q113 353 110 306Z" fill="url(#muzzle)" />
+<path d="M235 204Q231 191 213 190Q177 192 143 217Q176 207 203 208Q223 210 235 204Z" fill="#63372C" />
+<path d="M300 218Q303 205 316 204Q342 206 367 231Q343 221 323 222Q309 224 300 218Z" fill="#63372C" />
+<g transform="translate(197 255) scale(0.85) translate(-197 -255)"><path d="M153 246C167 222 213 219 240 247C240 274 217 290 192 284C171 280 158 267 153 246Z" fill="#FFF9E9" />
+</g><g transform="translate(197 255) scale(0.85) translate(-197 -255)"><g clip-path="url(#leftEye)"><ellipse cx="204" cy="255" rx="24" ry="29" fill="#80A45B" /><ellipse cx="207" cy="256" rx="14" ry="23" fill="#24342D" /><circle cx="212" cy="245" r="7" fill="#FFFDF3" /><circle cx="199" cy="267" r="3" fill="#FFFDF3" opacity=".8" /></g>
+</g><g transform="translate(335 263) scale(0.85) translate(-335 -263)"><path d="M301 255C315 234 347 236 369 258C368 280 350 293 331 287C315 283 305 271 301 255Z" fill="#FFF9E9" />
+</g><g transform="translate(335 263) scale(0.85) translate(-335 -263)"><g clip-path="url(#rightEye)"><ellipse cx="337" cy="263" rx="20" ry="26" fill="#80A45B" /><ellipse cx="340" cy="264" rx="12" ry="21" fill="#24342D" /><circle cx="344" cy="254" r="6" fill="#FFFDF3" /><circle cx="333" cy="275" r="2.5" fill="#FFFDF3" opacity=".8" /></g>
+</g><g transform="translate(197 255) scale(0.85) translate(-197 -255)"><path d="M153 246C167 222 213 219 240 247" fill="none" stroke="#623B2F" stroke-width="7" stroke-linecap="round" />
+</g><g transform="translate(335 263) scale(0.85) translate(-335 -263)"><path d="M301 255C315 234 347 236 369 258" fill="none" stroke="#623B2F" stroke-width="7" stroke-linecap="round" />
+</g><path d="M179 300Q217 302 252 319Q289 295 328 305L355 332Q336 356 301 365Q250 373 210 345Z" fill="#FFF0D1" />
+<path d="M326 308Q345 293 366 303Q383 308 375 325Q366 340 347 339Q332 336 324 324Q318 314 326 308Z" fill="#34313F" />
+<path d="M332 309Q348 303 360 308" fill="none" stroke="#72606A" stroke-width="5" stroke-linecap="round" />
+<path d="M349 339 345 355Q293 372 240 358Q196 346 163 322" fill="none" stroke="#704735" stroke-width="7" stroke-linecap="round" />
+<path d="M154 324Q160 315 172 318" fill="none" stroke="#704735" stroke-width="5" stroke-linecap="round" />
+<path d="M205 369Q247 393 294 377" fill="none" stroke="#D6AB74" stroke-width="5" stroke-linecap="round" />
+
+</g>
+</svg>

@@ -1,0 +1,17 @@
+{
+  "name": "大陆白名单",
+  "profile": "bypass_cn",
+  "rules": [
+    {
+      "name": "中国域名直连",
+      "enabled": true,
+      "type": "domain",
+      "action": "direct",
+      "targets": [
+        "cn"
+      ],
+      "network": "tcp,udp",
+      "port": ""
+    }
+  ]
+}

@@ -1,0 +1,208 @@
+import { useEffect, useRef, useState } from "react";
+import { CheckCircle2, CircleAlert, LoaderCircle } from "lucide-react";
+import {
+  api,
+  errorMessage,
+  record,
+  timestamp,
+  type Dict,
+  type Operation,
+} from "./api";
+import { JsonDetails, PageHeader, Panel } from "./ui";
+import type { Act } from "./nodes";
+
+export function useDiagnosticRunner(act: Act) {
+  const [job, setJob] = useState(""),
+    [pending, setPending] = useState(false),
+    [message, setMessage] = useState(""),
+    [result, setResult] = useState<Operation | null>(null);
+  const generation = useRef(0);
+  const run = async (path: string, data: unknown) => {
+    setResult(null);
+    setMessage("正在提交诊断…");
+    setPending(true);
+    setJob("");
+    const ok = await act(path, data, (response) =>
+      setJob(String(response.id || "")),
+    );
+    if (!ok) {
+      setPending(false);
+      setMessage("诊断未能提交，请查看红色操作提示。");
+    }
+  };
+  useEffect(() => {
+    if (!job) return;
+    const current = ++generation.current;
+    let timer: ReturnType<typeof setTimeout> | undefined,
+      failures = 0,
+      completedWithoutResult = 0,
+      done = false;
+    const startedAt = Date.now();
+    const poll = async () => {
+      try {
+        const data = await api<Dict>(
+          "/api/diagnostics/result?job=" + encodeURIComponent(job),
+        );
+        if (current !== generation.current) return;
+        failures = 0;
+        if (data.result) {
+          const operation = data.result as unknown as Operation;
+          setResult(operation);
+          setPending(false);
+          setMessage("");
+          done = true;
+          window.dispatchEvent(new CustomEvent("foxray:diagnostic-completed"));
+        } else {
+          const task = record(data.task);
+          setMessage(
+            String(task.message || "诊断执行中，正在等待解析和连接测试结果…"),
+          );
+          if (task.status === "error" || task.status === "cancelled") {
+            setPending(false);
+            done = true;
+          } else if (
+            task.status === "success" &&
+            ++completedWithoutResult >= 3
+          ) {
+            setMessage(
+              "诊断任务已结束，但未读取到结果，请刷新诊断日志确认保存状态。",
+            );
+            setPending(false);
+            done = true;
+          }
+        }
+      } catch (error) {
+        if (current !== generation.current) return;
+        failures++;
+        setMessage("诊断状态读取失败：" + errorMessage(error));
+        if (failures >= 5) {
+          setPending(false);
+          done = true;
+        }
+      }
+      if (!done && Date.now() - startedAt > 45000) {
+        setMessage("等待诊断结果超时，请刷新诊断日志查看执行状态。");
+        setPending(false);
+        done = true;
+      }
+      if (!done && current === generation.current)
+        timer = setTimeout(poll, 1000);
+    };
+    void poll();
+    return () => {
+      generation.current++;
+      if (timer) clearTimeout(timer);
+    };
+  }, [job]);
+  return { run, pending, message, result };
+}
+export function DiagnosticProgress({
+  pending,
+  message,
+}: {
+  pending: boolean;
+  message: string;
+}) {
+  if (!message) return null;
+  return (
+    <p
+      className={"diagnostic-progress " + (pending ? "muted" : "poor")}
+      role="status"
+    >
+      {pending && <LoaderCircle size={16} className="spin" />}
+      {message}
+    </p>
+  );
+}
+export function DiagnosticReport({
+  operation,
+  embedded = false,
+}: {
+  operation: Operation;
+  embedded?: boolean;
+}) {
+  const d = {
+      ...record(record(operation.details).legacy_result),
+      ...record(operation.details),
+    },
+    p = record(d.parameters),
+    passed = d.ok == null ? operation.status === "success" : d.ok === true;
+  const body = (
+    <>
+      <PageHeader
+        title="诊断结果"
+        icon={passed ? <CheckCircle2 size={20} /> : <CircleAlert size={20} />}
+        description={timestamp(operation.time)}
+      />
+      <p className={passed ? "good" : "poor"} role="status">
+        <strong>{passed ? "连接测试通过" : "连接测试未通过"}</strong> ·{" "}
+        {operation.message}
+      </p>
+      <dl className="diagnostic-facts">
+        <div>
+          <dt>目标</dt>
+          <dd>
+            {String(p.target || p.host || "—")}:{String(p.port || 443)}
+          </dd>
+        </div>
+        <div>
+          <dt>测试范围</dt>
+          <dd>
+            {p.scope === "lan" ? "LAN规则模拟；实际测试由网关发起" : "网关本机"}
+          </dd>
+        </div>
+        <div>
+          <dt>解析地址</dt>
+          <dd>{String(d.resolved_ip || "解析未完成")}</dd>
+        </div>
+        <div>
+          <dt>预计路径</dt>
+          <dd>{String(d.expected || "未取得路径")}</dd>
+        </div>
+        {d.tcp_ms != null && (
+          <div>
+            <dt>TCP建连</dt>
+            <dd>{String(d.tcp_ms)} ms</dd>
+          </div>
+        )}
+        {p.protocol === "tls" && (
+          <div>
+            <dt>TLS校验</dt>
+            <dd>{d.tls_verified ? "证书校验通过" : "未通过或未完成"}</dd>
+          </div>
+        )}
+        {d.icmp_success_pct != null && (
+          <div>
+            <dt>ICMP</dt>
+            <dd>
+              成功率 {String(d.icmp_success_pct)}% · {String(d.icmp_average_ms)}{" "}
+              ms
+            </dd>
+          </div>
+        )}
+      </dl>
+      {(d.test_error || d.error) && (
+        <p className="poor" role="alert">
+          原因：{String(d.test_error || d.error)}
+        </p>
+      )}
+      <details open>
+        <summary>执行日志</summary>
+        <pre className="diagnostic-steps">
+          {Array.isArray(d.steps) && d.steps.length
+            ? d.steps.join("\n")
+            : "此历史记录未保存逐步日志；可重新执行获取。"}
+        </pre>
+      </details>
+      <details>
+        <summary>原始结果</summary>
+        <JsonDetails data={d} />
+      </details>
+    </>
+  );
+  return embedded ? (
+    <div className="diagnostic-report">{body}</div>
+  ) : (
+    <Panel className="diagnostic-report">{body}</Panel>
+  );
+}

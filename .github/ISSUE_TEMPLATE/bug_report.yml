@@ -1,0 +1,27 @@
+name: 问题反馈
+description: 提交可复现问题，请先脱敏
+body:
+  - type: markdown
+    attributes:
+      value: 请勿上传凭据、订阅地址、完整运行配置或私钥。安全漏洞请先阅读 SECURITY.md。
+  - type: input
+    id: version
+    attributes:
+      label: FoXray 版本
+      placeholder: 0.9.1
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: 系统与架构
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤、预期和实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 脱敏日志或截图

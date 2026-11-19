@@ -1,0 +1,38 @@
+name: Validate Go and React
+on:
+  push:
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27'
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Test backend root-only rollback validation
+        working-directory: backend
+        run: sudo "$(command -v go)" test ./...
+      - name: Build backend
+        working-directory: backend
+        run: CGO_ENABLED=0 go build ./cmd/foxray
+      - name: Validate SNAT and business counters in isolated network namespaces
+        working-directory: backend
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y nftables iproute2
+          sudo env FOXRAY_KERNEL_TESTS=1 FOXRAY_TEST_BINARY="$PWD/foxray" "$(command -v go)" test ./internal/gateway -run '^TestKernel(SNATRulesLoadInIsolatedNamespace|BusinessMetersCountRealTCPUDPBothDirections|CustomVPNExclusionsLoadInIsolatedNamespace|ManagedInterfaceDeleteRestoresEmptyDevices)$' -count=1
+      - name: Validate management update archive and rollback
+        run: python3 -m unittest discover -s tests -v
+      - name: Build frontend
+        run: npm --prefix frontend ci && npm --prefix frontend run build
+      - name: Validate shell script
+        run: bash -n install_v0.9.1.sh && bash install_v0.9.1.sh --plan
