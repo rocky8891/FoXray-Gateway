@@ -1,3 +1,4 @@
+import { hasChanges } from "./settings_save";
 import { useState } from "react";
 import { type Dict } from "./api";
 import {
@@ -101,6 +102,7 @@ export function ProbeIntervalField({
               : `主动检测${p.enabled ? "已开启" : "已关闭"}`}
           </p>
           <SaveCard
+ dirty={hasChanges(draft,r.data)}
             title="检测间隔"
             defaults={() =>
               setDraft({

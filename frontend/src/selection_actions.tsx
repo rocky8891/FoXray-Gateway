@@ -41,43 +41,46 @@ function collect(node: ReactNode): MenuAction[] {
 export function SelectionActions({
   content,
   count,
+  bulk,
 }: {
   content: ReactNode;
   count: number;
+  bulk?: MenuAction[];
 }) {
-  const commands = count === 1 ? collect(content) : [];
-  const common = commands.filter((a) =>
-    /^(详情|查看详情|编辑|编辑IP|编辑 IP|启用|停用|启动|停止)$/.test(a.label),
+  const commands = count === 1 ? collect(content) : [],
+    available = bulk || commands;
+  const enable = available.find((a) => /^(启用|启动)$/.test(a.label)),
+    disable = available.find((a) => /^(停用|停止)$/.test(a.label));
+  const other = (count === 1 ? commands : available).filter(
+    (a) => !/^(启用|停用|启动|停止)$/.test(a.label),
   );
-  const other = commands.filter((a) => !common.includes(a));
   return (
     <div className="actions selection-commands">
-      {count !== 1 ? (
-        <>
-          <Button disabled>详情</Button>
-          <Button disabled>编辑</Button>
-        </>
-      ) : (
-        common.map((item, i) => (
-          <Button
-            key={i}
-            disabled={item.disabled}
-            onClick={() => item.onClick?.()}
-            title={item.title}
-          >
-            {item.label.replace("查看详情", "详情")}
-          </Button>
-        ))
-      )}
+      <Button
+        disabled={!count || !enable || enable.disabled}
+        onClick={() => enable?.onClick?.()}
+        title={enable?.title || (!count ? "请先选择对象" : undefined)}
+      >
+        启用
+      </Button>
+      <Button
+        disabled={!count || !disable || disable.disabled}
+        onClick={() => disable?.onClick?.()}
+        title={disable?.title || (!count ? "请先选择对象" : undefined)}
+      >
+        停用
+      </Button>
       <ActionMenu
-        label="操作"
+        label="所选对象"
+        triggerLabel="批量操作"
         items={
           other.length
             ? other
             : [
                 {
-                  label: count > 1 ? "请选择单个对象操作" : "请先选择对象",
+                  label: "编辑",
                   disabled: true,
+                  title: count > 1 ? "请从行操作中逐项编辑" : "请先选择对象",
                 },
               ]
         }

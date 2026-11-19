@@ -46,6 +46,11 @@ import { NetworkPending } from "./network";
 import { FirewallPage } from "./firewall";
 import "./style.css";
 import "./button_system.css";
+import "./toolbar_layout.css";
+import "./menu_colors.css";
+import "./warp_detection_control.css";
+import "./popup_system.css";
+import "./preview_refinements.css";
 const navigation: [Page, string][] = [
   ["overview", "主页"],
   ["monitoring", "监控"],
@@ -129,6 +134,9 @@ function App() {
         1000,
     );
   }, [state?.manager_settings.status_refresh_seconds]);
+  const hideHomeHeader =
+    page === "overview" &&
+    record(state?.manager_settings.presentation).home_header_auto_hide === true;
   const updates = useResource<Dict>("/api/updates", 60000);
   const [updateData, setUpdateData] = useState<Dict>({});
   useEffect(() => {
@@ -149,8 +157,12 @@ function App() {
         document.body.clientWidth + "px",
       );
       document.documentElement.style.setProperty(
+        "--header-edge",
+        (hideHomeHeader ? 8 : element.getBoundingClientRect().bottom) + "px",
+      );
+      document.documentElement.style.setProperty(
         "--header-height",
-        element.getBoundingClientRect().height + "px",
+        (hideHomeHeader ? 0 : element.getBoundingClientRect().height) + "px",
       );
     };
     const observer = new ResizeObserver(update);
@@ -161,7 +173,7 @@ function App() {
       observer.disconnect();
       window.removeEventListener("resize", update);
     };
-  }, []);
+  }, [hideHomeHeader]);
   const navigate = (next: Page) => {
     setOverviewEditor(undefined);
     setPage(next);
@@ -309,10 +321,10 @@ function App() {
         );
         break;
       case "nodes":
-        content = <Nodes state={state} act={act} />;
+        content = <Nodes state={state} act={act} refresh={refresh} />;
         break;
       case "subscriptions":
-        content = <Subscriptions state={state} act={act} />;
+        content = <Subscriptions state={state} act={act} refresh={refresh} />;
         break;
       case "history":
         content = <History state={state} act={act} />;
@@ -324,7 +336,7 @@ function App() {
         content = <Operations />;
         break;
       case "xray":
-        content = <XrayHub state={state} act={act} />;
+        content = <XrayHub state={state} act={act} refresh={refresh} />;
         break;
       case "warp":
         content = state.components.warp ? (
@@ -385,81 +397,103 @@ function App() {
     <UpdatesContext.Provider
       value={{ data: updateData, receive: setUpdateData }}
     >
-      <header ref={header}>
-        <a
-          className="brand"
-          href="#"
-          title={managerStatusText}
-          aria-label={`返回主页；${managerStatusText}`}
-          onClick={(e) => {
-            e.preventDefault();
-            localStorage.setItem("foxray.overview.tab", "dashboard");
-            setHomeKey((value) => value + 1);
-            navigate("overview");
-          }}
-        >
-          <svg
-            className="brand-logo"
-            viewBox="110 84 290 346"
-            role="img"
-            aria-label="FoXray"
+      {import.meta.env.VITE_PREVIEW_LABEL && (
+        <div className="preview-banner" role="status">
+          预览版 · {import.meta.env.VITE_PREVIEW_LABEL} ·
+          独立预览环境，未发布到正式服务
+        </div>
+      )}
+      <div
+        className="home-header-shell"
+        data-auto-hide={hideHomeHeader || undefined}
+      >
+        <header ref={header}>
+          {hideHomeHeader && (
+            <button
+              type="button"
+              className="home-header-handle"
+              aria-label="展开首页标题栏"
+              title="悬停、点击或聚焦以展开首页标题栏"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") e.currentTarget.blur();
+              }}
+            />
+          )}
+          <a
+            className="brand"
+            href="#"
+            title={managerStatusText}
+            aria-label={`返回主页；${managerStatusText}`}
+            onClick={(e) => {
+              e.preventDefault();
+              localStorage.setItem("foxray.overview.tab", "dashboard");
+              setHomeKey((value) => value + 1);
+              navigate("overview");
+            }}
           >
-            <image href="/foxray-icon.svg" width="512" height="512" />
-          </svg>
-          <div>
-            <div className="brand-title-row">
-              <h1>FoXray Gateway</h1>
-              <span
-                className="manager-status-dot"
-                data-status={managerStatus}
-                role="img"
-                aria-label={managerStatusText}
+            <svg
+              className="brand-logo"
+              viewBox="110 84 290 346"
+              role="img"
+              aria-label="FoXray"
+            >
+              <image href="/foxray-icon.svg" width="512" height="512" />
+            </svg>
+            <div>
+              <div className="brand-title-row">
+                <h1>FoXray Gateway</h1>
+                <span
+                  className="manager-status-dot"
+                  data-status={managerStatus}
+                  role="img"
+                  aria-label={managerStatusText}
+                />
+              </div>
+            </div>
+          </a>
+          <nav aria-label="功能模块">
+            {available.map(([id, label]) => (
+              <button
+                key={id}
+                className={"nav-tab " + (id === "monitor" ? "integrated" : "")}
+                aria-current={page === id ? "page" : undefined}
+                onClick={() => navigate(id)}
+              >
+                <span className="nav-icon" aria-hidden="true">
+                  {labelIcon(label, 18)}
+                </span>
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="header-status">
+            <div className="header-tools">
+              <Tasks
+                notice={notice}
+                onClear={() => setNotice(null)}
+                onWarningChange={setTaskWarning}
               />
+              <Button
+                variant="ghost"
+                title={theme === "dark" ? "切换浅色主题" : "切换深色主题"}
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              >
+                {theme === "dark" ? <Moon size={20} /> : <Sun size={20} />}
+              </Button>
+              <Button
+                variant="ghost"
+                title="设置"
+                onClick={() => {
+                  navigate("settings");
+                }}
+              >
+                <SettingsIcon size={20} />
+                <UpdateBadge />
+              </Button>
             </div>
           </div>
-        </a>
-        <nav aria-label="功能模块">
-          {available.map(([id, label]) => (
-            <button
-              key={id}
-              className={"nav-tab " + (id === "monitor" ? "integrated" : "")}
-              aria-current={page === id ? "page" : undefined}
-              onClick={() => navigate(id)}
-            >
-              <span className="nav-icon" aria-hidden="true">
-                {labelIcon(label, 18)}
-              </span>
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="header-status">
-          <div className="header-tools">
-            <Tasks
-              notice={notice}
-              onClear={() => setNotice(null)}
-              onWarningChange={setTaskWarning}
-            />
-            <Button
-              variant="ghost"
-              title={theme === "dark" ? "切换浅色主题" : "切换深色主题"}
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            >
-              {theme === "dark" ? <Moon size={20} /> : <Sun size={20} />}
-            </Button>
-            <Button
-              variant="ghost"
-              title="设置"
-              onClick={() => {
-                navigate("settings");
-              }}
-            >
-              <SettingsIcon size={20} />
-              <UpdateBadge />
-            </Button>
-          </div>
-        </div>
-      </header>
+        </header>
+      </div>
       <TrafficWindowContext.Provider
         value={Number(
           state?.manager_settings.traffic_chart_window_seconds || 30,
@@ -529,7 +563,7 @@ function App() {
                   <DataFreshness statusRefresh={statusRefresh} />
                 )}
                 <footer>
-                  v{state?.version || "0.9.1"} · Go / React ·
+                  v{state?.version || "0.9.2"} · Go / React ·
                   网络变更采用预览、确认与回退
                 </footer>
               </main>

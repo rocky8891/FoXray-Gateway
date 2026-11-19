@@ -1,3 +1,12 @@
+import { AdoptIcon } from "./action_icons";
+import { DoneIcon, LoadMoreIcon, PreviewIcon } from "./action_icons";
+import {
+  DetailsIcon,
+  SpeedTestIcon,
+  ProbeIcon,
+  UpdateIcon,
+  SelectAllIcon,
+} from "./action_icons";
 import { SortIcon } from "./resource_controls";
 import { AppearanceIcon } from "./appearance_icon";
 import {
@@ -100,6 +109,18 @@ import {
   type LucideIcon,
 } from "lucide-react";
 const definitions: [RegExp, LucideIcon][] = [
+  [/纳管/, AdoptIcon as LucideIcon],
+  [/^完成$/, DoneIcon as LucideIcon],
+  [/加载更多|加载更早/, LoadMoreIcon as LucideIcon],
+  [/编辑/, Pencil],
+  [/^开启/, CircleCheck],
+  [/^关闭/, CircleMinus],
+  [/预览/, PreviewIcon as LucideIcon],
+  [/^全选$|^取消全选$/, SelectAllIcon as LucideIcon],
+  [/详情/, DetailsIcon as LucideIcon],
+  [/测速|检测速度/, SpeedTestIcon as LucideIcon],
+  [/^检测$|检测延迟/, ProbeIcon as LucideIcon],
+  [/^更新$|一键更新|升级|应用更新/, UpdateIcon as LucideIcon],
   [/全部节点/, AllNodesIcon as LucideIcon],
   [/^全局$|^全局设置$/, GlobalSettingsIcon as LucideIcon],
   [/^服务管理$|FoXray 服务管理/, ServiceManagementIcon as LucideIcon],

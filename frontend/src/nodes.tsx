@@ -1,3 +1,7 @@
+import { HomeTools } from "./home_tools";
+import { AdaptiveSearch } from "./adaptive_search";
+import { ResetFilters } from "./list_controls";
+import { SelectAllIcon } from "./action_icons";
 import {
   ExportButton,
   PaginatedCards,
@@ -165,6 +169,8 @@ export function FilterBar({
   onChange,
   monitor = false,
   compact = false,
+  grid = false,
+  selectionControl,
   toolbar,
   children,
   sortOptions,
@@ -177,6 +183,8 @@ export function FilterBar({
   onChange: (value: Filters) => void;
   monitor?: boolean;
   compact?: boolean;
+  grid?: boolean;
+  selectionControl?: React.ReactNode;
   toolbar?: React.ReactNode;
   children?: React.ReactNode;
   sortOptions?: string[][];
@@ -214,7 +222,7 @@ export function FilterBar({
   const search = (
       <>
         {" "}
-        <label className="search">
+        <AdaptiveSearch>
           <Search size={16} />
           <input
             aria-label={interfaceMode ? "搜索接口" : "搜索节点"}
@@ -224,7 +232,7 @@ export function FilterBar({
             value={value.query}
             onChange={(e) => set("query", e.target.value)}
           />
-        </label>
+        </AdaptiveSearch>
       </>
     ),
     controls = (
@@ -291,25 +299,35 @@ export function FilterBar({
   return compact ? (
     <div className="management-query-tools">
       {search}
-      <ListFilter
-        label="节点筛选"
-        active={[value.group, value.protocol, value.status].some(
-          (v) => v !== "all",
-        )}
-      >
-        {controls}
-        <Button
-          onClick={() =>
-            onChange({ ...value, group: "all", protocol: "all", status: "all" })
-          }
-        >
-          重置筛选
-        </Button>
-      </ListFilter>
-      <ListFilter label="节点排序" icon={<ArrowUpDown size={16} />}>
-        {sortControl}
-        {direction}
-      </ListFilter>
+      {grid && (
+        <>
+          <ListFilter
+            label="节点筛选"
+            active={[value.group, value.protocol, value.status].some(
+              (v) => v !== "all",
+            )}
+          >
+            {controls}
+            <Button
+              onClick={() =>
+                onChange({
+                  ...value,
+                  group: "all",
+                  protocol: "all",
+                  status: "all",
+                })
+              }
+            >
+              重置
+            </Button>
+          </ListFilter>
+          <ListFilter label="节点排序" icon={<ArrowUpDown size={16} />}>
+            {sortControl}
+            {direction}
+          </ListFilter>
+          {selectionControl}
+        </>
+      )}
     </div>
   ) : monitor ? (
     <div
@@ -318,14 +336,14 @@ export function FilterBar({
       }
     >
       <div className="monitor-search-row">
+        {refreshControl && (
+          <span className="monitor-refresh-control">{refreshControl}</span>
+        )}
         {search}
         <div className="actions">
           {rangeControl}
           {toolbar}
           {direction}
-          {refreshControl && (
-            <span className="monitor-refresh-control">{refreshControl}</span>
-          )}
         </div>
       </div>
       <div className="monitor-filter-controls">{controls}</div>
@@ -386,6 +404,9 @@ function NodeColumnFilter({
           ))}
         </select>
       </Field>
+      <Button onClick={() => onChange({ ...value, [field]: "all" })}>
+        重置
+      </Button>
     </ListFilter>
   );
 }
@@ -1213,6 +1234,7 @@ export function Home({
         <Button
           title="保存"
           variant={layoutDirty ? "primary" : undefined}
+          highlighted={layoutDirty}
           disabled={savingLayout || !layoutDirty}
           onClick={async () => {
             setSavingLayout(true);
@@ -1259,10 +1281,9 @@ export function Home({
       style={{ display: "contents" }}
     >
       {!preview && (
-        <aside
-          className="overview-side-tools"
-          data-overview-view={page}
-          aria-label="主页快捷工具"
+        <HomeTools
+          fullWidth={Number(presentation.content_width_percent || 80) === 100}
+          view={page}
         >
           {navigation}
           {act && (
@@ -1346,7 +1367,7 @@ export function Home({
               </div>
             </>
           )}
-        </aside>
+        </HomeTools>
       )}
       {(page === "dashboard" || servicesView) && (
         <Panel className="dashboard-current">
@@ -1665,7 +1686,15 @@ export function NodeTable({
     />
   );
 }
-export function Nodes({ state, act }: { state: State; act: Act }) {
+export function Nodes({
+  state,
+  act,
+  refresh,
+}: {
+  state: State;
+  act: Act;
+  refresh: () => Promise<void>;
+}) {
   const [filters, setFilters] = useState<Filters>(filterDefaults),
     [view, setView] = useView("xray.nodes", "list"),
     [selection, setSelection] = useState<Set<string>>(new Set()),
@@ -1744,6 +1773,7 @@ export function Nodes({ state, act }: { state: State; act: Act }) {
         description="Xray-core 节点管理 · 每个节点独立检测与切换"
       />
       <div className="management-toolbar">
+        <Button onClick={() => void refresh()}>刷新</Button>
         <Button variant="primary" onClick={() => setImporting(true)}>
           导入节点
         </Button>
@@ -1790,8 +1820,58 @@ export function Nodes({ state, act }: { state: State; act: Act }) {
           value={filters}
           onChange={setFilters}
           compact
+          grid={view === "grid"}
+          selectionControl={
+            <Button
+              iconOnly
+              ariaLabel={
+                visible.length > 0 && visible.every((n) => selection.has(n.id))
+                  ? "取消全选"
+                  : "全选"
+              }
+              onClick={() =>
+                setSelection(
+                  visible.length > 0 &&
+                    visible.every((n) => selection.has(n.id))
+                    ? new Set()
+                    : new Set(visible.map((n) => n.id)),
+                )
+              }
+              title="选择当前筛选范围全部节点，包含其他分页及停用节点"
+            >
+              <SelectAllIcon />
+            </Button>
+          }
         />
         <div className="management-view-switch">
+          <ResetFilters
+            active={
+              filters.query !== "" ||
+              filters.group !== "all" ||
+              filters.protocol !== "all" ||
+              filters.status !== "all"
+            }
+            selectedCount={selected.length}
+            summary={[
+              filters.query && `搜索：${filters.query}`,
+              filters.group !== "all" && `分组：${filters.group}`,
+              filters.protocol !== "all" && `协议：${filters.protocol}`,
+              filters.status !== "all" && `状态：${filters.status}`,
+              `${visible.length} 项`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            onClick={() => {
+              setSelection(new Set());
+              setFilters({
+                ...filters,
+                query: "",
+                group: "all",
+                protocol: "all",
+                status: "all",
+              });
+            }}
+          />
           <ExportButton
             name="Xray节点"
             rows={
@@ -1816,40 +1896,13 @@ export function Nodes({ state, act }: { state: State; act: Act }) {
             <Button
               key={v}
               variant={view === v ? "primary" : "secondary"}
+              highlighted={view === v}
               onClick={() => setView(v)}
             >
               {v === "list" ? "列表" : "宫格"}
             </Button>
           ))}
         </div>
-      </div>
-      <div
-        className={
-          view === "grid" ? "resource-batch-bar" : "empty-selection-bar"
-        }
-      >
-        {view === "grid" && (
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={
-                visible.length > 0 && visible.every((n) => selection.has(n.id))
-              }
-              onChange={(e) =>
-                setSelection(
-                  e.target.checked
-                    ? new Set(visible.map((n) => n.id))
-                    : new Set(),
-                )
-              }
-            />
-            全选{" "}
-            <SettingInfo
-              label="全选节点"
-              text="选择当前筛选范围内全部节点，包含其他分页及已停用节点；也可单击卡片多选。"
-            />
-          </label>
-        )}
       </div>
       {view === "grid" ? (
         <PaginatedCards
@@ -1940,6 +1993,7 @@ export function Nodes({ state, act }: { state: State; act: Act }) {
       {config && (
         <Modal
           title="节点配置（认证参数已隐藏）"
+          copyText={JSON.stringify(config, null, 2)}
           onClose={() => setConfig(null)}
           wide
         >
@@ -2155,7 +2209,15 @@ function EditNode({
     </Modal>
   );
 }
-export function Subscriptions({ state, act }: { state: State; act: Act }) {
+export function Subscriptions({
+  state,
+  act,
+  refresh,
+}: {
+  state: State;
+  act: Act;
+  refresh: () => Promise<void>;
+}) {
   const [edit, setEdit] = useState<Dict | null>(null),
     [remove, setRemove] = useState<Dict | null>(null),
     [deleteNodes, setDeleteNodes] = useState(false),
@@ -2325,6 +2387,7 @@ export function Subscriptions({ state, act }: { state: State; act: Act }) {
         description="管理订阅与所属节点；启用、停用同时作用于订阅和节点，停止更新仅关闭自动更新。"
       />
       <div className="management-toolbar subscription-toolbar">
+        <Button onClick={() => void refresh()}>刷新</Button>
         <Button
           variant="primary"
           onClick={() =>
@@ -2376,7 +2439,7 @@ export function Subscriptions({ state, act }: { state: State; act: Act }) {
           ]}
         />
         <div className="management-query-tools">
-          <label className="search">
+          <AdaptiveSearch>
             <Search size={16} />
             <input
               aria-label="搜索订阅"
@@ -2384,32 +2447,73 @@ export function Subscriptions({ state, act }: { state: State; act: Act }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-          </label>
-          <ListFilter label="订阅筛选" active={status !== "all"}>
-            {subscriptionStatusControl}
-            <Button onClick={() => setStatus("all")}>重置筛选</Button>
-          </ListFilter>
-          <ListFilter label="订阅排序" icon={<ArrowUpDown size={16} />}>
-            <Field label="排序">
-              <select
-                aria-label="订阅排序"
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
+          </AdaptiveSearch>
+          {view === "grid" && (
+            <>
+              <ListFilter label="订阅筛选" active={status !== "all"}>
+                {subscriptionStatusControl}
+                <Button onClick={() => setStatus("all")}>重置</Button>
+              </ListFilter>
+              <ListFilter label="订阅排序" icon={<ArrowUpDown size={16} />}>
+                <Field label="排序">
+                  <select
+                    aria-label="订阅排序"
+                    value={sort}
+                    onChange={(e) => setSort(e.target.value)}
+                  >
+                    <option value="name">名称</option>
+                    <option value="count">节点数量</option>
+                    <option value="created">添加时间</option>
+                    <option value="updated">更新时间</option>
+                    <option value="mode">更新方式</option>
+                    <option value="status">状态</option>
+                  </select>
+                </Field>
+                <Button onClick={() => setDescending(!descending)}>
+                  {descending ? "降序" : "升序"}
+                </Button>
+              </ListFilter>
+              <Button
+                iconOnly
+                ariaLabel={allSubscriptionsSelected ? "取消全选" : "全选"}
+                onClick={() =>
+                  setSelected(
+                    allSubscriptionsSelected
+                      ? selectedIDs.filter(
+                          (id) => !rows.some((s) => s.id === id),
+                        )
+                      : [
+                          ...new Set([
+                            ...selectedIDs,
+                            ...rows.map((s) => s.id),
+                          ]),
+                        ],
+                  )
+                }
+                title="选择当前筛选范围全部订阅，包含其他分页和停用订阅"
               >
-                <option value="name">名称</option>
-                <option value="count">节点数量</option>
-                <option value="created">添加时间</option>
-                <option value="updated">更新时间</option>
-                <option value="mode">更新方式</option>
-                <option value="status">状态</option>
-              </select>
-            </Field>
-            <Button onClick={() => setDescending(!descending)}>
-              {descending ? "降序" : "升序"}
-            </Button>
-          </ListFilter>
+                <SelectAllIcon />
+              </Button>
+            </>
+          )}
         </div>
         <div className="management-view-switch">
+          <ResetFilters
+            active={query !== "" || status !== "all"}
+            selectedCount={selectedIDs.length}
+            summary={[
+              query && `搜索：${query}`,
+              status !== "all" && `状态：${status}`,
+              `${rows.length} 项`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            onClick={() => {
+              setSelected([]);
+              setQuery("");
+              setStatus("all");
+            }}
+          />
           <ExportButton
             name="Xray订阅"
             rows={
@@ -2433,48 +2537,13 @@ export function Subscriptions({ state, act }: { state: State; act: Act }) {
             <Button
               key={id}
               variant={view === id ? "primary" : "secondary"}
+              highlighted={view === id}
               onClick={() => setView(id)}
             >
               {label}
             </Button>
           ))}
         </div>
-      </div>
-      <div
-        className={
-          view === "grid" ? "resource-batch-bar" : "empty-selection-bar"
-        }
-      >
-        {view === "grid" && (
-          <label className="check">
-            <input
-              aria-label="全选筛选订阅"
-              ref={(element) => {
-                if (element)
-                  element.indeterminate =
-                    selectedIDs.length > 0 && !allSubscriptionsSelected;
-              }}
-              type="checkbox"
-              checked={
-                rows.length > 0 && rows.every((s) => selectedIDs.includes(s.id))
-              }
-              onChange={(e) =>
-                setSelected(
-                  e.target.checked
-                    ? [...new Set([...selectedIDs, ...rows.map((s) => s.id)])]
-                    : selectedIDs.filter(
-                        (id) => !rows.some((s) => s.id === id),
-                      ),
-                )
-              }
-            />
-            全选{" "}
-            <SettingInfo
-              label="全选订阅"
-              text="选择当前筛选范围全部订阅，包含其他分页和已停用订阅；单击卡片可多选。"
-            />
-          </label>
-        )}
       </div>
       {view === "grid" ? (
         <PaginatedCards
@@ -2647,6 +2716,7 @@ export function Subscriptions({ state, act }: { state: State; act: Act }) {
                     active={status !== "all"}
                   >
                     {subscriptionStatusControl}
+                    <Button onClick={() => setStatus("all")}>重置</Button>
                   </ListFilter>
                 </span>
               ),

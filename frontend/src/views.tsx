@@ -1,3 +1,5 @@
+import { ResetFilters } from "./list_controls";
+import { hasChanges } from "./settings_save";
 import { PaginatedCards } from "./resource_controls";
 import { NodeManagementIcon } from "./requirement_icons";
 import { TrueLatencyIcon } from "./requirement_icons";
@@ -250,7 +252,24 @@ export function History({
           toolbar={
             <>
               {" "}
-              <Button
+              <ResetFilters
+                active={
+                  !!filters.query ||
+                  filters.group !== "all" ||
+                  filters.protocol !== "all" ||
+                  filters.status !== (module === "xray" ? "enabled" : "all") ||
+                  target !== "all" ||
+                  timeRange.isChanged
+                }
+                summary={[
+                  filters.query && `搜索：${filters.query}`,
+                  `分组：${filters.group}`,
+                  `协议：${filters.protocol}`,
+                  `状态：${filters.status}`,
+                  timeRange.label,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
                 onClick={() => {
                   setFilters({
                     ...filterDefaults,
@@ -260,9 +279,7 @@ export function History({
                   setTarget("all");
                   timeRange.reset();
                 }}
-              >
-                重置筛选
-              </Button>
+              />
             </>
           }
         >
@@ -468,6 +485,18 @@ export function Operations({
       />
       <ErrorLine error={error || failure} />
       <Table
+        footerActions={
+          data?.next && (
+            <Button
+              onClick={() => {
+                setArchive(rows);
+                setBefore(data.next);
+              }}
+            >
+              加载更早记录
+            </Button>
+          )
+        }
         rows={rows}
         rowKey={(r) => r.id}
         columns={[
@@ -507,32 +536,32 @@ export function Operations({
           {
             key: "details",
             label: "详情",
+            className: "log-details-column",
             render: (r) => (
               <Button
+                size="compact"
+                iconOnly
+                title="查看日志"
+                ariaLabel="查看日志"
                 onClick={() => {
                   void api<Dict>("/api/operations/" + encodeURIComponent(r.id))
                     .then(setDetail)
                     .catch((e) => setFailure(errorMessage(e)));
                 }}
               >
-                查看日志
+                {labelIcon("查看日志", 18)}
               </Button>
             ),
           },
         ]}
       />
-      {data?.next && (
-        <Button
-          onClick={() => {
-            setArchive(rows);
-            setBefore(data.next);
-          }}
-        >
-          加载更早记录
-        </Button>
-      )}
       {detail && (
-        <Modal title="操作日志详情" onClose={() => setDetail(null)} wide>
+        <Modal
+          title="操作日志详情"
+          copyText={JSON.stringify(detail, null, 2)}
+          onClose={() => setDetail(null)}
+          wide
+        >
           <h3>{text(detail.message)}</h3>
           <p>
             {timestamp(detail.time)} · {text(detail.action)}
@@ -654,8 +683,8 @@ export function ServiceCard({
     restart: "重启",
     connect: "连接隧道",
     disconnect: "断开隧道",
-    enable: "开启自启",
-    disable: "关闭自启",
+    enable: "启用",
+    disable: "停用",
     check: "检查更新",
     upgrade: "升级",
     rollback: "回退",
@@ -680,82 +709,86 @@ export function ServiceCard({
           </span>
         </div>
       )}
-      <dl className="service-values">
-        <div>
-          <dt>服务名称</dt>
-          <dd title={String(data.version || "")}>
-            {service === "xray" ? "foxray-engine.service" : "warp-svc.service"}
-          </dd>
-        </div>
-        <div>
-          <dt>进程状态</dt>
-          <dd>
-            <span
-              className={
-                state === "active"
-                  ? "accent"
-                  : ["inactive", "failed", "dead"].includes(state)
-                    ? "poor"
-                    : "muted"
-              }
-            >
-              {state}
-            </span>{" "}
-            /{" "}
-            <span
-              className={
-                data.substate === "running"
-                  ? "accent"
-                  : data.substate === "dead"
-                    ? "poor"
-                    : "muted"
-              }
-            >
-              {text(data.substate)}
-            </span>
-          </dd>
-        </div>
-        <div>
-          <dt>开机自启</dt>
-          <dd className={data.autostart ? "accent" : "metric-orange"}>
-            {data.autostart ? "enabled" : "disabled"}
-          </dd>
-        </div>
-        {service === "warp" && scope !== "service" && (
+      <div className="service-control-frame">
+        <dl className="service-values">
           <div>
-            <dt>隧道状态</dt>
-            <dd>{tunnel.connected ? "已连接" : text(tunnel.state)}</dd>
+            <dt>服务名称</dt>
+            <dd title={String(data.version || "")}>
+              {service === "xray"
+                ? "foxray-engine.service"
+                : "warp-svc.service"}
+            </dd>
           </div>
-        )}
-      </dl>
-      <div className="service-actions">
-        {actions
-          .filter(
-            (action) =>
-              !["check", "upgrade", "rollback"].includes(action) &&
-              (scope !== "service" ||
-                !["connect", "disconnect"].includes(action)),
-          )
-          .map((action) => (
-            <Button
-              key={action}
-              disabled={unavailable(action)}
-              title={
-                action === "upgrade" && !data.update_available
-                  ? "请先检查更新；当前没有已确认的新版本"
-                  : action === "rollback" && !data.rollback_available
-                    ? "没有可用回退版本"
-                    : undefined
-              }
-              onClick={() =>
-                action === "check"
-                  ? void act("/api/services/action", { service, action })
-                  : setConfirm(action)
-              }
-            >
-              {labels[action]}
-            </Button>
-          ))}
+          <div>
+            <dt>进程状态</dt>
+            <dd>
+              <span
+                className={
+                  state === "active"
+                    ? "accent"
+                    : ["inactive", "failed", "dead"].includes(state)
+                      ? "poor"
+                      : "muted"
+                }
+              >
+                {state}
+              </span>{" "}
+              /{" "}
+              <span
+                className={
+                  data.substate === "running"
+                    ? "accent"
+                    : data.substate === "dead"
+                      ? "poor"
+                      : "muted"
+                }
+              >
+                {text(data.substate)}
+              </span>
+            </dd>
+          </div>
+          <div>
+            <dt>开机自启</dt>
+            <dd className={data.autostart ? "accent" : "metric-orange"}>
+              {data.autostart ? "enabled" : "disabled"}
+            </dd>
+          </div>
+          {service === "warp" && scope !== "service" && (
+            <div>
+              <dt>隧道状态</dt>
+              <dd>{tunnel.connected ? "已连接" : text(tunnel.state)}</dd>
+            </div>
+          )}
+        </dl>
+        <div className="service-actions">
+          {actions
+            .filter(
+              (action) =>
+                !["check", "upgrade", "rollback"].includes(action) &&
+                (scope !== "service" ||
+                  !["connect", "disconnect"].includes(action)),
+            )
+            .map((action) => (
+              <Button
+                key={action}
+                disabled={unavailable(action)}
+                title={
+                  action === "upgrade" && !data.update_available
+                    ? "请先检查更新；当前没有已确认的新版本"
+                    : action === "rollback" && !data.rollback_available
+                      ? "没有可用回退版本"
+                      : undefined
+                }
+                onClick={() =>
+                  action === "check"
+                    ? void act("/api/services/action", { service, action })
+                    : setConfirm(action)
+                }
+              >
+                {labels[action]}
+              </Button>
+            ))}
+        </div>
       </div>
       <VersionPanel
         service={service}
@@ -827,8 +860,8 @@ export function ServicePanel({
         title="服务管理"
         description={
           service === "xray"
-            ? "控制核心进程、开机启动与版本维护；代理接管单独控制"
-            : "控制后台进程、开机启动与版本维护；隧道连接在隧道管理中控制"
+            ? "启动／停止／重启分别执行 systemctl start／stop／restart foxray-engine.service，影响核心连接；启用／停用分别执行 systemctl enable／disable foxray-engine.service，仅修改开机自启。代理接管单独控制。"
+            : "启动／停止／重启分别执行 systemctl start／stop／restart warp-svc.service；启用／停用分别执行 systemctl enable／disable warp-svc.service，仅修改开机自启。隧道连接在隧道管理中通过 warp-cli --accept-tos connect／disconnect 控制。"
         }
         actions={
           <span
@@ -1012,11 +1045,6 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
               <strong>{scope}</strong>
             </div>
           </div>
-          <VPNExclusionsEditor
-            value={draft.vpn_exclusions}
-            onChange={(v) => update("vpn_exclusions", v)}
-            disabled={state.read_only}
-          />
           <div className="form-grid settings-section" aria-label="分流与接管">
             <Field label="分流模式">
               <select
@@ -1072,6 +1100,11 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
               </div>
             </Field>
           </div>
+          <VPNExclusionsEditor
+            value={draft.vpn_exclusions}
+            onChange={(v) => update("vpn_exclusions", v)}
+            disabled={state.read_only}
+          />
           <RuleSetsEditor
             value={list(draft.rule_sets)}
             active={String(draft.active_rule_set || "")}
@@ -1090,6 +1123,12 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
             <p className="small muted">有待保存配置，请先保存，再启用代理。</p>
           )}
           <SaveCard
+            dirty={hasChanges(
+              Object.fromEntries(
+                Object.keys(proxyDefaults).map((k) => [k, draft[k]]),
+              ),
+              state.config,
+            )}
             title="代理模式"
             defaults={() => restoreCard(proxyDefaults)}
             discard={() => restoreCard(proxyDefaults, true)}
@@ -1169,6 +1208,14 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
             }}
           />
           <SaveCard
+            dirty={
+              hasChanges(
+                Object.fromEntries(
+                  Object.keys(detectDefaults).map((k) => [k, draft[k]]),
+                ),
+                state.config,
+              ) || hasChanges(icmpDraft, state.icmp_policy)
+            }
             title="节点检测"
             defaults={() => {
               restoreCard(detectDefaults);
@@ -1345,6 +1392,12 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
             )}
           </div>
           <SaveCard
+            dirty={hasChanges(
+              Object.fromEntries(
+                Object.keys(switchDefaults).map((k) => [k, draft[k]]),
+              ),
+              state.config,
+            )}
             title="自动切换"
             defaults={() => restoreCard(switchDefaults)}
             discard={() => restoreCard(switchDefaults, true)}
@@ -1414,6 +1467,7 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
             <ErrorLine error={bypass.error} />
           </details>
           <SaveCard
+            dirty={hasChanges({ bypass_ips: draft.bypass_ips }, state.config)}
             title="入口直连"
             defaults={() => restoreCard({ bypass_ips: [] })}
             discard={() => restoreCard({ bypass_ips: [] }, true)}
@@ -1484,6 +1538,7 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
             </Button>
             <Button
               variant="primary"
+              highlighted={dirty || !!historyActions.current?.dirty}
               disabled={
                 sum !== 100 || !draft.score_metrics.length || state.read_only
               }
@@ -1708,7 +1763,12 @@ export function DiagnosticLog({ act }: { act: Act }) {
           ]}
         />
         {detail && (
-          <Modal title="诊断详情" onClose={() => setDetail(null)} wide>
+          <Modal
+            title="诊断详情"
+            copyText={JSON.stringify(detail, null, 2)}
+            onClose={() => setDetail(null)}
+            wide
+          >
             <DiagnosticReport operation={detail} embedded />
           </Modal>
         )}
@@ -1854,6 +1914,7 @@ export function ICMPSettings({
       </div>
       {save && (
         <SaveCard
+          dirty={hasChanges(icmp, state.icmp_policy)}
           title="ICMP 检测"
           disabled={state.read_only}
           defaults={() =>
@@ -1871,6 +1932,7 @@ export function ICMPSettings({
       )}
       {!onChange && (
         <SaveCard
+          dirty={hasChanges(icmp, state.icmp_policy)}
           title="ICMP 检测"
           defaults={() =>
             setIcmp({
@@ -1915,8 +1977,8 @@ function ManagerServicePanel({ state, act }: { state: State; act: Act }) {
     start: "启动",
     stop: "停止",
     restart: "重启",
-    enable: "启用自启",
-    disable: "停用自启",
+    enable: "启用",
+    disable: "停用",
   };
   return (
     <Panel className="component-service-panel manager-service-panel">
@@ -1927,7 +1989,9 @@ function ManagerServicePanel({ state, act }: { state: State; act: Act }) {
             管理应用本身；核心服务与 VPN
             连接由各自单元维护。停止管理服务后网页停止响应，需要通过SSH执行{" "}
             <code>systemctl start foxray.service</code>{" "}
-            恢复；自启开关仅修改开机启动状态。
+            恢复。启动／停止／重启对应 systemctl start／stop／restart
+            foxray.service；启用／停用对应 systemctl enable／disable
+            foxray.service，仅修改开机启动状态。
           </>
         }
         actions={
@@ -1944,70 +2008,74 @@ function ManagerServicePanel({ state, act }: { state: State; act: Act }) {
           </span>
         }
       />
-      <dl className="service-values">
-        <div>
-          <dt>服务名称</dt>
-          <dd>foxray.service</dd>
-        </div>
-        <div>
-          <dt>服务状态</dt>
-          <dd>
-            <span
+      <div className="service-control-frame">
+        <dl className="service-values">
+          <div>
+            <dt>服务名称</dt>
+            <dd>foxray.service</dd>
+          </div>
+          <div>
+            <dt>服务状态</dt>
+            <dd>
+              <span
+                className={
+                  data?.state === "active"
+                    ? "accent"
+                    : ["inactive", "failed", "dead"].includes(
+                          String(data?.state),
+                        )
+                      ? "poor"
+                      : "muted"
+                }
+              >
+                {text(data?.state)}
+              </span>{" "}
+              /{" "}
+              <span
+                className={
+                  data?.substate === "running"
+                    ? "accent"
+                    : data?.substate === "dead"
+                      ? "poor"
+                      : "muted"
+                }
+              >
+                {text(data?.substate)}
+              </span>
+            </dd>
+          </div>
+          <div>
+            <dt>开机自启</dt>
+            <dd
               className={
-                data?.state === "active"
-                  ? "accent"
-                  : ["inactive", "failed", "dead"].includes(String(data?.state))
-                    ? "poor"
-                    : "muted"
+                data ? (data.autostart ? "accent" : "metric-orange") : "muted"
               }
             >
-              {text(data?.state)}
-            </span>{" "}
-            /{" "}
-            <span
-              className={
-                data?.substate === "running"
-                  ? "accent"
-                  : data?.substate === "dead"
-                    ? "poor"
-                    : "muted"
+              {data ? (data.autostart ? "enabled" : "disabled") : "读取中"}
+            </dd>
+          </div>
+        </dl>
+        <div className="service-actions">
+          {Object.entries(labels).map(([action, label]) => (
+            <Button
+              key={action}
+              disabled={
+                pending ||
+                scheduled ||
+                state.read_only ||
+                !data?.available ||
+                (action === "start" && data?.state === "active") ||
+                (action === "stop" && data?.state !== "active") ||
+                (action === "enable" && !!data?.autostart) ||
+                (action === "disable" && !data?.autostart)
               }
+              variant={action === "stop" ? "danger" : "secondary"}
+              onClick={() => setConfirm(action)}
             >
-              {text(data?.substate)}
-            </span>
-          </dd>
+              {label}
+            </Button>
+          ))}
         </div>
-        <div>
-          <dt>开机自启</dt>
-          <dd
-            className={
-              data ? (data.autostart ? "accent" : "metric-orange") : "muted"
-            }
-          >
-            {data ? (data.autostart ? "enabled" : "disabled") : "读取中"}
-          </dd>
-        </div>
-      </dl>
-      <div className="service-actions">
-        {Object.entries(labels).map(([action, label]) => (
-          <Button
-            key={action}
-            disabled={
-              pending ||
-              scheduled ||
-              state.read_only ||
-              !data?.available ||
-              (action === "start" && data?.state === "active") ||
-              (action === "stop" && data?.state !== "active") ||
-              (action === "enable" && !!data?.autostart) ||
-              (action === "disable" && !data?.autostart)
-            }
-            variant={action === "stop" ? "danger" : "secondary"}
-            onClick={() => setConfirm(action)}
-          >
-            {label}
-          </Button>
-        ))}
       </div>
       <VersionPanel service="foxray" act={act} current={state.version} />
       {message && <p className="hint">{message}</p>}

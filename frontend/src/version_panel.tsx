@@ -1,17 +1,11 @@
 import { NetworkPage } from "./network";
 import { ProductIcon } from "./product_icons";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import {
-  ArrowDownToLine,
-  BookOpen,
-  CheckCircle2,
-  CircleAlert,
-  Clock3,
-  RefreshCw,
-} from "lucide-react";
+import { BookOpen, RefreshCw } from "lucide-react";
 import { record, timestamp, type Dict } from "./api";
 import {
   Button,
+  SettingInfo,
   Confirm,
   ErrorLine,
   Modal,
@@ -66,7 +60,29 @@ export function VersionPanel({
     } | null>(null),
     [policyBusy, setPolicyBusy] = useState(false),
     [policyMessage, setPolicyMessage] = useState("");
-  const info = record(record(r.data?.services)[service]);
+  const storedInfo = record(record(r.data?.services)[service]);
+  const info: Dict =
+    service === "foxray" &&
+    current &&
+    storedInfo.current &&
+    current !== storedInfo.current
+      ? {
+          ...storedInfo,
+          current,
+          status: "unchecked",
+          message:
+            "当前运行版本：" + current + "；版本检查缓存已过期，请重新检查",
+          update_available: false,
+          checked_at: undefined,
+          latest: undefined,
+        }
+      : {
+          ...storedInfo,
+          current:
+            service === "foxray"
+              ? current || storedInfo.current
+              : storedInfo.current || current,
+        };
   const savedPolicy = record(info.check_policy);
   const policy = policyDraft || {
     enabled: savedPolicy.enabled !== false,
@@ -105,50 +121,29 @@ export function VersionPanel({
       className={"version-panel " + (info.update_available ? "has-update" : "")}
       aria-label={names[service] + "版本管理"}
     >
-      <div className="version-panel-heading">
-        <strong
-          className={
-            checking
-              ? "muted"
-              : info.update_available
-                ? "fair"
-                : info.status === "current"
-                  ? "good"
-                  : info.status === "error"
-                    ? "poor"
-                    : "muted"
-          }
-        >
-          {checking ? (
-            <RefreshCw size={17} className="spin" />
-          ) : info.update_available ? (
-            <CircleAlert size={17} />
-          ) : info.status === "current" ? (
-            <CheckCircle2 size={17} />
-          ) : (
-            <Clock3 size={17} />
-          )}{" "}
-          {checking ? "正在检查版本…" : summary}
-        </strong>
-        {!!info.update_available && (
-          <span className="version-new-badge">有新版本</span>
-        )}
-      </div>
-      <div className="version-source small muted">
-        {String(info.source || "等待版本源检查")}
-      </div>
       <div className="version-facts">
         <span>
-          当前版本 <b>{String(info.current || current || "待检查")}</b>
+          <span className="version-fact-label">当前版本</span>{" "}
+          <b
+            className={
+              info.status === "current" && !info.update_available
+                ? "good"
+                : undefined
+            }
+          >
+            {String(info.current || current || "待检查")}
+          </b>
         </span>
         <span>
-          最新版本 <b>{String(info.latest || "待检查")}</b>
+          <span className="version-fact-label">最新版本</span>{" "}
+          <b>{String(info.latest || "待检查")}</b>
         </span>
         <span>
-          最近检查 <b>{timestamp(info.checked_at)}</b>
+          <span className="version-fact-label">最近检查</span>{" "}
+          <b>{timestamp(info.checked_at)}</b>
         </span>
         <span>
-          自动检查{" "}
+          <span className="version-fact-label">自动检查</span>{" "}
           <b>
             {savedPolicy.enabled === false
               ? "已关闭"
@@ -156,25 +151,42 @@ export function VersionPanel({
           </b>
         </span>
       </div>
-      <div className="actions">
-        <Button
-          disabled={checking || r.data?.read_only === true}
-          onClick={() => {
-            previousCheck.current = info.checked_at;
-            setStarted(Date.now() / 1000);
-            void act("/api/updates/check", { service }).then((ok) => {
-              if (!ok) setStarted(0);
-              void r.refresh();
-            });
-          }}
-        >
-          <RefreshCw size={14} />
-          {checking ? "检查中…" : "检查更新"}
-        </Button>
-        <Button disabled={!info.checked_at} onClick={() => setNotes(true)}>
-          <BookOpen size={14} />
-          更新日志
-        </Button>
+      <div className="actions version-actions">
+        <span className="version-check-control">
+          <Button
+            disabled={checking || r.data?.read_only === true}
+            onClick={() => {
+              previousCheck.current = info.checked_at;
+              setStarted(Date.now() / 1000);
+              void act("/api/updates/check", { service }).then((ok) => {
+                if (!ok) setStarted(0);
+                void r.refresh();
+              });
+            }}
+          >
+            <RefreshCw size={14} />
+            {checking ? "检查中…" : "检查更新"}
+          </Button>
+          <SettingInfo
+            label="检查更新"
+            text={
+              <>
+                <p>{summary}</p>
+                <p>版本来源：{String(info.source || "等待版本源检查")}</p>
+                {Object.entries(info)
+                  .filter(
+                    ([key, value]) =>
+                      /url|^source_url$/.test(key) &&
+                      typeof value === "string" &&
+                      !!value,
+                  )
+                  .map(([key, value]) => (
+                    <p key={key}>{String(value)}</p>
+                  ))}
+              </>
+            }
+          />
+        </span>
         <Button
           disabled={
             !info.update_available ||
@@ -184,10 +196,15 @@ export function VersionPanel({
           }
           onClick={() => setConfirm(true)}
         >
-          <ArrowDownToLine size={14} />
           一键更新
         </Button>
         {rollback}
+        <span className="version-release-notes">
+          <Button disabled={!info.checked_at} onClick={() => setNotes(true)}>
+            <BookOpen size={14} />
+            更新日志
+          </Button>
+        </span>
       </div>
       <div
         className="version-check-policy"
@@ -204,6 +221,10 @@ export function VersionPanel({
             }}
           />
           自动检查新版本
+          <SettingInfo
+            label="自动检查新版本"
+            text="只控制版本信息检查；手动检查随时可用，不自动安装更新。"
+          />
         </label>
         <label className="check-interval-label">
           检查间隔（小时）
@@ -226,6 +247,12 @@ export function VersionPanel({
           />
         </label>
         <Button
+          variant="primary"
+          highlighted={
+            !!policyDraft &&
+            (policy.enabled !== savedPolicy.enabled ||
+              policy.interval_hours !== savedPolicy.interval_hours)
+          }
           disabled={
             !policyDraft ||
             policyBusy ||
@@ -247,17 +274,19 @@ export function VersionPanel({
               .finally(() => setPolicyBusy(false));
           }}
         >
-          保存检查设置
+          保存
         </Button>
-        <span className="small muted" role="status">
-          {policyMessage ||
-            "只控制版本信息检查；手动检查随时可用，不自动安装更新。"}
-        </span>
+        {!!policyMessage && (
+          <span className="small muted" role="status">
+            {policyMessage}
+          </span>
+        )}
       </div>
       <ErrorLine error={r.error} />
       {notes && (
         <Modal
           title={names[service] + " 更新日志"}
+          copyText={`${String(info.current || current || "—")} → ${String(info.latest || "—")}\n\n${String(info.release_notes || "版本源未提供更新日志。")}`}
           wide
           onClose={() => setNotes(false)}
         >
@@ -268,9 +297,6 @@ export function VersionPanel({
           <pre className="release-notes">
             {String(info.release_notes || "版本源未提供更新日志。")}
           </pre>
-          <div className="actions right">
-            <Button onClick={() => setNotes(false)}>关闭</Button>
-          </div>
         </Modal>
       )}
       {confirm && (
@@ -310,7 +336,7 @@ export function WireGuardServicePanel({ act }: { act: Act }) {
     <>
       <Panel className="component-service-panel">
         <PageHeader
-          title="WireGuard 服务管理"
+          title="版本信息"
           icon={<ProductIcon product="wireguard" size={20} />}
           description="WireGuard 按接口管理服务；工具包可以更新，接口启停和自启仍在接口管理中设置。"
         />

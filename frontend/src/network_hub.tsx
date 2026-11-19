@@ -1,6 +1,9 @@
+import { NetworkBatchDialog } from "./network_batch_dialog";
+import { AdaptiveSearch } from "./adaptive_search";
+import { ResetFilters } from "./list_controls";
 import { ExportButton, useRowSelection } from "./resource_controls";
 import { SelectionActions } from "./selection_actions";
-import { CompactFilters } from "./list_controls";
+import { CompactFilters, ListFilter, SortHeading } from "./list_controls";
 import { DNSPage } from "./dns";
 import { ModuleHeading } from "./hubs";
 import { useState } from "react";
@@ -237,23 +240,86 @@ function Interfaces({ act }: { act: Act }) {
   const [editing, setEditing] = useState<Dict | null>(null);
   const [editItem, setEditItem] = useState<Dict>({});
   const [query, setQuery] = useState(""),
-    [status, setStatus] = useState("all"),
+    [columnFilters, setColumnFilters] = useState<Record<string, string>>({}),
+    [sort, setSort] = useState({ key: "name", direction: 1 }),
     [details, setDetails] = useState<unknown>(null),
     [target, setTarget] = useState<Dict | null>(null),
     [ack, setAck] = useState(false),
     [failure, setFailure] = useState(""),
     [plan, setPlan] = useState<Plan | null>(null);
-  const rows = list(resource.data?.items)
+  const columnValue = (r: Dict, key: string): string | number =>
+    key === "name"
+      ? text(r.ifname)
+      : key === "ip"
+        ? list(r.addr_info)
+            .map((ip) => text(ip.local) + "/" + text(ip.prefixlen))
+            .join(", ") || "—"
+        : key === "mac"
+          ? text(r.address)
+          : key === "state"
+            ? r.admin_up
+              ? "已启用"
+              : "已停用"
+            : key === "mtu"
+              ? Number(r.mtu || 0)
+              : text(r[key]);
+  const allRows = list(resource.data?.items);
+  const rows = allRows
     .filter(
       (r) =>
-        (status === "all" || !!r.admin_up === (status === "up")) &&
-        JSON.stringify(r).toLowerCase().includes(query.toLowerCase()),
+        Object.entries(columnFilters).every(
+          ([key, v]) => !v || String(columnValue(r, key)) === v,
+        ) && JSON.stringify(r).toLowerCase().includes(query.toLowerCase()),
     )
-    .sort((a, b) =>
-      text(a.ifname).localeCompare(text(b.ifname), undefined, {
-        numeric: true,
-      }),
-    );
+    .sort((a, b) => {
+      const x = columnValue(a, sort.key),
+        y = columnValue(b, sort.key);
+      return (
+        (typeof x === "number" && typeof y === "number"
+          ? x - y
+          : String(x).localeCompare(String(y), undefined, { numeric: true })) *
+        sort.direction
+      );
+    });
+  const columnHeading = (key: string, label: string) => (
+    <span className="table-heading-tools">
+      <SortHeading
+        label={label}
+        direction={sort.key === key ? sort.direction : undefined}
+        onClick={() =>
+          setSort({ key, direction: sort.key === key ? -sort.direction : 1 })
+        }
+      />
+      <ListFilter label={label + "筛选"} column active={!!columnFilters[key]}>
+        <Field label={label}>
+          <select
+            aria-label={label + "筛选值"}
+            value={columnFilters[key] || ""}
+            onChange={(e) =>
+              setColumnFilters({ ...columnFilters, [key]: e.target.value })
+            }
+          >
+            <option value="">全部</option>
+            {[...new Set(allRows.map((r) => String(columnValue(r, key))))]
+              .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+              .map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+          </select>
+        </Field>
+        <Button
+          onClick={() => setColumnFilters({ ...columnFilters, [key]: "" })}
+        >
+          重置
+        </Button>
+      </ListFilter>
+    </span>
+  );
+  const [bulk, setBulk] = useState<{ operation: string; rows: Dict[] } | null>(
+    null,
+  );
   const selection = useRowSelection(rows, (r) => String(r.ifindex));
   const columns: Column<Dict>[] = [
     selection.column,
@@ -404,7 +470,9 @@ function Interfaces({ act }: { act: Act }) {
               </p>
             </>
           }
-          actions={
+        />
+        <CompactFilters
+          before={
             <>
               <Button
                 onClick={() => {
@@ -418,50 +486,104 @@ function Interfaces({ act }: { act: Act }) {
                 <RefreshCw size={15} />
                 刷新
               </Button>
+
+              <SelectionActions
+                bulk={[
+                  {
+                    label: "启用",
+                    disabled:
+                      !selection.chosen.length ||
+                      selection.chosen.length > 50 ||
+                      !selection.chosen.some(
+                        (r) =>
+                          !r.admin_up && r.ifname !== "lo" && !r.managed_by_vpn,
+                      ),
+                    title: "合并生成预览；回环及 VPN 接口由对应模块维护",
+                    onClick: () =>
+                      setBulk({ operation: "start", rows: selection.chosen }),
+                  },
+                  {
+                    label: "停用",
+                    disabled:
+                      !selection.chosen.length ||
+                      selection.chosen.length > 50 ||
+                      !selection.chosen.some(
+                        (r) =>
+                          r.admin_up && r.ifname !== "lo" && !r.managed_by_vpn,
+                      ),
+                    title: "合并生成预览；回环及 VPN 接口由对应模块维护",
+                    onClick: () =>
+                      setBulk({ operation: "stop", rows: selection.chosen }),
+                  },
+                ]}
+                count={selection.chosen.length}
+                content={
+                  selection.chosen.length === 1
+                    ? columns
+                        .find((c) => c.label === "操作")
+                        ?.render(selection.chosen[0], 0)
+                    : null
+                }
+              />
+              <ResetFilters
+                active={
+                  query !== "" ||
+                  Object.values(columnFilters).some((v) => v && v !== "all")
+                }
+                selectedCount={selection.chosen.length}
+                summary={[
+                  query && `搜索：${query}`,
+                  ...Object.entries(columnFilters)
+                    .filter(([, v]) => v && v !== "all")
+                    .map(([k, v]) => `${k}：${v}`),
+                  `${rows.length} 项`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                onClick={() => {
+                  selection.setSelected(new Set());
+                  setQuery("");
+                  setColumnFilters({});
+                }}
+              />
+              <ExportButton
+                name="网络接口"
+                rows={selection.chosen.length ? selection.chosen : rows}
+              />
             </>
           }
-        />
-        <CompactFilters label="接口筛选" active={status !== "all"}>
-          <label className="search">
+          label="接口筛选"
+        >
+          <AdaptiveSearch>
             <Search size={18} />
             <input
               placeholder="查询接口、IP、MAC、类型"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-          </label>
-          <select
-            aria-label="接口状态"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          >
-            <option value="all">全部状态</option>
-            <option value="up">已启用</option>
-            <option value="down">已停用</option>
-          </select>
+          </AdaptiveSearch>
         </CompactFilters>
-        <div className="management-toolbar">
-          <SelectionActions
-            count={selection.chosen.length}
-            content={
-              selection.chosen.length === 1
-                ? columns
-                    .find((c) => c.label === "操作")
-                    ?.render(selection.chosen[0], 0)
-                : null
-            }
-          />
-          <ExportButton
-            name="网络接口"
-            rows={selection.chosen.length ? selection.chosen : rows}
-          />
-        </div>
+
         <ErrorLine error={resource.error || failure} />
         <Table
+          keepHeaders
           rows={rows}
           total={list(resource.data?.items).length}
           selectedCount={selection.chosen.length}
-          columns={columns}
+          columns={columns.map((c) =>
+            ["serial", "selected", "action", "actions"].includes(c.key)
+              ? c
+              : {
+                  ...c,
+                  heading: columnHeading(c.key, c.label),
+                  sortDirection:
+                    sort.key === c.key
+                      ? sort.direction === 1
+                        ? "ascending"
+                        : "descending"
+                      : undefined,
+                },
+          )}
           rowKey={(r) => String(r.ifindex)}
         />
       </Panel>
@@ -708,8 +830,22 @@ function Interfaces({ act }: { act: Act }) {
           </div>
         </Modal>
       )}
+      {bulk && (
+        <NetworkBatchDialog
+          kind={"interfaces"}
+          operation={bulk.operation}
+          rows={bulk.rows}
+          act={act}
+          onClose={() => setBulk(null)}
+        />
+      )}
       {details != null && (
-        <Modal title="接口详细信息" onClose={() => setDetails(null)} wide>
+        <Modal
+          title="接口详细信息"
+          copyText={JSON.stringify(details, null, 2)}
+          onClose={() => setDetails(null)}
+          wide
+        >
           <JsonDetails data={details} />
         </Modal>
       )}

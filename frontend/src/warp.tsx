@@ -1,15 +1,13 @@
-import { SortIcon as ArrowUpDown } from "./resource_controls";
-import { ListFilter, SortHeading } from "./list_controls";
+import { hasChanges } from "./settings_save";
+import { AdaptiveSearch } from "./adaptive_search";
+import { ResetFilters } from "./list_controls";
 import {
-  Search,
-  Activity,
-  ChevronDown,
-  RefreshCw,
-  RotateCcw,
-  ArrowRightLeft,
-  PlugZap,
-  Unplug,
-} from "lucide-react";
+  DetectionControl,
+  useWarpMetricSelection,
+  warpTaskProgress,
+} from "./warp_detection_control";
+import { ListFilter, SortHeading } from "./list_controls";
+import { Search, RefreshCw, RotateCcw, PlugZap, Unplug } from "lucide-react";
 import { ActionMenu } from "./action_menu";
 import { HistoryIntervalSettings } from "./history_interval_settings";
 import { NumberInput } from "./ui";
@@ -46,61 +44,14 @@ import {
 } from "./ui";
 import { ServicePanel } from "./views";
 import type { Act } from "./nodes";
-const metricChoices = [
-  ["latency", "RTT"],
-  ["loss", "丢包"],
-  ["true_latency", "真延迟"],
-  ["speed", "速度"],
-];
-function DetectionControl({
-  label,
-  metrics,
-  onChange,
-  onRun,
-  disabled,
-  policy,
-}: {
-  label: string;
-  metrics: string[];
-  onChange: (metrics: string[]) => void;
-  onRun: () => void;
-  disabled: boolean;
-  policy: Dict | null;
-}) {
-  return (
-    <div className="detection-control">
-      <Button disabled={disabled || !metrics.length} onClick={onRun}>
-        <Activity size={15} />
-        检测
-      </Button>
-      <ListFilter label={label + "检测项"} icon={<ChevronDown size={14} />}>
-        {metricChoices.map(([key, name]) => (
-          <label className="check" key={key}>
-            <input
-              type="checkbox"
-              checked={metrics.includes(key)}
-              disabled={
-                (key === "speed" && policy?.speed_enabled === false) ||
-                (key === "true_latency" && policy?.enabled === false)
-              }
-              onChange={(e) =>
-                onChange(
-                  e.target.checked
-                    ? [...metrics, key]
-                    : metrics.filter((m) => m !== key),
-                )
-              }
-            />
-            {name}
-          </label>
-        ))}
-      </ListFilter>
-    </div>
-  );
-}
 export function WarpPage({ act }: { act: Act }) {
   const scout = useResource<Dict>("/api/warp/scout", 15000);
-  const monitor = useResource<Dict>("/api/warp/monitor-policy", 15000);
+  const [metrics, setMetrics] = useWarpMetricSelection(
+    "foxray.warp.candidate-test.metrics",
+  );
+  const [currentMetrics, setCurrentMetrics] = useWarpMetricSelection(
+    "foxray.warp.current-test.metrics",
+  );
   const [sort, setSort] = useState({ key: "rank", direction: 1 });
   const [candidateQuery, setCandidateQuery] = useState(""),
     [candidateStatus, setCandidateStatus] = useState("all");
@@ -120,34 +71,28 @@ export function WarpPage({ act }: { act: Act }) {
   });
   const [protocol, setProtocol] = useState("masque-h2"),
     [port, setPort] = useState(443),
-    [metrics, setMetrics] = useState([
-      "latency",
-      "loss",
-      "true_latency",
-      "speed",
-    ]),
-    [currentMetrics, setCurrentMetrics] = useState([
-      "latency",
-      "loss",
-      "true_latency",
-      "speed",
-    ]),
     [selected, setSelected] = useState<Set<string>>(new Set()),
     [confirm, setConfirm] = useState<Dict | null>(null),
     [failure, setFailure] = useState("");
   const [submitting, setSubmitting] = useState(false),
     [pendingTask, setPendingTask] = useState<string | null>(null);
   const busy = submitting || pendingTask !== null;
-  const effectiveMetrics = metrics.filter(
-    (k) =>
-      (k !== "speed" || monitor.data?.speed_enabled !== false) &&
-      (k !== "true_latency" || monitor.data?.enabled !== false),
-  );
-  const effectiveCurrentMetrics = currentMetrics.filter(
-    (k) =>
-      (k !== "speed" || monitor.data?.speed_enabled !== false) &&
-      (k !== "true_latency" || monitor.data?.enabled !== false),
-  );
+  const [runningScope, setRunningScope] = useState<
+      "current" | "candidate" | null
+    >(null),
+    [runningMetrics, setRunningMetrics] = useState<string[]>([]),
+    [pendingTaskData, setPendingTaskData] = useState<Task | null>(null),
+    [cancelling, setCancelling] = useState(false);
+  const cancelDetection = async () => {
+    if (!pendingTask || cancelling) return;
+    setCancelling(true);
+    try {
+      await api("/api/tasks/cancel", { id: pendingTask });
+    } catch (e) {
+      setFailure(errorMessage(e));
+      setCancelling(false);
+    }
+  };
   useEffect(() => {
     if (!pendingTask) return;
     const controller = new AbortController();
@@ -163,12 +108,16 @@ export function WarpPage({ act }: { act: Act }) {
         );
         if (cancelled) return;
         const task = data.tasks.find((task) => task.id === pendingTask);
+        setPendingTaskData(task || null);
         if (task && !["running", "queued"].includes(task.status)) {
           await scout.refreshLatest();
           if (cancelled) return;
           if (!["success", "partial"].includes(task.status))
             setFailure(task.message || "任务未完成，请查看任务详情");
           setPendingTask(null);
+          setRunningScope(null);
+          setPendingTaskData(null);
+          setCancelling(false);
           return;
         }
         if (++rounds >= 3600) throw new Error("任务仍未完成，请查看任务详情");
@@ -177,6 +126,9 @@ export function WarpPage({ act }: { act: Act }) {
         if (!cancelled && !controller.signal.aborted) {
           setFailure(errorMessage(e));
           setPendingTask(null);
+          setRunningScope(null);
+          setPendingTaskData(null);
+          setCancelling(false);
         }
       }
     };
@@ -270,6 +222,18 @@ export function WarpPage({ act }: { act: Act }) {
     if (busy) return;
     setSubmitting(true);
     setFailure("");
+    setRunningScope(
+      data.operation === "test-current"
+        ? "current"
+        : data.operation === "scan"
+          ? "candidate"
+          : null,
+    );
+    setRunningMetrics(
+      Array.isArray(data.metrics) ? (data.metrics as string[]) : [],
+    );
+    setPendingTaskData(null);
+    setCancelling(false);
     try {
       let taskId = "";
       const ok = await act(path, data, (result) => {
@@ -279,6 +243,7 @@ export function WarpPage({ act }: { act: Act }) {
         if (taskId) setPendingTask(taskId);
         else await scout.refreshLatest();
       }
+      if (!ok || !taskId) setRunningScope(null);
     } finally {
       setSubmitting(false);
     }
@@ -304,7 +269,7 @@ export function WarpPage({ act }: { act: Act }) {
         ? timestamp(r.tested_at)
         : "未记录";
   const protocolFields = (
-    <div className="form-grid">
+    <div className="warp-protocol-controls">
       <Field label="隧道类型">
         <select value={protocol} onChange={(e) => setProtocol(e.target.value)}>
           <option value="masque-h2">MASQUE TCP</option>
@@ -348,106 +313,119 @@ export function WarpPage({ act }: { act: Act }) {
         </div>
       </SecondaryNav>
       {tab === "tunnel" && (
-        <Panel>
+        <Panel className="warp-tunnel-panel">
           <PageHeader
             title="WARP 隧道管理"
-            description="连接、断开和检测当前官方隧道。RTT／丢包通过该隧道命名空间检测 1.1.1.1；真延迟访问设置中的 HTTP(S) 目标，速度使用设置中的下载地址。检测项默认全选，关闭的检测策略需先在设置中启用。"
+            description="连接、断开和检测当前官方隧道。RTT／丢包通过该隧道命名空间检测 1.1.1.1；真延迟访问设置中的 HTTP(S) 目标，速度使用设置中的下载地址。检测项首次默认全选，后续记住上次选择。点击左侧执行，右侧调整项目；运行时可取消。"
           />
-          <div className="warp-status">
-            <div>
-              <span className="small muted">当前状态</span>
-              <strong className={current.connected ? "accent" : "fair"}>
-                {current.connected ? "已连接" : text(current.state)}
-              </strong>
-            </div>
-            <div>
-              <span className="small muted">实际端点／配置端点</span>
-              <strong>
-                {text(current.endpoint_address || current.override)}
-              </strong>
-            </div>
-            <div>
-              <span className="small muted">隧道类型</span>
-              <strong>{text(current.transport || current.protocol)}</strong>
-            </div>
-            <div>
-              <span className="small muted">最近确认</span>
-              <strong>{timestamp(current.checked_at)}</strong>
-            </div>
-          </div>
-          <div className="warp-status current-warp-metrics">
-            {[
-              ["rtt_ms", "RTT", " ms"],
-              ["loss_pct", "丢包", "%"],
-              ["true_latency_ms", "真延迟", " ms"],
-              ["speed_kib_s", "速度", ""],
-            ].map(([key, label, unit]) => (
-              <div key={key}>
-                <span className="small muted">{label}</span>
-                <strong>
-                  {record(scout.data?.current_metrics)[key] == null
-                    ? "未测"
-                    : key === "speed_kib_s"
-                      ? bandwidth(record(scout.data?.current_metrics)[key])
-                      : text(record(scout.data?.current_metrics)[key]) + unit}
+          <div className="service-control-frame">
+            <div className="warp-status tunnel-state-tiles">
+              <div>
+                <span className="small muted">当前状态</span>
+                <strong className={current.connected ? "accent" : "fair"}>
+                  {current.connected ? "已连接" : text(current.state)}
                 </strong>
-                {record(scout.data?.current_metrics)[
-                  (
-                    {
-                      rtt_ms: "latency",
-                      loss_pct: "loss",
-                      true_latency_ms: "true_latency",
-                      speed_kib_s: "speed",
-                    } as Record<string, string>
-                  )[key] + "_attempt_ok"
-                ] === false && (
-                  <SettingInfo
-                    label={label + "本次检测未通过"}
-                    text={String(
-                      record(scout.data?.current_metrics)[
-                        (
-                          {
-                            true_latency_ms: "true_latency_error",
-                            speed_kib_s: "speed_error",
-                          } as Record<string, string>
-                        )[key]
-                      ] || "本次未获得有效结果；有数值时为上次成功记录。",
-                    )}
-                  />
-                )}
               </div>
-            ))}
+              <div>
+                <span className="small muted">实际端点／配置端点</span>
+                <strong>
+                  {text(current.endpoint_address || current.override)}
+                </strong>
+              </div>
+              <div>
+                <span className="small muted">隧道类型</span>
+                <strong>{text(current.transport || current.protocol)}</strong>
+              </div>
+              <div>
+                <span className="small muted">最近确认</span>
+                <strong>{timestamp(current.checked_at)}</strong>
+              </div>
+            </div>
+            <div className="warp-status current-warp-metrics tunnel-state-tiles">
+              {[
+                ["rtt_ms", "RTT", " ms", "rtt_at"],
+                ["loss_pct", "丢包", "%", "loss_at"],
+                ["true_latency_ms", "真延迟", " ms", "true_latency_at"],
+                ["speed_kib_s", "速度", "", "speed_at"],
+              ].map(([key, label, unit, timeKey]) => (
+                <div key={key}>
+                  <span className="small muted">{label}</span>
+                  <strong>
+                    {record(scout.data?.current_metrics)[key] == null
+                      ? "未测"
+                      : key === "speed_kib_s"
+                        ? bandwidth(record(scout.data?.current_metrics)[key])
+                        : text(record(scout.data?.current_metrics)[key]) + unit}
+                  </strong>
+                  <small className="warp-metric-time">
+                    检测时间：
+                    {timestamp(record(scout.data?.current_metrics)[timeKey])}
+                  </small>
+                  {record(scout.data?.current_metrics)[
+                    (
+                      {
+                        rtt_ms: "latency",
+                        loss_pct: "loss",
+                        true_latency_ms: "true_latency",
+                        speed_kib_s: "speed",
+                      } as Record<string, string>
+                    )[key] + "_attempt_ok"
+                  ] === false && (
+                    <SettingInfo
+                      label={label + "本次检测未通过"}
+                      text={String(
+                        record(scout.data?.current_metrics)[
+                          (
+                            {
+                              true_latency_ms: "true_latency_error",
+                              speed_kib_s: "speed_error",
+                            } as Record<string, string>
+                          )[key]
+                        ] || "本次未获得有效结果；有数值时为上次成功记录。",
+                      )}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="toolbar warp-tunnel-actions">
+              <Button
+                disabled={busy || !!current.connected}
+                onClick={() => setConfirm({ service_action: "connect" })}
+              >
+                <PlugZap size={15} />
+                连接
+              </Button>
+              <Button
+                variant="danger"
+                disabled={busy || !current.connected}
+                onClick={() => setConfirm({ service_action: "disconnect" })}
+              >
+                <Unplug size={15} />
+                断开
+              </Button>
+              <DetectionControl
+                label="当前隧道"
+                metrics={currentMetrics}
+                onChange={setCurrentMetrics}
+                disabled={busy || !current.connected}
+                locked={busy}
+                running={busy && runningScope === "current"}
+                progress={warpTaskProgress(pendingTaskData, runningMetrics)}
+                onCancel={
+                  pendingTask ? () => void cancelDetection() : undefined
+                }
+                cancelling={cancelling}
+                disabledReason={!current.connected ? "请先连接隧道" : undefined}
+                onRun={() =>
+                  void action("test-current", {
+                    metrics: currentMetrics,
+                  })
+                }
+              />
+            </div>
           </div>
-          <div className="toolbar warp-tunnel-actions">
-            <Button
-              disabled={busy || !!current.connected}
-              onClick={() => setConfirm({ service_action: "connect" })}
-            >
-              <PlugZap size={15} />
-              连接
-            </Button>
-            <Button
-              variant="danger"
-              disabled={busy || !current.connected}
-              onClick={() => setConfirm({ service_action: "disconnect" })}
-            >
-              <Unplug size={15} />
-              断开
-            </Button>
-            <DetectionControl
-              label="当前隧道"
-              metrics={effectiveCurrentMetrics}
-              onChange={setCurrentMetrics}
-              disabled={busy || !current.connected}
-              policy={monitor.data}
-              onRun={() =>
-                void action("test-current", {
-                  metrics: effectiveCurrentMetrics,
-                })
-              }
-            />
-          </div>
-          <ErrorLine error={failure || scout.error} />
+          <ErrorLine error={scout.error} />
           {!scout.data?.installed && (
             <p className="hint">
               独立探测工具未安装，当前官方隧道状态仍可查看。
@@ -470,8 +448,8 @@ export function WarpPage({ act }: { act: Act }) {
                 </>
               }
             />
-            {protocolFields}
             <div className="management-toolbar">
+              {protocolFields}
               <Button
                 variant="primary"
                 disabled={busy}
@@ -484,41 +462,36 @@ export function WarpPage({ act }: { act: Act }) {
                 <RotateCcw size={15} />
                 恢复候选
               </Button>
-              <Button
-                disabled={
-                  busy ||
-                  visibleSelected.length !== 1 ||
-                  !rows.find((r) => r.endpoint === visibleSelected[0])
-                    ?.durable ||
-                  !!rows.find((r) => r.endpoint === visibleSelected[0])?.current
-                }
-                onClick={() =>
-                  setConfirm({
-                    operation: "activate",
-                    endpoint: visibleSelected[0],
-                  })
-                }
-              >
-                <ArrowRightLeft size={15} />
-                切换
-              </Button>
               <DetectionControl
                 label="候选端点"
-                metrics={effectiveMetrics}
+                metrics={metrics}
                 onChange={setMetrics}
                 disabled={
                   busy || !visibleSelected.length || visibleSelected.length > 10
                 }
-                policy={monitor.data}
+                locked={busy}
+                running={busy && runningScope === "candidate"}
+                progress={warpTaskProgress(pendingTaskData, runningMetrics)}
+                onCancel={
+                  pendingTask ? () => void cancelDetection() : undefined
+                }
+                cancelling={cancelling}
+                disabledReason={
+                  !visibleSelected.length
+                    ? "请先选择候选端点"
+                    : visibleSelected.length > 10
+                      ? "每批最多选择 10 个端点"
+                      : undefined
+                }
                 onRun={() =>
                   void action("scan", {
                     endpoints: visibleSelected,
-                    metrics: effectiveMetrics,
+                    metrics: metrics,
                   })
                 }
               />
               <div className="management-query-tools">
-                <label className="search">
+                <AdaptiveSearch>
                   <Search size={16} />
                   <input
                     aria-label="搜索候选端点"
@@ -526,54 +499,24 @@ export function WarpPage({ act }: { act: Act }) {
                     value={candidateQuery}
                     onChange={(e) => setCandidateQuery(e.target.value)}
                   />
-                </label>
-                <ListFilter
-                  label="候选端点筛选"
-                  active={candidateStatus !== "all"}
-                >
-                  {candidateStatusControl}
-                  <Button onClick={() => setCandidateStatus("all")}>
-                    重置筛选
-                  </Button>
-                </ListFilter>
-                <ListFilter
-                  label="候选端点排序"
-                  icon={<ArrowUpDown size={16} />}
-                >
-                  <Field label="排序依据">
-                    <select
-                      aria-label="候选端点排序依据"
-                      value={sort.key}
-                      onChange={(e) =>
-                        setSort({
-                          key: e.target.value,
-                          direction: e.target.value === "speed_kib_s" ? -1 : 1,
-                        })
-                      }
-                    >
-                      {[
-                        ["rank", "排名"],
-                        ["endpoint", "端点"],
-                        ["rtt_ms", "隧道 RTT"],
-                        ["loss_pct", "隧道丢包"],
-                        ["speed_kib_s", "最近带宽"],
-                        ["true_latency_ms", "真延迟"],
-                      ].map(([id, label]) => (
-                        <option key={id} value={id}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Button
-                    onClick={() =>
-                      setSort({ ...sort, direction: -sort.direction })
-                    }
-                  >
-                    {sort.direction === 1 ? "升序" : "降序"}
-                  </Button>
-                </ListFilter>
+                </AdaptiveSearch>
               </div>
+              <ResetFilters
+                active={candidateQuery !== "" || candidateStatus !== "all"}
+                selectedCount={visibleSelected.length}
+                summary={[
+                  candidateQuery && `搜索：${candidateQuery}`,
+                  candidateStatus !== "all" && `状态：${candidateStatus}`,
+                  `${rows.length} 项`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                onClick={() => {
+                  setSelected(new Set());
+                  setCandidateQuery("");
+                  setCandidateStatus("all");
+                }}
+              />
             </div>
 
             <ErrorLine error={failure || scout.error} />
@@ -654,6 +597,9 @@ export function WarpPage({ act }: { act: Act }) {
                         active={candidateStatus !== "all"}
                       >
                         {candidateStatusControl}
+                        <Button onClick={() => setCandidateStatus("all")}>
+                          重置
+                        </Button>
                       </ListFilter>
                     </span>
                   ),
@@ -758,11 +704,11 @@ export function WarpPage({ act }: { act: Act }) {
                       items={[
                         {
                           label: "检测",
-                          disabled: busy || !effectiveMetrics.length,
+                          disabled: busy || !metrics.length,
                           onClick: () =>
                             void action("scan", {
                               endpoints: [r.endpoint],
-                              metrics: effectiveMetrics,
+                              metrics: metrics,
                             }),
                         },
                         {
@@ -900,6 +846,7 @@ function WarpPolicy({
         ))}
       </div>
       <SaveCard
+        dirty={hasChanges(policy, original)}
         title="切换模式"
         disabled={!data}
         defaults={() =>
@@ -1016,7 +963,7 @@ function WarpMonitorSettings({ act }: { act: Act }) {
   return (
     <Panel className="warp-detection-settings">
       <PageHeader
-        title="WARP 检测"
+        title="隧道检测"
         description="真连接检测与测速分别控制；仅通过 WARP 隧道检测，不会自动连接隧道。"
       />
       <SettingsSection className="detection-section" title="真连接延迟检测">
@@ -1073,7 +1020,8 @@ function WarpMonitorSettings({ act }: { act: Act }) {
       </SettingsSection>
       <ErrorLine error={r.error} />
       <SaveCard
-        title="WARP 检测"
+        dirty={hasChanges(draft, { ...defaults, ...r.data })}
+        title="隧道检测"
         disabled={!r.data}
         defaults={() => setDraft(defaults)}
         discard={() => setDraft(null)}

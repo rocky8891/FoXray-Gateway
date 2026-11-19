@@ -17,6 +17,7 @@ export function NetworkBatchDialog({
   act: Act;
   onClose: () => void;
 }) {
+  const aggregate = ["interfaces", "routes", "rules"].includes(kind);
   const [entries, setEntries] = useState<
       { name: string; plan?: Plan; error?: string; applied?: boolean }[]
     >([]),
@@ -29,14 +30,48 @@ export function NetworkBatchDialog({
     setEntries([]);
     setFinished(false);
     void (async () => {
+      if (aggregate) {
+        try {
+          const plan = await api<Plan>("/api/network/plan", {
+            kind,
+            operation:
+              kind === "interfaces"
+                ? operation
+                : operation === "start"
+                  ? "enable"
+                  : "disable",
+            items: rows.map((row) =>
+              kind === "interfaces"
+                ? { name: row.ifname || row.name }
+                : { id: row.id },
+            ),
+            allow_protected: allowed,
+          });
+          if (!cancelled)
+            setEntries([{ name: `所选 ${rows.length} 项 · 合并预览`, plan }]);
+        } catch (e) {
+          if (!cancelled)
+            setEntries([
+              { name: `所选 ${rows.length} 项`, error: errorMessage(e) },
+            ]);
+        }
+        if (!cancelled) setBusy(false);
+        return;
+      }
       const result = [];
       for (const row of rows) {
         const name = String(row.name || row.ifname || row.id);
         try {
           const plan = await api<Plan>("/api/network/plan", {
             kind,
-            operation,
-            item: { name },
+            operation:
+              ["routes", "rules"].includes(kind) &&
+              ["start", "stop"].includes(operation)
+                ? "replace"
+                : operation,
+            item: ["routes", "rules"].includes(kind)
+              ? { id: row.id, enabled: operation === "start" }
+              : { name },
             allow_protected: allowed,
           });
           result.push({ name, plan });
@@ -75,8 +110,11 @@ export function NetworkBatchDialog({
     setFinished(true);
     setBusy(false);
   };
-  const passed = entries.filter((e) => (finished ? e.applied : e.plan)).length,
-    failed = entries.filter((e) => e.error).length;
+  const passed =
+      entries.filter((e) => (finished ? e.applied : e.plan)).length *
+      (aggregate ? rows.length : 1),
+    failed =
+      entries.filter((e) => e.error).length * (aggregate ? rows.length : 1);
   return (
     <Modal
       title={
@@ -141,8 +179,10 @@ export function NetworkBatchDialog({
         </section>
       ))}
       <p className="small muted">
-        每个接口独立预览和回退。提交后请在 120
-        秒内确认网络正常；未确认的变更自动回退。
+        {aggregate
+          ? "所选对象合并为一份变更与回退计划。"
+          : "每个接口独立预览和回退。"}
+        提交后请在 120 秒内确认网络正常；未确认的变更自动回退。
       </p>
       <div className="modal-actions">
         <Button disabled={busy} onClick={onClose}>

@@ -18,14 +18,15 @@ type Step struct {
 	Input string   `json:"input,omitempty"`
 }
 type NetworkPlan struct {
-	ID           string   `json:"id"`
-	Kind         string   `json:"kind"`
-	Summary      string   `json:"summary"`
-	Status       string   `json:"status"`
-	Created      float64  `json:"created"`
-	Expires      float64  `json:"expires"`
-	Warnings     []string `json:"warnings"`
-	Preview      []string `json:"preview"`
+	ID           string                `json:"id"`
+	Kind         string                `json:"kind"`
+	Summary      string                `json:"summary"`
+	Status       string                `json:"status"`
+	Created      float64               `json:"created"`
+	Expires      float64               `json:"expires"`
+	Warnings     []string              `json:"warnings"`
+	Preview      []string              `json:"preview"`
+	ZoneChanges  []ZoneInterfaceChange `json:"zone_changes,omitempty"`
 	steps, undo  []Step
 	applyFiles   func() error
 	undoFiles    func() error

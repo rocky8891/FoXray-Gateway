@@ -1,3 +1,4 @@
+import { hasChanges } from "./settings_save";
 import { useState, type ReactNode } from "react";
 import {
   Database,
@@ -27,6 +28,7 @@ export function DataPolicyCard({
   actions,
   fields,
   extraSave,
+  extraDirty = false,
   extraDefaults,
   extraDiscard,
   ready = true,
@@ -39,6 +41,7 @@ export function DataPolicyCard({
   actions?: ReactNode;
   fields?: ReactNode;
   extraSave?: () => Promise<boolean>;
+  extraDirty?: boolean;
   extraDefaults?: () => void;
   extraDiscard?: () => void;
   ready?: boolean;
@@ -153,6 +156,20 @@ export function DataPolicyCard({
       </SettingsSection>
       <ErrorLine error={validationError || resource.error} />
       <SaveCard
+        dirty={
+          extraDirty ||
+          hasChanges(draft, {
+            interval: 2,
+            retention_days: 30,
+            max_storage_mb: 256,
+            ...record(resource.data?.policy),
+            independent:
+              module === "all" || Boolean(resource.data?.independent),
+          }) ||
+          (storageDraft != null &&
+            storageDraft !==
+              Number(resource.data?.storage_interval ?? storageDefault))
+        }
         disabled={!resource.data || !ready}
         title={title}
         defaults={() => {

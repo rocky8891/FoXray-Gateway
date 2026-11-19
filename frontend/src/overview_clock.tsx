@@ -1,3 +1,4 @@
+import { hasChanges } from "./settings_save";
 import { HomeClockIcon } from "./requirement_icons";
 import { useEffect, useState, useRef } from "react";
 import { record, type Dict } from "./api";
@@ -167,6 +168,7 @@ export function ClockSettings({ act }: { act: Act }) {
         </div>
       </SettingsSection>
       <SaveCard
+ dirty={hasChanges(d,r.data)}
         disabled={invalidServer}
         title="主页时钟"
         defaults={() =>

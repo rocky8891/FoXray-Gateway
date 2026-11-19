@@ -44,11 +44,13 @@ export function Pagination({
   total,
   selected,
   summary,
+  actions,
 }: {
   value: PaginationState;
   total?: number;
   selected?: number;
   summary?: ReactNode;
+  actions?: ReactNode;
 }) {
   const [jump, setJump] = useState("");
   const { page, pageCount, count, start, end } = value;
@@ -149,6 +151,7 @@ export function Pagination({
           </button>
         </div>
       </nav>
+      {actions}
     </div>
   );
 }

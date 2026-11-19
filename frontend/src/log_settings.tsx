@@ -1,3 +1,4 @@
+import { hasChanges } from "./settings_save";
 import { useState } from "react";
 import { record, type Dict } from "./api";
 import { Panel, PageHeader, NumberInput, ErrorLine, useResource } from "./ui";
@@ -104,6 +105,7 @@ function LogTypeSettings({
       </div>
       <ErrorLine error={resource.error} />
       <SaveCard
+ dirty={hasChanges(draft, {...defaults,...record(resource.data?.[kind])})}
         disabled={!resource.data}
         title={title + "保留策略"}
         defaults={() => setDraft({ ...defaults })}

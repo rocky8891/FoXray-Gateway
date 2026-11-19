@@ -1,6 +1,9 @@
+import { AdaptiveSearch } from "./adaptive_search";
+import { MultiSelect } from "./multi_select";
+import { ResetFilters } from "./list_controls";
 import { ExportButton } from "./resource_controls";
 import { ActionMenu } from "./action_menu";
-import { CompactFilters } from "./list_controls";
+import { CompactFilters, ListFilter } from "./list_controls";
 import { SortHeading } from "./list_controls";
 import { NumberInput } from "./ui";
 import { labelIcon } from "./ui_icons";
@@ -202,21 +205,21 @@ export function FirewallPage({ act }: { act: Act }) {
         <>
           <Button
             variant="ghost"
-            title="编辑规则"
+            title="编辑"
             onClick={() => start("replace", r)}
           >
             <Settings2 size={14} />
           </Button>
           <Button
             variant="ghost"
-            title={r.enabled ? "停用规则" : "启用规则"}
+            title={r.enabled ? "停用" : "启用"}
             onClick={() => toggle(r)}
           >
             <Power size={14} />
           </Button>
           <Button
             variant="danger"
-            title="删除规则"
+            title="删除"
             onClick={() => void preview("delete", r)}
           >
             <Trash2 size={14} />
@@ -227,11 +230,52 @@ export function FirewallPage({ act }: { act: Act }) {
           disabled={native || r.editable === false}
           onClick={() => void preview("adopt", r)}
         >
-          纳入管理
+          纳管
         </Button>
       )}
     </div>
   );
+  const filterControls = {
+    protocol: (
+      <Field label="协议">
+        <select
+          aria-label="防火墙协议筛选"
+          value={protocol}
+          onChange={(e) => setProtocol(e.target.value)}
+        >
+          <option value="all">全部协议</option>
+          <option value="tcp">TCP</option>
+          <option value="udp">UDP</option>
+        </select>
+      </Field>
+    ),
+    state: (
+      <Field label="状态">
+        <select
+          aria-label="防火墙状态筛选"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+        >
+          <option value="all">全部状态</option>
+          <option value="enabled">已启用</option>
+          <option value="disabled">已停用</option>
+        </select>
+      </Field>
+    ),
+    owner: (
+      <Field label="归属">
+        <select
+          aria-label="防火墙归属筛选"
+          value={owner}
+          onChange={(e) => setOwner(e.target.value)}
+        >
+          <option value="all">全部来源</option>
+          <option value="managed">FoXray 管理</option>
+          <option value="external">系统／外部配置</option>
+        </select>
+      </Field>
+    ),
+  };
   const columns: Column<Dict>[] = [
     {
       key: "select",
@@ -449,7 +493,15 @@ export function FirewallPage({ act }: { act: Act }) {
         <div className="toolbar firewall-driver-picker">
           <Field
             label="主机防火墙类型"
-            info="选择规则管理工具，不自动启停或迁移系统防火墙。iptables／nftables 已安装不代表多个防火墙正在独立运行。"
+            info={
+              <>
+                <p>
+                  选择规则管理工具，不自动启停或迁移系统防火墙。iptables／nftables
+                  已安装不代表多个防火墙正在独立运行。
+                </p>
+                {!!resource.data?.note && <p>{text(resource.data.note)}</p>}
+              </>
+            }
           >
             <select
               value={driver}
@@ -475,6 +527,70 @@ export function FirewallPage({ act }: { act: Act }) {
               )}
             </select>
           </Field>
+          <Field
+            label="防火墙区域"
+            info={
+              <>
+                <p>
+                  已允许的系统服务：
+                  {Array.isArray(resource.data?.allowed_services)
+                    ? resource.data.allowed_services.join("、")
+                    : "—"}
+                </p>
+                <p>
+                  区域地址伪装：
+                  {resource.data?.masquerade ? "已开启" : "已关闭"}
+                </p>
+              </>
+            }
+          >
+            <select
+              value={zone}
+              onChange={(e) => {
+                setZone(e.target.value);
+                setSelected(new Set());
+              }}
+            >
+              {(zones.length ? zones : [zone]).map((v) => (
+                <option key={v}>{v}</option>
+              ))}
+            </select>
+          </Field>
+          {!native && (
+            <div className="zone-summary">
+              {" "}
+              <Button
+                onClick={() =>
+                  start("add", {
+                    kind: "zone-interface",
+                    zone,
+                    interfaces: [],
+                    driver,
+                  })
+                }
+              >
+                管理接口
+              </Button>
+              <dl className="zone-status-cards" aria-label="区域状态">
+                <div>
+                  <dt>区域目标</dt>
+                  <dd>{text(record(resource.data?.zone_info).target)}</dd>
+                </div>
+                <div>
+                  <dt>绑定接口</dt>
+                  <dd>
+                    {text(record(resource.data?.zone_info).interfaces || "无")}
+                  </dd>
+                </div>
+                <div>
+                  <dt>绑定来源</dt>
+                  <dd>
+                    {text(record(resource.data?.zone_info).sources || "无")}
+                  </dd>
+                </div>
+              </dl>{" "}
+            </div>
+          )}
         </div>
         <div className="firewall-overview">
           <div>
@@ -508,66 +624,8 @@ export function FirewallPage({ act }: { act: Act }) {
             </strong>
           </div>
         </div>
-        <div className="toolbar">
-          <Field label="防火墙区域">
-            <select
-              value={zone}
-              onChange={(e) => {
-                setZone(e.target.value);
-                setSelected(new Set());
-              }}
-            >
-              {(zones.length ? zones : [zone]).map((v) => (
-                <option key={v}>{v}</option>
-              ))}
-            </select>
-          </Field>
-          <p className="small muted">
-            已允许的系统服务：
-            {Array.isArray(resource.data?.allowed_services)
-              ? resource.data.allowed_services.join("、")
-              : "—"}
-          </p>
-          <p className="small muted">
-            区域地址伪装：{resource.data?.masquerade ? "已开启" : "已关闭"}
-          </p>
-        </div>
-        {!native && (
-          <div className="zone-summary">
-            <span>
-              区域目标：
-              <strong>{text(record(resource.data?.zone_info).target)}</strong>
-            </span>
-            <span>
-              绑定接口：
-              <strong>
-                {text(record(resource.data?.zone_info).interfaces || "无")}
-              </strong>
-            </span>
-            <span>
-              绑定来源：
-              <strong>
-                {text(record(resource.data?.zone_info).sources || "无")}
-              </strong>
-            </span>
-            <Button
-              onClick={() =>
-                start("add", {
-                  kind: "zone-interface",
-                  zone,
-                  interface: "",
-                  driver,
-                })
-              }
-            >
-              调整接口所属区域
-            </Button>
-          </div>
-        )}
+
         <ErrorLine error={resource.error || failure} />
-        {!!resource.data?.note && (
-          <p className="hint">{text(resource.data.note)}</p>
-        )}
         {!!resource.data?.ruleset_raw && (
           <details className="advanced-form">
             <summary>完整系统规则（只读）</summary>
@@ -603,108 +661,179 @@ export function FirewallPage({ act }: { act: Act }) {
           </SecondaryNav>
         </div>
         <CompactFilters
+          before={
+            <>
+              {category !== "advanced" && (
+                <Button
+                  disabled={!running || !writable}
+                  onClick={() => start("add", defaultRule())}
+                >
+                  <Plus size={15} />
+                  添加
+                </Button>
+              )}
+              <ResetFilters
+                active={
+                  query !== "" ||
+                  protocol !== "all" ||
+                  status !== "all" ||
+                  owner !== "all"
+                }
+                selectedCount={chosen.length}
+                summary={[
+                  query && `搜索：${query}`,
+                  protocol !== "all" && `协议：${protocol}`,
+                  status !== "all" && `状态：${status}`,
+                  owner !== "all" && `归属：${owner}`,
+                  `${rows.length} 项`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                onClick={() => {
+                  setSelected(new Set());
+                  setQuery("");
+                  setProtocol("all");
+                  setStatus("all");
+                  setOwner("all");
+                }}
+              />
+              <ExportButton
+                name={"防火墙-" + category}
+                rows={chosen.length ? chosen : rows}
+              />
+              <Button
+                disabled={
+                  !managedChosen.length ||
+                  managedChosen.length > 50 ||
+                  externalChosen.length > 0 ||
+                  !writable
+                }
+                onClick={() =>
+                  void preview(
+                    "enable",
+                    {},
+                    managedChosen.map((r) => ({ id: r.id })),
+                  )
+                }
+              >
+                启用
+              </Button>
+              <Button
+                disabled={
+                  !managedChosen.length ||
+                  managedChosen.length > 50 ||
+                  externalChosen.length > 0 ||
+                  !writable
+                }
+                onClick={() =>
+                  void preview(
+                    "disable",
+                    {},
+                    managedChosen.map((r) => ({ id: r.id })),
+                  )
+                }
+              >
+                停用
+              </Button>
+              <ActionMenu
+                label="所选规则"
+                triggerLabel="批量操作"
+                items={[
+                  ...(!native
+                    ? [
+                        {
+                          label: "纳管",
+                          disabled:
+                            !externalChosen.length ||
+                            externalChosen.length > 50 ||
+                            !writable,
+                          onClick: () =>
+                            void preview("adopt", {}, externalChosen),
+                        },
+                      ]
+                    : []),
+                  ...[["delete", "删除"]].map(([op, label]) => ({
+                    label,
+                    disabled:
+                      !managedChosen.length ||
+                      managedChosen.length > 50 ||
+                      externalChosen.length > 0 ||
+                      !writable,
+                    onClick: () =>
+                      void preview(
+                        op,
+                        {},
+                        managedChosen.map((r) => ({ id: r.id })),
+                      ),
+                  })),
+                ]}
+              />
+            </>
+          }
           label="防火墙筛选"
           active={protocol !== "all" || status !== "all" || owner !== "all"}
         >
-          <label className="search">
+          <AdaptiveSearch>
             <Search size={15} />
             <input
               placeholder="查询端口、IP、网段或协议"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-          </label>
-          {category !== "ip" && category !== "masquerade" && (
-            <Field label="协议">
-              <select
-                aria-label="防火墙协议筛选"
-                value={protocol}
-                onChange={(e) => setProtocol(e.target.value)}
-              >
-                <option value="all">全部协议</option>
-                <option value="tcp">TCP</option>
-                <option value="udp">UDP</option>
-              </select>
-            </Field>
-          )}
-          <Field label="状态">
-            <select
-              aria-label="防火墙状态筛选"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
-              <option value="all">全部状态</option>
-              <option value="enabled">已启用</option>
-              <option value="disabled">已停用</option>
-            </select>
-          </Field>
-          <Field label="归属">
-            <select
-              aria-label="防火墙归属筛选"
-              value={owner}
-              onChange={(e) => setOwner(e.target.value)}
-            >
-              <option value="all">全部来源</option>
-              <option value="managed">FoXray 管理</option>
-              <option value="external">系统／外部配置</option>
-            </select>
-          </Field>
+          </AdaptiveSearch>
         </CompactFilters>
-        <div className="management-toolbar">
-          {category !== "advanced" && (
-            <Button
-              disabled={!running || !writable}
-              onClick={() => start("add", defaultRule())}
-            >
-              <Plus size={15} />
-              添加
-            </Button>
-          )}
-          <ExportButton
-            name={"防火墙-" + category}
-            rows={chosen.length ? chosen : rows}
-          />
-          <ActionMenu
-            label="规则操作"
-            items={[
-              ...(!native
-                ? [
-                    {
-                      label: "纳管",
-                      disabled:
-                        !externalChosen.length ||
-                        externalChosen.length > 50 ||
-                        !writable,
-                      onClick: () => void preview("adopt", {}, externalChosen),
-                    },
-                  ]
-                : []),
-              ...[
-                ["enable", "启用"],
-                ["disable", "停用"],
-                ["delete", "删除"],
-              ].map(([op, label]) => ({
-                label,
-                disabled:
-                  !managedChosen.length ||
-                  managedChosen.length > 50 ||
-                  externalChosen.length > 0 ||
-                  !writable,
-                onClick: () =>
-                  void preview(
-                    op,
-                    {},
-                    managedChosen.map((r) => ({ id: r.id })),
-                  ),
-              })),
-            ]}
-          />
-        </div>
+
         <Table
           rows={rows}
           total={all.length}
           selectedCount={chosen.length}
-          columns={columns}
+          keepHeaders
+          columns={columns.map((c) =>
+            ["protocol", "state", "owner"].includes(c.key)
+              ? {
+                  ...c,
+                  heading: (
+                    <span className="table-heading-tools">
+                      {c.heading ||
+                        heading(
+                          c.key === "state"
+                            ? "enabled"
+                            : c.key === "owner"
+                              ? "managed"
+                              : c.key,
+                          c.label,
+                        )}
+                      <ListFilter
+                        label={"防火墙" + c.label + "筛选"}
+                        column
+                        active={
+                          {
+                            protocol: protocol !== "all",
+                            state: status !== "all",
+                            owner: owner !== "all",
+                          }[c.key as "protocol" | "state" | "owner"]
+                        }
+                      >
+                        {
+                          filterControls[
+                            c.key as "protocol" | "state" | "owner"
+                          ]
+                        }
+                        <Button
+                          onClick={() => {
+                            if (c.key === "protocol") setProtocol("all");
+                            else if (c.key === "state") setStatus("all");
+                            else setOwner("all");
+                          }}
+                        >
+                          重置
+                        </Button>
+                      </ListFilter>
+                    </span>
+                  ),
+                }
+              : c,
+          )}
           rowKey={(r) => String(r.id)}
         />
       </Panel>
@@ -719,11 +848,13 @@ export function FirewallPage({ act }: { act: Act }) {
             </>
           }
           title={
-            form.kind === "service"
-              ? "防火墙服务操作"
-              : operation === "add"
-                ? "添加防火墙规则"
-                : "编辑防火墙规则"
+            form.kind === "zone-interface"
+              ? "调整接口所属区域"
+              : form.kind === "service"
+                ? "防火墙服务操作"
+                : operation === "add"
+                  ? "添加防火墙规则"
+                  : "编辑防火墙规则"
           }
           onClose={() => setForm(null)}
           wide
@@ -732,6 +863,7 @@ export function FirewallPage({ act }: { act: Act }) {
             <div className="form-grid">
               <Field label="目标区域">
                 <select
+                  aria-label="目标区域"
                   value={String(form.zone)}
                   onChange={(e) => update("zone", e.target.value)}
                 >
@@ -740,17 +872,20 @@ export function FirewallPage({ act }: { act: Act }) {
                   ))}
                 </select>
               </Field>
-              <Field label="接口名称">
-                <select
-                  aria-label="防火墙区域接口"
-                  value={String(form.interface || "")}
-                  onChange={(e) => update("interface", e.target.value)}
-                >
-                  <option value="">选择接口</option>
-                  {interfaces.map((name) => (
-                    <option key={name}>{name}</option>
-                  ))}
-                </select>
+              <Field
+                label="接口名称"
+                hint="可多选，最多50个接口；生成预览后逐项核对原区域及回退命令"
+              >
+                <MultiSelect
+                  label="防火墙区域接口"
+                  options={interfaces}
+                  value={
+                    Array.isArray(form.interfaces)
+                      ? (form.interfaces as string[])
+                      : []
+                  }
+                  onChange={(value) => update("interfaces", value)}
+                />
               </Field>
             </div>
           ) : form.kind === "service" ? (
@@ -783,9 +918,13 @@ export function FirewallPage({ act }: { act: Act }) {
             <Button
               variant="primary"
               disabled={
-                ["service", "zone-interface", "masquerade"].includes(
+                (form.kind === "zone-interface" &&
+                  (!Array.isArray(form.interfaces) ||
+                    !form.interfaces.length)) ||
+                (["service", "zone-interface", "masquerade"].includes(
                   String(form.kind),
-                ) && !ack
+                ) &&
+                  !ack)
               }
               onClick={() => void preview(operation, form)}
             >
@@ -802,11 +941,42 @@ export function FirewallPage({ act }: { act: Act }) {
               {v}
             </p>
           ))}
-          <pre className="command-preview">
-            {plan.preview.length
-              ? plan.preview.join("\n")
-              : "仅变更管理归属，不重复添加系统规则。"}
-          </pre>
+          {!!plan.zone_changes?.length && (
+            <div className="zone-change-preview">
+              {plan.zone_changes.map((change) => (
+                <section key={change.interface}>
+                  <h4>
+                    {change.interface} → {change.target_zone}
+                  </h4>
+                  <p className="small muted">
+                    运行区域：{change.runtime_zone || "未绑定"} · 永久区域：
+                    {change.permanent_zone || "未绑定"}
+                  </p>
+                  <strong>变更命令</strong>
+                  <pre className="command-preview">
+                    {change.commands.length
+                      ? change.commands.join("\n")
+                      : "已在目标区域，无需变更"}
+                  </pre>
+                  <strong>回退信息</strong>
+                  <pre className="command-preview">
+                    {change.rollback.length
+                      ? change.rollback.join("\n")
+                      : "无需回退"}
+                  </pre>
+                </section>
+              ))}
+            </div>
+          )}
+          {!plan.zone_changes?.length && (
+            <>
+              <pre className="command-preview">
+                {plan.preview.length
+                  ? plan.preview.join("\n")
+                  : "仅变更管理归属，不重复添加系统规则。"}
+              </pre>
+            </>
+          )}
           <div className="modal-actions">
             <Button onClick={() => setPlan(null)}>取消</Button>
             <Button
@@ -823,7 +993,12 @@ export function FirewallPage({ act }: { act: Act }) {
         </Modal>
       )}
       {detail != null && (
-        <Modal title="防火墙规则详情" onClose={() => setDetail(null)} wide>
+        <Modal
+          title="防火墙规则详情"
+          copyText={JSON.stringify(detail, null, 2)}
+          onClose={() => setDetail(null)}
+          wide
+        >
           <JsonDetails data={detail} />
         </Modal>
       )}

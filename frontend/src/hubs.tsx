@@ -24,7 +24,10 @@ import {
 import { Nodes, Subscriptions, type Act } from "./nodes";
 import { TrafficPage } from "./traffic";
 import { HostHistoryPage } from "./host";
-import { MonitoringSettings } from "./monitoring_settings";
+import {
+  GlobalMonitoringSettings,
+  MonitoringSettings,
+} from "./monitoring_settings";
 import { SecondaryNav, Panel, Empty } from "./ui";
 import { scopedState, record, type State } from "./api";
 function useTab(key: string, initial: string, override?: string) {
@@ -213,7 +216,15 @@ export function MonitoringHub({
     </div>
   );
 }
-export function XrayHub({ state: fullState, act }: { state: State; act: Act }) {
+export function XrayHub({
+  state: fullState,
+  act,
+  refresh,
+}: {
+  state: State;
+  act: Act;
+  refresh: () => Promise<void>;
+}) {
   const state = scopedState(fullState, "xray");
   const [tab, setTab] = useTab("foxray.xray.tab", "nodes");
   return (
@@ -232,9 +243,9 @@ export function XrayHub({ state: fullState, act }: { state: State; act: Act }) {
         onChange={setTab}
       />
       {tab === "nodes" ? (
-        <Nodes state={state} act={act} />
+        <Nodes state={state} act={act} refresh={refresh} />
       ) : tab === "subscriptions" ? (
-        <Subscriptions state={state} act={act} />
+        <Subscriptions state={state} act={act} refresh={refresh} />
       ) : tab === "dns" ? (
         <DNSPage act={act} />
       ) : tab === "backups" ? (
@@ -286,6 +297,7 @@ export function GlobalSettingsHub({ state, act }: { state: State; act: Act }) {
     ...(state.components.warp ? [["warp", "WARP"]] : []),
     ...(state.components.wireguard ? [["wireguard", "WireGuard"]] : []),
     ["global", "FoXray"],
+    ["preferences", "全局"],
   ];
   const active = tabs.some(([id]) => id === tab) ? tab : "global";
   return (
@@ -305,6 +317,8 @@ export function GlobalSettingsHub({ state, act }: { state: State; act: Act }) {
         <WarpSettings act={act} />
       ) : active === "monitoring" ? (
         <MonitoringSettings state={state} act={act} />
+      ) : active === "preferences" ? (
+        <GlobalMonitoringSettings act={act} />
       ) : active === "logs" ? (
         <LogSettings state={state} act={act} />
       ) : (

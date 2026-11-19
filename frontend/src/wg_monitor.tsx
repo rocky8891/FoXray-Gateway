@@ -1,3 +1,4 @@
+import { hasChanges } from "./settings_save";
 import { HistoryIntervalSettings } from "./history_interval_settings";
 import { NumberInput } from "./ui";
 import { WireGuardServicePanel } from "./version_panel";
@@ -124,6 +125,7 @@ export function WireGuardSettings({ act }: { act: Act }) {
           </div>
         </SettingsSection>
         <SaveCard
+ dirty={hasChanges(draft,r.data || defaults)}
           title="WireGuard ICMP"
           defaults={() => setDraft(structuredClone(defaults))}
           discard={() => setDraft(null)}

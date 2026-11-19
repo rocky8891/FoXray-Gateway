@@ -19,6 +19,7 @@ type Entry = {
   discard?: () => void;
   defaults?: () => void;
   disabled?: boolean;
+  dirty?: boolean;
 };
 const Registry = createContext<
   ((key: string, entry: Entry | null) => void) | null
@@ -33,12 +34,16 @@ export function SettingsSaveProvider({
   const entries = useRef(new Map<string, Entry>()),
     [count, setCount] = useState(0),
     [blockedCount, setBlockedCount] = useState(0),
+    [dirtyCount, setDirtyCount] = useState(0),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
   const register = useCallback((key: string, entry: Entry | null) => {
     if (entry) entries.current.set(key, entry);
     else entries.current.delete(key);
     setCount(entries.current.size);
+    setDirtyCount(
+      [...entries.current.values()].filter((item) => item.dirty).length,
+    );
     setBlockedCount(
       [...entries.current.values()].filter((item) => item.disabled).length,
     );
@@ -83,6 +88,7 @@ export function SettingsSaveProvider({
           </Button>
           <Button
             variant="primary"
+            highlighted={dirtyCount > 0}
             disabled={busy || count < expected || blockedCount > 0}
             onClick={() => {
               setBusy(true);
@@ -123,6 +129,7 @@ export function SaveCard({
   title,
   save,
   disabled = false,
+  dirty = false,
   defaults,
   discard,
   duplicateTarget,
@@ -137,6 +144,7 @@ export function SaveCard({
   defaultsLabel?: string;
   save: () => Promise<boolean>;
   disabled?: boolean;
+  dirty?: boolean;
   defaults?: () => void;
   discard?: () => void;
 }) {
@@ -172,9 +180,10 @@ export function SaveCard({
       discard: () => reset.current?.(),
       defaults: () => defaultRef.current?.(),
       disabled: disabled || busy,
+      dirty,
     });
     return () => register?.(id, null);
-  }, [register, id, title, perform, disabled, busy]);
+  }, [register, id, title, perform, disabled, busy, dirty]);
   const controls = (duplicate = false) => (
     <div className="save-card-footer" ref={duplicate ? undefined : element}>
       <Button
@@ -191,6 +200,7 @@ export function SaveCard({
       </Button>
       <Button
         variant="primary"
+        highlighted={dirty}
         disabled={disabled || busy}
         onClick={() => void perform()}
       >
@@ -204,4 +214,23 @@ export function SaveCard({
       {duplicateTarget && createPortal(controls(true), duplicateTarget)}
     </>
   );
+}
+
+export function hasChanges(draft: unknown, saved: unknown): boolean {
+  if (draft == null) return false;
+  if (Array.isArray(draft))
+    return (
+      !Array.isArray(saved) ||
+      draft.length !== saved.length ||
+      draft.some(
+        (v, i) => hasChanges(v, saved[i]) || (v == null && saved[i] != null),
+      )
+    );
+  if (typeof draft === "object")
+    return Object.entries(draft).some(
+      ([k, v]) =>
+        hasChanges(v, (saved as Record<string, unknown> | null)?.[k]) ||
+        (v == null && (saved as Record<string, unknown> | null)?.[k] != null),
+    );
+  return draft !== saved;
 }

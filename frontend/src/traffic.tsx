@@ -1,3 +1,4 @@
+import { ResetFilters } from "./list_controls";
 import { SortIcon as ArrowUpDown } from "./resource_controls";
 import { SortHeading } from "./list_controls";
 import { NodeManagementIcon, TrafficRangeIcon } from "./requirement_icons";
@@ -478,7 +479,25 @@ export function TrafficPage({
           ]}
           toolbar={
             <>
-              <Button
+              <ResetFilters
+                active={
+                  !!filters.query ||
+                  filters.group !== "all" ||
+                  filters.protocol !== "all" ||
+                  filters.status !== defaults.status ||
+                  node !== "all" ||
+                  metric !== "both" ||
+                  timeRange.isChanged
+                }
+                summary={[
+                  filters.query && `搜索：${filters.query}`,
+                  `分组：${filters.group}`,
+                  `协议：${filters.protocol}`,
+                  `状态：${filters.status}`,
+                  timeRange.label,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
                 onClick={() => {
                   setFilters({
                     ...defaults,
@@ -488,9 +507,7 @@ export function TrafficPage({
                   timeRange.reset();
                   setSort({ key: "name", direction: 1 });
                 }}
-              >
-                重置筛选
-              </Button>
+              />
             </>
           }
         >

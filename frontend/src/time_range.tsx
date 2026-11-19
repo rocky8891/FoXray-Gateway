@@ -101,6 +101,7 @@ export function useTimeRange(override?: number) {
   };
   return {
     value,
+    isChanged: value !== initial,
     setValue: choose,
     start,
     setStart,

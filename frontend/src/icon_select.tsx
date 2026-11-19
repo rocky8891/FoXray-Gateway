@@ -57,8 +57,19 @@ export function IconSelect({
         close();
         return;
       }
+      const context = document.createElement("canvas").getContext("2d"),
+        style = getComputedStyle(m);
+      if (context)
+        context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
       const width = Math.min(
-          Math.max(r.width, 160),
+          Math.max(
+            160,
+            ...options.map(
+              (row) =>
+                (context?.measureText(row.label).width ||
+                  row.label.length * 13) + (showIcon ? 72 : 40),
+            ),
+          ),
           document.documentElement.clientWidth - 24,
         ),
         height = Math.min(m.scrollHeight, 280, innerHeight - 24);

@@ -35,4 +35,4 @@ jobs:
       - name: Build frontend
         run: npm --prefix frontend ci && npm --prefix frontend run build
       - name: Validate shell script
-        run: bash -n install_v0.9.1.sh && bash install_v0.9.1.sh --plan
+        run: bash -n install_v0.9.2.sh && bash install_v0.9.2.sh --plan

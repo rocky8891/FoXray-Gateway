@@ -72,12 +72,15 @@ function MenuLayer({
       });
     };
     place();
+    const resizeObserver = new ResizeObserver(place);
+    if (menu.current) resizeObserver.observe(menu.current);
     menu.current
       ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
       ?.focus();
     addEventListener("resize", place);
     addEventListener("scroll", place, true);
     return () => {
+      resizeObserver.disconnect();
       removeEventListener("resize", place);
       removeEventListener("scroll", place, true);
     };
@@ -189,9 +192,12 @@ function MenuLayer({
                 }
               }}
             >
-              {action.icon || labelIcon(action.label, 15) || (
-                <CircleDot size={15} aria-hidden="true" />
-              )}
+              {(/编辑|^(开启.+|关闭.+|启用|停用)/.test(action.label)
+                ? labelIcon(action.label, 16)
+                : action.icon) ||
+                labelIcon(action.label, 15) || (
+                  <CircleDot size={15} aria-hidden="true" />
+                )}
               <span>{action.label}</span>
               {action.items?.length && (
                 <ChevronRight
@@ -260,8 +266,13 @@ export function ActionMenu({
       <button
         ref={anchor}
         type="button"
-        className="button secondary more-actions-trigger"
-        data-control-icon="true"
+        className={
+          "button secondary " +
+          (triggerLabel === "批量操作"
+            ? "batch-actions-trigger"
+            : "more-actions-trigger")
+        }
+        data-control-icon={triggerLabel === "批量操作" ? undefined : "true"}
         title={triggerLabel}
         aria-label={
           label + (triggerLabel === "更多" ? "更多操作" : triggerLabel)
@@ -277,7 +288,14 @@ export function ActionMenu({
           }
         }}
       >
-        <MoreHorizontal size={18} aria-hidden="true" />
+        {triggerLabel === "批量操作" ? (
+          <>
+            <span>批量操作</span>
+            <ChevronRight size={16} className="batch-chevron" />
+          </>
+        ) : (
+          <MoreHorizontal size={18} aria-hidden="true" />
+        )}
       </button>
       {open && anchor.current && (
         <MenuLayer

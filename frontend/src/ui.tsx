@@ -255,6 +255,8 @@ export function Button({
   title,
   size,
   iconOnly,
+  ariaLabel,
+  highlighted = false,
 }: {
   children: ReactNode;
   onClick?: () => void;
@@ -264,6 +266,8 @@ export function Button({
   title?: string;
   size?: "regular" | "compact";
   iconOnly?: boolean;
+  ariaLabel?: string;
+  highlighted?: boolean;
 }) {
   const hasIcon = (value: ReactNode): boolean =>
     Children.toArray(value).some(
@@ -283,9 +287,26 @@ export function Button({
             : "",
       )
       .join("");
+  const actionCaption = caption(children) || title || ariaLabel || "";
+  const normalizedAction =
+    /检测/.test(actionCaption) && !/取消/.test(actionCaption)
+      ? "检测"
+      : /编辑/.test(actionCaption)
+        ? "编辑"
+        : /^(开启.+|启用)/.test(actionCaption)
+          ? "启用"
+          : /^(关闭.+|停用)/.test(actionCaption)
+            ? "停用"
+            : "";
+  const normalizeActionIcon = !!normalizedAction;
   return (
     <button
-      className={"button " + variant}
+      className={
+        "button " +
+        (variant === "primary" && !highlighted ? "secondary" : variant)
+      }
+      data-action={actionCaption}
+      data-highlighted={highlighted || undefined}
       data-control-size={size}
       data-control-icon={
         (iconOnly ?? !caption(children).trim()) ? "true" : undefined
@@ -294,12 +315,24 @@ export function Button({
       disabled={disabled}
       onClick={onClick}
       title={title}
+      aria-label={ariaLabel}
     >
-      {!hasIcon(children) &&
+      {normalizeActionIcon && labelIcon(normalizedAction, 14)}
+      {!normalizeActionIcon &&
+        !hasIcon(children) &&
         (labelIcon(caption(children), 14) || (
           <CircleDot size={14} aria-hidden="true" />
         ))}
-      {children}
+      {normalizeActionIcon
+        ? Children.toArray(children).filter(
+            (child) =>
+              !(
+                isValidElement(child) &&
+                child.type !== Fragment &&
+                (child.type === "svg" || typeof child.type !== "string")
+              ),
+          )
+        : children}
     </button>
   );
 }
@@ -391,6 +424,7 @@ export function Panel({
 export function Empty({ children = "暂无记录" }: { children?: ReactNode }) {
   return <div className="empty">{children}</div>;
 }
+const DetailsCopyContext = createContext(false);
 export function Modal({
   title,
   description,
@@ -399,8 +433,10 @@ export function Modal({
   wide = false,
   titleControl,
   className = "",
+  copyText,
 }: {
   className?: string;
+  copyText?: string;
   title: string;
   description?: ReactNode;
   children: ReactNode;
@@ -442,7 +478,16 @@ export function Modal({
           <X size={20} />
         </Button>
       </div>
-      <div className="modal-body">{children}</div>
+      <div className="modal-body">
+        {copyText !== undefined && (
+          <div className="modal-detail-tools">
+            <CopyButton text={copyText} />
+          </div>
+        )}
+        <DetailsCopyContext.Provider value={copyText !== undefined}>
+          {children}
+        </DetailsCopyContext.Provider>
+      </div>
     </dialog>
   );
 }
@@ -860,6 +905,8 @@ export function Table<T>({
   total,
   selectedCount,
   paginate = true,
+  keepHeaders = false,
+  footerActions,
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -867,7 +914,22 @@ export function Table<T>({
   total?: number;
   selectedCount?: number;
   paginate?: boolean;
+  keepHeaders?: boolean;
+  footerActions?: ReactNode;
 }) {
+  const edgeWidth = (c: Column<T>) =>
+    c.label === "选择" || ["selected", "select"].includes(c.key)
+      ? 36
+      : c.label === "序号" || c.key === "serial"
+        ? 42
+        : ["操作", "详情"].includes(c.label) ||
+            ["actions", "details"].includes(c.key)
+          ? 48
+          : 0;
+  const minTableWidth = columns.reduce(
+    (sum, c) => sum + (edgeWidth(c) || 140),
+    0,
+  );
   const pagination = usePagination(rows, rows.map(rowKey).join("\u001f"));
   const shown = paginate ? pagination.items : rows;
   const offset = paginate ? pagination.start : 0;
@@ -895,20 +957,31 @@ export function Table<T>({
       .forEach((cell) => observer.observe(cell));
     return () => observer.disconnect();
   }, [rows, columns]);
-  return rows.length ? (
+  return rows.length || keepHeaders ? (
     <>
       <div className="table-wrap">
         <table
           className={
             columns.some((c) => c.label === "节点" || c.label === "节点 / 订阅")
-              ? "has-node-column"
-              : undefined
+              ? "content-width-table balanced-columns has-node-column"
+              : "content-width-table balanced-columns"
           }
           ref={tableRef}
           style={
-            { "--first-column-width": firstWidth + "px" } as React.CSSProperties
+            {
+              "--first-column-width": firstWidth + "px",
+              minWidth: minTableWidth,
+            } as React.CSSProperties
           }
         >
+          <colgroup>
+            {columns.map((c) => (
+              <col
+                key={c.key}
+                style={edgeWidth(c) ? { width: edgeWidth(c) } : undefined}
+              />
+            ))}
+          </colgroup>
           <thead>
             <tr>
               {columns.map((c, columnIndex) => (
@@ -931,6 +1004,13 @@ export function Table<T>({
             </tr>
           </thead>
           <tbody>
+            {!shown.length && (
+              <tr className="table-empty-row">
+                <td colSpan={columns.length}>
+                  <Empty>当前筛选无结果</Empty>
+                </td>
+              </tr>
+            )}
             {shown.map((row, localIndex) => {
               const index = localIndex + offset;
               return (
@@ -968,14 +1048,24 @@ export function Table<T>({
         </table>
       </div>
       {paginate && (
-        <Pagination value={pagination} total={total} selected={selectedCount} />
+        <Pagination
+          value={pagination}
+          total={total}
+          selected={selectedCount}
+          actions={footerActions}
+        />
       )}
     </>
   ) : (
     <>
       <Empty />
       {paginate && (
-        <Pagination value={pagination} total={total} selected={selectedCount} />
+        <Pagination
+          value={pagination}
+          total={total}
+          selected={selectedCount}
+          actions={footerActions}
+        />
       )}
     </>
   );
@@ -987,14 +1077,17 @@ export function JsonDetails({
   data: unknown;
   copyData?: unknown;
 }) {
+  const copyingInModal = useContext(DetailsCopyContext);
   const content = JSON.stringify(data, null, 2) || "";
   return (
     <div className="details-with-copy">
-      <CopyButton
-        text={
-          copyData === undefined ? content : JSON.stringify(copyData, null, 2)
-        }
-      />
+      {!copyingInModal && (
+        <CopyButton
+          text={
+            copyData === undefined ? content : JSON.stringify(copyData, null, 2)
+          }
+        />
+      )}
       <pre className="json-details">{content}</pre>
     </div>
   );

@@ -1,3 +1,4 @@
+import { hasChanges } from "./settings_save";
 import type { HomeRandomTheme } from "./overview_random_theme";
 import { MetricHover } from "./metric_hover";
 import { useAppearanceTheme } from "./theme_appearance";
@@ -1426,6 +1427,7 @@ export function HostSettings({ act }: { act: Act }) {
           </SettingsSection>
           <div className="form-footer">
             <SaveCard
+ dirty={hasChanges(form, resource.data?.policy)}
               title="服务器"
               defaults={() =>
                 setForm({

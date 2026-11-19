@@ -1,4 +1,6 @@
-import { ExportButton, useRowSelection, SortIcon } from "./resource_controls";
+import { AdaptiveSearch } from "./adaptive_search";
+import { ResetFilters } from "./list_controls";
+import { ExportButton, useRowSelection } from "./resource_controls";
 import { ListFilter, SortHeading } from "./list_controls";
 import { SelectionActions } from "./selection_actions";
 import { NetworkBatchDialog } from "./network_batch_dialog";
@@ -41,7 +43,7 @@ import {
 import type { Act } from "./nodes";
 export type NetworkKind = "wireguard" | "routes" | "rules" | "firewall";
 const names: Record<NetworkKind, string> = {
-  wireguard: "WireGuard 管理",
+  wireguard: "接口管理",
   routes: "路由",
   rules: "策略路由",
   firewall: "防火墙管理",
@@ -212,6 +214,18 @@ export function NetworkPage({
               }
             : { zone: "public", protocol: "tcp", port: 8080 },
     );
+  const interfaceStateControl = (
+    <Field label="状态">
+      <select
+        value={filterState}
+        onChange={(e) => setFilterState(e.target.value)}
+      >
+        <option value="all">全部状态</option>
+        <option value="active">已启用</option>
+        <option value="inactive">已停用</option>
+      </select>
+    </Field>
+  );
   const baseColumns: Column<Dict>[] = [
     { key: "serial", label: "序号", render: (_, i) => i + 1 },
   ];
@@ -309,7 +323,7 @@ export function NetworkPage({
           <ActionMenu
             label={String(r.name)}
             primary={{
-              label: "配置",
+              label: "编辑",
               onClick: () => {
                 void api<Dict>(
                   "/api/network/wireguard/profile?name=" +
@@ -330,6 +344,7 @@ export function NetworkPage({
               },
             }}
             items={[
+              { label: "详情", onClick: () => setDetails(r) },
               {
                 label: r.active ? "停止" : "启动",
                 title: "只操作此接口",
@@ -569,16 +584,29 @@ export function NetworkPage({
         : {
             ...c,
             heading: (
-              <SortHeading
-                label={c.label}
-                direction={sort.key === c.key ? sort.direction : undefined}
-                onClick={() =>
-                  setSort({
-                    key: c.key,
-                    direction: sort.key === c.key ? -sort.direction : 1,
-                  })
-                }
-              />
+              <span className="table-heading-tools">
+                <SortHeading
+                  label={c.label}
+                  direction={sort.key === c.key ? sort.direction : undefined}
+                  onClick={() =>
+                    setSort({
+                      key: c.key,
+                      direction: sort.key === c.key ? -sort.direction : 1,
+                    })
+                  }
+                />
+
+                {c.key === "state" && (
+                  <ListFilter
+                    label="接口状态筛选"
+                    column
+                    active={filterState !== "all"}
+                  >
+                    {interfaceStateControl}
+                    <Button onClick={() => setFilterState("all")}>重置</Button>
+                  </ListFilter>
+                )}
+              </span>
             ),
           },
     ),
@@ -587,34 +615,24 @@ export function NetworkPage({
     <>
       <Panel className="network-management management-panel">
         <PageHeader
-          title={serviceOnly ? "WireGuard 接口服务" : names[kind]}
+          title={serviceOnly ? "接口服务" : names[kind]}
           description={
             <>
               {serviceOnly
                 ? "WireGuard 在内核中转发，每个接口由独立的 wg-quick@接口名 服务管理。active / exited 且无常驻PID是正常状态。这里只操作选定接口；外部管理的接口不会被 wg-quick 接管。"
                 : descriptions[kind]}
+              {kind === "wireguard" && (
+                <p>
+                  启动／停止对应 systemctl start／stop
+                  wg-quick@接口名；启用／停用自启对应 systemctl enable／disable
+                  wg-quick@接口名。批量操作逐项生成预览；不改变其他接口。编辑与删除在行菜单中，运行中的接口需先停止。
+                </p>
+              )}
               {kind !== "wireguard" && (
                 <p>
                   系统和其他组件的现有规则保留原归属；新增规则只由 FoXray
                   管理，不清空其他表或全局 reload。
                 </p>
-              )}
-            </>
-          }
-          actions={
-            <>
-              <Button onClick={() => void refresh()}>
-                <RefreshCw size={15} /> 刷新
-              </Button>
-              {!serviceOnly && (
-                <Button onClick={add}>
-                  <Plus size={15} />{" "}
-                  {kind === "wireguard"
-                    ? "添加"
-                    : kind === "firewall"
-                      ? "添加"
-                      : "添加"}
-                </Button>
               )}
             </>
           }
@@ -648,78 +666,22 @@ export function NetworkPage({
           </div>
         )}
         <div className="management-toolbar">
-          <div className="management-query-tools">
-            <label className="search">
-              <Search size={16} />
-              <input
-                placeholder={
-                  serviceOnly
-                    ? "查询接口或服务单元"
-                    : "查询接口、网段、路由表或规则"
-                }
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />{" "}
-            </label>
-            <ListFilter label="接口筛选" active={filterState !== "all"}>
-              <Field label="状态">
-                <select
-                  value={filterState}
-                  onChange={(e) => setFilterState(e.target.value)}
-                >
-                  <option value="all">全部状态</option>
-                  <option value="active">已启用</option>
-                  <option value="inactive">已停用</option>
-                </select>
-              </Field>
-              <Button onClick={() => setFilterState("all")}>重置筛选</Button>
-            </ListFilter>
-            <ListFilter label="接口排序" icon={<SortIcon />}>
-              <Field label="排序依据">
-                <select
-                  value={sort.key}
-                  onChange={(e) => setSort({ ...sort, key: e.target.value })}
-                >
-                  {columns
-                    .filter(
-                      (c) => !["selected", "serial", "actions"].includes(c.key),
-                    )
-                    .map((c) => (
-                      <option key={c.key} value={c.key}>
-                        {c.label}
-                      </option>
-                    ))}
-                </select>
-              </Field>
-              <Button
-                onClick={() => setSort({ ...sort, direction: -sort.direction })}
-              >
-                {sort.direction === 1 ? "升序" : "降序"}
-              </Button>
-            </ListFilter>
-          </div>
-          <ExportButton
-            name={names[kind]}
-            rows={selection.chosen.length ? selection.chosen : rows}
-          />
-        </div>
-        <div className="management-toolbar">
+          <Button onClick={() => void refresh()}>
+            <RefreshCw size={15} /> 刷新
+          </Button>
+          {!serviceOnly && (
+            <Button onClick={add}>
+              <Plus size={15} />{" "}
+              {kind === "wireguard"
+                ? "添加"
+                : kind === "firewall"
+                  ? "添加"
+                  : "添加"}
+            </Button>
+          )}
+
           {kind === "wireguard" ? (
             <>
-              <Button
-                disabled={selection.chosen.length !== 1}
-                onClick={() => setDetails(selection.chosen[0])}
-              >
-                详情
-              </Button>
-              {!serviceOnly && (
-                <Button
-                  disabled={selection.chosen.length !== 1}
-                  onClick={() => void editInterface(selection.chosen[0])}
-                >
-                  编辑
-                </Button>
-              )}
               <Button
                 disabled={
                   !selection.chosen.length || selection.chosen.length > 50
@@ -741,7 +703,8 @@ export function NetworkPage({
                 停用
               </Button>
               <ActionMenu
-                label="接口操作"
+                label="所选接口"
+                triggerLabel="批量操作"
                 items={[
                   ["enable", "开启自启"],
                   ["disable", "关闭自启"],
@@ -766,7 +729,43 @@ export function NetworkPage({
               }
             />
           )}
+
+          <div className="management-query-tools">
+            <AdaptiveSearch>
+              <Search size={16} />
+              <input
+                placeholder={
+                  serviceOnly
+                    ? "查询接口或服务单元"
+                    : "查询接口、网段、路由表或规则"
+                }
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />{" "}
+            </AdaptiveSearch>
+          </div>
+          <ResetFilters
+            active={query !== "" || filterState !== "all"}
+            selectedCount={selection.chosen.length}
+            summary={[
+              query && `搜索：${query}`,
+              filterState !== "all" && `状态：${filterState}`,
+              `${rows.length} 项`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            onClick={() => {
+              selection.setSelected(new Set());
+              setQuery("");
+              setFilterState("all");
+            }}
+          />
+          <ExportButton
+            name={names[kind]}
+            rows={selection.chosen.length ? selection.chosen : rows}
+          />
         </div>
+
         {bulk && (
           <NetworkBatchDialog
             kind={kind}
@@ -790,6 +789,7 @@ export function NetworkPage({
           </div>
         )}
         <Table
+          keepHeaders
           rows={rows}
           total={sourceRows.length}
           selectedCount={selection.chosen.length}
@@ -904,7 +904,12 @@ export function NetworkPage({
         </Modal>
       )}
       {details != null && (
-        <Modal title="规则与状态详情" onClose={() => setDetails(null)} wide>
+        <Modal
+          title="规则与状态详情"
+          copyText={JSON.stringify(details, null, 2)}
+          onClose={() => setDetails(null)}
+          wide
+        >
           <JsonDetails data={details} />
         </Modal>
       )}

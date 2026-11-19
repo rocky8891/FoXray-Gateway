@@ -1,3 +1,4 @@
+import { hasChanges } from "./settings_save";
 import { useState, useImperativeHandle, type Ref } from "react";
 import { record, type Dict } from "./api";
 import {
@@ -88,6 +89,7 @@ export function HistoryIntervalSettings({
       </div>
       <ErrorLine error={r.error} />
       <SaveCard
+ dirty={hasChanges(draft, {traffic:60,latency:1,connections:60,...record(r.data?.intervals)})}
         title="监控历史写入间隔"
         disabled={!r.data}
         defaults={() => setDraft({ traffic: 60, latency: 1, connections: 60 })}

@@ -583,13 +583,14 @@ export function RuleSetsEditor({
               规则从上到下匹配已接管的 TCP/UDP；VPN、私网、DNS
               与入口直连始终优先排除。修改先保存到草稿，再点击保存并应用。规则源支持公共域名列表和
               JSON；预定义 URL 由上游开源项目维护，FoXray
-              仅使用；自动更新会替换该规则集中的规则，请将本地专用规则放入独立自定义规则集。
+              仅使用。“新增规则集”创建空白自定义规则；“从内置模板添加”选择大陆白名单、GFWList
+              或全局代理等模板，已存在的模板只定位查看，不重复添加，也不会立即激活。自动更新会替换该规则集中的规则，请将本地专用规则放入独立自定义规则集。
             </>
           }
         />
       </summary>
 
-      <div className="actions">
+      <div className="management-toolbar">
         <Button
           onClick={() =>
             setEdit({
@@ -605,7 +606,7 @@ export function RuleSetsEditor({
         >
           新增规则集
         </Button>
-        <Button onClick={() => setPresets(true)}>添加预定义规则集</Button>
+        <Button onClick={() => setPresets(true)}>从内置模板添加</Button>
       </div>
       <div className="rule-set-list">
         <Table
@@ -770,7 +771,7 @@ export function RuleSetsEditor({
               <p>选择模板后可查看、编辑规则及更新地址，保存并应用后生效。</p>
             </>
           }
-          title="添加预定义规则集"
+          title="从内置模板添加"
           wide
           onClose={() => setPresets(false)}
         >

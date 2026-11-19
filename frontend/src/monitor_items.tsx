@@ -1,3 +1,4 @@
+import { hasChanges } from "./settings_save";
 import { SettingInfo } from "./ui";
 import {
   ScaledMonitorPreview,
@@ -219,6 +220,7 @@ export function MonitorItemsSettings({
         )}
         <ErrorLine error={resource.error} />
         <SaveCard
+ dirty={hasChanges(draft, {...defaults,...record(resource.data?.[module])})}
           title="监控项开关"
           defaults={() => setDraft(defaults)}
           discard={() => setDraft(null)}

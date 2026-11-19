@@ -10,6 +10,71 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Funnel } from "lucide-react";
+import { DoneIcon } from "./action_icons";
+import { Button } from "./ui";
+
+export function ResetFilters({
+  onClick,
+  summary = "",
+  active = false,
+  selectedCount = 0,
+}: {
+  onClick: () => void;
+  summary?: string;
+  active?: boolean;
+  selectedCount?: number;
+}) {
+  const display = [
+    selectedCount > 0 && `已选 ${selectedCount} 项`,
+    active && summary,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+    .replace(
+      /(^| · )(状态|归属|分组|协议|接口)：(all|enabled|disabled|active|inactive|managed|external|standalone|subscription)(?= ·|$)/g,
+      (_: string, prefix: string, label: string, value: string) =>
+        prefix +
+        label +
+        "：" +
+        ({
+          all: "全部",
+          enabled: "已启用",
+          disabled: "已停用",
+          active: "活动",
+          inactive: "非活动",
+          managed: "受管理",
+          external: "外部",
+          standalone: "独立节点",
+          subscription: "订阅节点",
+        }[value] || value),
+    );
+  return (
+    <span className="filter-reset">
+      <Button
+        iconOnly
+        ariaLabel="重置所有筛选"
+        title={display ? `重置所有筛选\n${display}` : "重置所有筛选"}
+        variant="primary"
+        highlighted={!!display}
+        onClick={onClick}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          width="18"
+          height="18"
+          aria-hidden="true"
+        >
+          <path d="M3 11a9 9 0 1 1 2.4 7.2M3 4v7h7" />
+        </svg>
+      </Button>
+    </span>
+  );
+}
 
 export function SortHeading({
   label,
@@ -88,6 +153,8 @@ export function ListFilter({
       });
     };
     place();
+    const resizeObserver = new ResizeObserver(place);
+    if (popup.current) resizeObserver.observe(popup.current);
     popup.current?.querySelector<HTMLElement>("input,select,button")?.focus();
     const outside = (e: PointerEvent) => {
       if (
@@ -100,6 +167,7 @@ export function ListFilter({
     addEventListener("scroll", place, true);
     document.addEventListener("pointerdown", outside);
     return () => {
+      resizeObserver.disconnect();
       removeEventListener("resize", place);
       removeEventListener("scroll", place, true);
       document.removeEventListener("pointerdown", outside);
@@ -154,7 +222,7 @@ export function ListFilter({
                 className="button secondary filter-done"
                 onClick={() => close(true)}
               >
-                完成
+                <DoneIcon size={18} /> 完成
               </button>
             </div>
           </div>,
@@ -169,17 +237,20 @@ export function CompactFilters({
   label,
   active = false,
   actions,
+  before,
 }: {
   children: ReactNode;
   label: string;
   active?: boolean;
   actions?: ReactNode;
+  before?: ReactNode;
 }) {
   const parts = Children.toArray(children).filter(
     (child) => typeof child !== "string" || child.trim(),
   );
   return (
     <div className="management-toolbar">
+      {before}
       <div className="management-query-tools">
         {parts[0]}
         {parts.length > 1 && (

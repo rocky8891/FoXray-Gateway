@@ -127,6 +127,7 @@ export function ModuleSettings({ state }: { state: State; act: Act }) {
                   启用模块
                 </label>
                 <SaveCard
+ dirty={(desired[item.id] ?? enabled) !== enabled || (item.id === "komari" && url !== (state.components.komari_url || ""))}
                   title={item.title + " 功能"}
                   defaults={() => {
                     setDesired((v) => ({

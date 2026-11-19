@@ -8,12 +8,18 @@ import (
 
 func (n *Network) batchPreview(data M) (*NetworkPlan, error) {
 	kind, operation := str(data["kind"]), str(data["operation"])
-	if kind != "firewall" {
-		return nil, errors.New("当前批量操作只用于防火墙规则")
+	if kind != "firewall" && kind != "routes" && kind != "rules" && kind != "interfaces" {
+		return nil, errors.New("当前模块不支持批量操作")
+	}
+	if kind == "interfaces" && operation != "start" && operation != "stop" {
+		return nil, errors.New("接口批量操作仅支持启用和停用")
+	}
+	if (kind == "routes" || kind == "rules") && operation != "enable" && operation != "disable" {
+		return nil, errors.New("路由批量操作仅支持启用和停用")
 	}
 	items := arr(data["items"])
 	if len(items) < 1 || len(items) > 50 {
-		return nil, errors.New("每批选择1至50条规则")
+		return nil, errors.New("每批选择1至50项")
 	}
 	n.mu.Lock()
 	revision := fingerprint(n.managed)
@@ -24,6 +30,9 @@ func (n *Network) batchPreview(data M) (*NetworkPlan, error) {
 	for _, value := range items {
 		item := obj(value)
 		identity := str(item["id"])
+		if kind == "interfaces" {
+			identity = str(item["name"])
+		}
 		if identity == "" || seen[identity] {
 			return nil, errors.New("规则选择包含空值或重复项")
 		}
@@ -50,12 +59,16 @@ func (n *Network) batchPreview(data M) (*NetworkPlan, error) {
 		p.undo = append(p.undo, child.undo...)
 		p.Preview = append(p.Preview, child.Preview...)
 		p.Warnings = append(p.Warnings, child.Warnings...)
-		changes = append(changes, child.persist)
+		if child.persist != nil {
+			changes = append(changes, child.persist)
+		}
 	}
-	names := map[string]string{"adopt": "纳入管理", "enable": "启用", "disable": "停用", "delete": "删除"}
-	p.Summary = fmt.Sprintf("防火墙批量%s · %d 条规则", names[operation], len(items))
+	names := map[string]string{"adopt": "纳入管理", "enable": "启用", "disable": "停用", "delete": "删除", "start": "启用", "stop": "停用"}
+	p.Summary = fmt.Sprintf("%s批量%s · %d 项", map[string]string{"firewall": "防火墙", "interfaces": "接口", "routes": "路由", "rules": "策略路由"}[kind], names[operation], len(items))
 	p.Warnings = uniq(p.Warnings)
-	p.persist = M{"changes": changes}
+	if len(changes) > 0 {
+		p.persist = M{"changes": changes}
+	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if revision != fingerprint(n.managed) {

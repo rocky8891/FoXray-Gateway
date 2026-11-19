@@ -1,0 +1,220 @@
+/* Preview 20261119-1939: one contextual action row per resource list. */
+.management-toolbar {
+  gap: 8px;
+  align-items: center;
+}
+.management-toolbar > .selection-commands {
+  display: contents;
+}
+.management-toolbar > .management-query-tools {
+  order: 2;
+  flex: 1;
+  min-width: 160px;
+}
+.management-toolbar > .management-view-switch {
+  order: 3;
+}
+.management-toolbar > .resource-export {
+  order: 3;
+  margin-left: auto;
+}
+.management-toolbar .actions {
+  flex-wrap: nowrap;
+}
+.batch-chevron {
+  transform: rotate(90deg);
+}
+.tunnel-state-tiles {
+  border: 0;
+  padding: 0;
+  gap: 12px;
+  background: none;
+}
+.tunnel-state-tiles > div {
+  border: 0;
+  background: var(--button);
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  min-width: 0;
+}
+.tunnel-state-tiles strong {
+  overflow-wrap: anywhere;
+}
+.custom-routing > .management-toolbar {
+  justify-content: flex-start;
+}
+.version-check-policy :is(.button, input),
+.field-with-action > .button {
+  --control-height: var(--button-height-compact);
+  height: var(--button-height-compact);
+  min-height: var(--button-height-compact);
+}
+.version-check-policy input {
+  padding-block: 0;
+}
+.resource-pagination select {
+  padding-block: 0;
+}
+.preview-banner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 20px;
+}
+.warp-protocol-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  order: 2;
+}
+.warp-protocol-controls > .field {
+  margin: 0;
+  gap: 4px;
+}
+.warp-protocol-controls > .field > .field-title {
+  display: none;
+}
+.warp-protocol-controls select {
+  height: 42px;
+  min-height: 42px;
+  padding-block: 0;
+}
+/* Card flags and their adjacent menu share a compact, horizontal silhouette. */
+.node-card .node-title-tools .node-title-meta .fi {
+  width: 24px !important;
+  height: 18px !important;
+  flex-basis: 24px !important;
+}
+.node-card .node-title-tools .row-action-menu > .button {
+  --control-height: 18px;
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  padding: 0 !important;
+}
+.node-card .node-title-tools .row-action-menu > .button > svg {
+  height: 14px !important;
+  width: 18px !important;
+}
+.management-toolbar > .resource-export {
+  margin-left: auto;
+}
+@media (max-width: 720px) {
+  :is(
+      .interface-management,
+      .routing-panel,
+      .firewall-main-panel,
+      .network-management,
+      .node-management,
+      .subscription-management
+    )
+    .table-wrap
+    thead {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  :is(
+      .interface-management,
+      .routing-panel,
+      .firewall-main-panel,
+      .network-management,
+      .node-management,
+      .subscription-management
+    )
+    .table-wrap
+    thead
+    tr {
+    display: flex;
+    gap: 12px;
+    width: max-content;
+    min-width: 100%;
+    padding: 8px;
+  }
+  :is(
+      .interface-management,
+      .routing-panel,
+      .firewall-main-panel,
+      .network-management,
+      .node-management,
+      .subscription-management
+    )
+    .table-wrap
+    thead
+    th {
+    display: flex;
+    align-items: center;
+    flex: none;
+    width: auto !important;
+    padding: 0;
+    border: 0;
+    height: 32px;
+  }
+  :is(
+      .interface-management,
+      .routing-panel,
+      .firewall-main-panel,
+      .network-management,
+      .node-management,
+      .subscription-management
+    )
+    .table-wrap
+    thead
+    th:is(
+      [data-column="selected"],
+      [data-column="serial"],
+      [data-label="操作"]
+    ) {
+    display: none;
+  }
+}
+@media (min-width: 1280px) {
+  .management-toolbar > .management-query-tools > .search {
+    max-width: 380px;
+  }
+  .management-toolbar {
+    flex-wrap: nowrap;
+  }
+}
+@media (max-width: 760px) {
+  .management-toolbar {
+    flex-wrap: wrap;
+  }
+  .management-toolbar > .management-query-tools {
+    order: 4;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+  }
+  .management-toolbar > .management-query-tools > .search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .management-toolbar > .management-view-switch {
+    margin-left: auto;
+  }
+  .management-toolbar .button {
+    padding-inline: 8px !important;
+  }
+  .tunnel-state-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 420px) {
+  .management-toolbar {
+    gap: 6px;
+  }
+  .management-toolbar > .management-query-tools {
+    min-width: 0;
+  }
+  .management-toolbar .button {
+    padding-inline: 6px !important;
+  }
+  .tunnel-state-tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

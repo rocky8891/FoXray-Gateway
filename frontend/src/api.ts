@@ -134,6 +134,14 @@ export interface Operation {
   details: Dict;
 }
 export interface Plan {
+  zone_changes?: {
+    interface: string;
+    target_zone: string;
+    runtime_zone: string;
+    permanent_zone: string;
+    commands: string[];
+    rollback: string[];
+  }[];
   preview_only?: boolean;
   id: string;
   kind: string;

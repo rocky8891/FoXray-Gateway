@@ -1,0 +1,50 @@
+/* Restore the previous primary-navigation palette at every menu level. */
+:is(
+  header nav .nav-tab,
+  .secondary-nav button,
+  .module-tabs > button,
+  .subtabs > button,
+  .monitor-settings-tabs > button,
+  .monitor-view-switch > button
+) {
+  color: var(--text) !important;
+  background: var(--button) !important;
+  border-color: var(--line) !important;
+  box-shadow: 0 5px 14px #0001 !important;
+}
+:is(
+    header nav .nav-tab,
+    .secondary-nav button,
+    .module-tabs > button,
+    .subtabs > button,
+    .monitor-settings-tabs > button,
+    .monitor-view-switch > button
+  ):not(:disabled):is(:hover, :focus-visible) {
+  color: var(--text) !important;
+  background: var(--card) !important;
+  border-color: var(--line) !important;
+  box-shadow: 0 3px 10px #0002 !important;
+}
+:is(
+  header nav .nav-tab,
+  .secondary-nav button,
+  .module-tabs > button,
+  .subtabs > button,
+  .monitor-settings-tabs > button,
+  .monitor-view-switch > button
+):is([aria-current="page"], [aria-selected="true"], .selected) {
+  color: var(--accent) !important;
+  background: var(--accent-bg) !important;
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent) !important;
+}
+:is(
+    header nav .nav-tab,
+    .secondary-nav button,
+    .module-tabs > button,
+    .subtabs > button,
+    .monitor-settings-tabs > button,
+    .monitor-view-switch > button
+  )
+  > :is(svg, span) {
+  color: inherit;
+}

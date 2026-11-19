@@ -1,6 +1,10 @@
+import { NetworkBatchDialog } from "./network_batch_dialog";
+import { AdaptiveSearch } from "./adaptive_search";
+import { Layers, ShieldCheck, ListChecks, Globe } from "lucide-react";
+import { ResetFilters } from "./list_controls";
 import { ExportButton, useRowSelection } from "./resource_controls";
 import { SelectionActions } from "./selection_actions";
-import { CompactFilters } from "./list_controls";
+import { CompactFilters, ListFilter } from "./list_controls";
 import { SortHeading } from "./list_controls";
 import { useMemo, useState } from "react";
 import { AlertTriangle, Plus, RefreshCw, Search } from "lucide-react";
@@ -132,6 +136,9 @@ export function RoutingPage({
         sort.direction
       );
     });
+  const [bulk, setBulk] = useState<{ operation: string; rows: Dict[] } | null>(
+    null,
+  );
   const selection = useRowSelection(rows, (r) =>
     String(r.id || JSON.stringify(r)),
   );
@@ -156,6 +163,82 @@ export function RoutingPage({
       setFailure(errorMessage(e));
     }
   };
+  const filterControls = {
+    family: (
+      <Field label="地址族">
+        <select
+          value={family}
+          onChange={(e) => {
+            setFamily(e.target.value);
+            setTable("all");
+          }}
+        >
+          <option value="4">IPv4</option>
+          <option value="6">IPv6</option>
+        </select>
+      </Field>
+    ),
+    owner: (
+      <Field label="归属">
+        <select value={owner} onChange={(e) => setOwner(e.target.value)}>
+          <option value="all">全部来源</option>
+          <option value="managed">FoXray 管理</option>
+          <option value="external">系统／外部</option>
+        </select>
+      </Field>
+    ),
+    table: (
+      <Field label="路由表">
+        <select value={table} onChange={(e) => setTable(e.target.value)}>
+          <option value="all">全部路由表</option>
+          {tables.map((t) => (
+            <option key={t}>{t}</option>
+          ))}
+        </select>
+      </Field>
+    ),
+    status: (
+      <Field label="状态">
+        <select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option value="all">全部状态</option>
+          <option value="enabled">已启用</option>
+          <option value="disabled">已停用</option>
+        </select>
+      </Field>
+    ),
+  };
+  const headerFilter = (key: keyof typeof filterControls) => (
+    <ListFilter
+      label={
+        { family: "地址族", owner: "归属", table: "路由表", status: "状态" }[
+          key
+        ] + "筛选"
+      }
+      column
+      active={
+        {
+          family: family !== "4",
+          owner: owner !== "all",
+          table: table !== "all",
+          status: status !== "all",
+        }[key]
+      }
+    >
+      {filterControls[key]}
+      <Button
+        onClick={() => {
+          if (key === "family") {
+            setFamily("4");
+            setTable("all");
+          } else if (key === "owner") setOwner("all");
+          else if (key === "table") setTable("all");
+          else setStatus("all");
+        }}
+      >
+        重置
+      </Button>
+    </ListFilter>
+  );
   const sortHeading = (key: string, label: string) => (
     <SortHeading
       label={label}
@@ -168,7 +251,16 @@ export function RoutingPage({
   const col = (key: string, label: string): Column<Dict> => ({
     key,
     label,
-    heading: sortHeading(key, label),
+    heading: (
+      <span className="table-heading-tools">
+        {sortHeading(key, label)}
+        {key === "table"
+          ? headerFilter("table")
+          : ["dst", "priority"].includes(key)
+            ? headerFilter("family")
+            : null}
+      </span>
+    ),
     render: (r) =>
       key === "table" && onTable ? (
         <button
@@ -207,6 +299,12 @@ export function RoutingPage({
     {
       key: "state",
       label: "状态",
+      heading: (
+        <span className="table-heading-tools">
+          {sortHeading("enabled", "状态")}
+          {headerFilter("status")}
+        </span>
+      ),
       render: (r) =>
         r.managed ? (
           <span
@@ -221,6 +319,12 @@ export function RoutingPage({
     {
       key: "owner",
       label: "归属",
+      heading: (
+        <span className="table-heading-tools">
+          {sortHeading("managed", "归属")}
+          {headerFilter("owner")}
+        </span>
+      ),
       render: (r) => (
         <>
           {r.managed ? "FoXray" : "系统／外部"}
@@ -234,20 +338,35 @@ export function RoutingPage({
       render: (r) => (
         <div className="actions">
           <Button onClick={() => setDetails(r)}>详情</Button>
-          {r.managed ? (
-            <>
-              <Button onClick={() => begin("replace", r)}>编辑</Button>
-              <Button
-                onClick={() => begin("replace", { ...r, enabled: !enabled(r) })}
-              >
-                {enabled(r) ? "停用" : "启用"}
-              </Button>
-              <Button variant="danger" onClick={() => begin("delete", r)}>
-                删除
-              </Button>
-            </>
-          ) : (
-              route
+          <Button
+            disabled={!r.managed}
+            title={
+              !r.managed
+                ? "先纳管独立规则；系统与 VPN 保留条目不可编辑"
+                : undefined
+            }
+            onClick={() => begin("replace", r)}
+          >
+            编辑
+          </Button>
+          <Button
+            disabled={!r.managed}
+            onClick={() => begin("replace", { ...r, enabled: !enabled(r) })}
+          >
+            {enabled(r) ? "停用" : "启用"}
+          </Button>
+          <Button
+            variant="danger"
+            disabled={!r.managed}
+            title={!r.managed ? "系统与外部条目不可直接删除" : undefined}
+            onClick={() => begin("delete", r)}
+          >
+            删除
+          </Button>
+          <Button
+            disabled={
+              !!r.managed ||
+              !(route
                 ? ["static", "boot"].includes(String(r.protocol)) &&
                   !String(r.dev || "").startsWith("wg-") &&
                   !["vone0", "CloudflareWARP", "vpm-tun"].includes(
@@ -255,10 +374,13 @@ export function RoutingPage({
                   )
                 : Number(r.priority) > 0 &&
                   Number(r.priority) < 32766 &&
-                  !(Number(r.priority) >= 16060 && Number(r.priority) <= 16100)
-            ) ? (
-            <Button onClick={() => begin("adopt", r)}>纳管</Button>
-          ) : null}
+                  !(Number(r.priority) >= 16060 && Number(r.priority) <= 16100))
+            }
+            title="仅纳管独立静态条目；系统、VPN 和保留标记不可接管"
+            onClick={() => begin("adopt", r)}
+          >
+            纳管
+          </Button>
         </div>
       ),
     },
@@ -302,7 +424,34 @@ export function RoutingPage({
               <p>点击列标题排序。</p>
             </>
           }
-          actions={
+        />
+        <div className="firewall-overview">
+          <div>
+            <Layers size={21} />
+            <span>系统与管理条目</span>
+            <strong className="accent">{all.length}</strong>
+          </div>
+          <div>
+            <ShieldCheck size={21} className="metric-blue" />
+            <span>FoXray 管理</span>
+            <strong className="metric-blue">{managed.length}</strong>
+          </div>
+          <div>
+            <ListChecks size={21} className="metric-orange" />
+            <span>已启用管理条目</span>
+            <strong className="metric-orange">
+              {managed.filter(enabled).length}
+            </strong>
+          </div>
+          <div>
+            <Globe size={21} className="metric-purple" />
+            <span>地址族</span>
+            <strong className="metric-purple">IPv{family}</strong>
+          </div>
+        </div>
+
+        <CompactFilters
+          before={
             <>
               <Button onClick={() => begin("add", initial)}>
                 <Plus size={15} />
@@ -312,29 +461,75 @@ export function RoutingPage({
                 <RefreshCw size={15} />
                 刷新
               </Button>
+
+              <SelectionActions
+                bulk={[
+                  {
+                    label: "启用",
+                    disabled:
+                      !selection.chosen.length ||
+                      selection.chosen.length > 50 ||
+                      selection.chosen.some((r) => !r.managed) ||
+                      selection.chosen.every(enabled),
+                    title: "仅支持 FoXray 管理的条目；系统与外部条目需先纳管",
+                    onClick: () =>
+                      setBulk({ operation: "start", rows: selection.chosen }),
+                  },
+                  {
+                    label: "停用",
+                    disabled:
+                      !selection.chosen.length ||
+                      selection.chosen.length > 50 ||
+                      selection.chosen.some((r) => !r.managed) ||
+                      !selection.chosen.some(enabled),
+                    title: "仅支持 FoXray 管理的条目；系统与外部条目需先纳管",
+                    onClick: () =>
+                      setBulk({ operation: "stop", rows: selection.chosen }),
+                  },
+                ]}
+                count={selection.chosen.length}
+                content={
+                  selection.chosen.length === 1
+                    ? columns
+                        .find((c) => c.label === "操作")
+                        ?.render(selection.chosen[0], 0)
+                    : null
+                }
+              />
+              <ResetFilters
+                active={
+                  query !== "" ||
+                  owner !== "all" ||
+                  status !== "all" ||
+                  table !== "all" ||
+                  family !== "4"
+                }
+                selectedCount={selection.chosen.length}
+                summary={[
+                  `IPv${family}`,
+                  query && `搜索：${query}`,
+                  owner !== "all" && `归属：${owner}`,
+                  status !== "all" && `状态：${status}`,
+                  table !== "all" && `路由表：${table}`,
+                  `${rows.length} 项`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                onClick={() => {
+                  selection.setSelected(new Set());
+                  setQuery("");
+                  setOwner("all");
+                  setStatus("all");
+                  setTable("all");
+                  setFamily("4");
+                }}
+              />
+              <ExportButton
+                rows={selection.chosen.length ? selection.chosen : rows}
+                name={title}
+              />
             </>
           }
-        />
-        <div className="firewall-overview">
-          <div>
-            <span>系统与管理条目</span>
-            <strong>{all.length}</strong>
-          </div>
-          <div>
-            <span>FoXray 管理</span>
-            <strong>{managed.length}</strong>
-          </div>
-          <div>
-            <span>已启用管理条目</span>
-            <strong>{managed.filter(enabled).length}</strong>
-          </div>
-          <div>
-            <span>地址族</span>
-            <strong>IPv{family}</strong>
-          </div>
-        </div>
-
-        <CompactFilters
           label="路由与策略筛选"
           active={
             owner !== "all" ||
@@ -343,80 +538,22 @@ export function RoutingPage({
             family !== "4"
           }
         >
-          <label className="search">
+          <AdaptiveSearch>
             <Search size={15} />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="查询网段、接口、路由表、标记"
             />
-          </label>
-          <Field label="地址族">
-            <select
-              value={family}
-              onChange={(e) => {
-                setFamily(e.target.value);
-                setTable("all");
-              }}
-            >
-              <option value="4">IPv4</option>
-              <option value="6">IPv6</option>
-            </select>
-          </Field>
-          <Field label="归属">
-            <select value={owner} onChange={(e) => setOwner(e.target.value)}>
-              <option value="all">全部来源</option>
-              <option value="managed">FoXray 管理</option>
-              <option value="external">系统／外部</option>
-            </select>
-          </Field>
-          <Field label="路由表">
-            <select value={table} onChange={(e) => setTable(e.target.value)}>
-              <option value="all">全部路由表</option>
-              {tables.map((t) => (
-                <option key={t}>{t}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="状态">
-            <select value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="all">全部状态</option>
-              <option value="enabled">已启用</option>
-              <option value="disabled">已停用</option>
-            </select>
-          </Field>
-          <Button
-            onClick={() => {
-              setQuery("");
-              setOwner("all");
-              setStatus("all");
-              setTable("all");
-            }}
-          >
-            重置筛选
-          </Button>
+          </AdaptiveSearch>
         </CompactFilters>
-        <div className="management-toolbar">
-          <SelectionActions
-            count={selection.chosen.length}
-            content={
-              selection.chosen.length === 1
-                ? columns
-                    .find((c) => c.label === "操作")
-                    ?.render(selection.chosen[0], 0)
-                : null
-            }
-          />
-          <ExportButton
-            rows={selection.chosen.length ? selection.chosen : rows}
-            name={title}
-          />
-        </div>
+
         <ErrorLine error={failure || resource.error} />
         {resource.data?.complete === false && (
           <p className="hint">系统规则读取不完整，请刷新后核对。</p>
         )}
         <Table
+          keepHeaders
           rows={rows}
           total={all.length}
           selectedCount={selection.chosen.length}
@@ -496,9 +633,19 @@ export function RoutingPage({
           </div>
         </Modal>
       )}
+      {bulk && (
+        <NetworkBatchDialog
+          kind={kind}
+          operation={bulk.operation}
+          rows={bulk.rows}
+          act={act}
+          onClose={() => setBulk(null)}
+        />
+      )}
       {details != null && (
         <Modal
           title={title + " · 详细信息"}
+          copyText={JSON.stringify(details, null, 2)}
           onClose={() => setDetails(null)}
           wide
         >

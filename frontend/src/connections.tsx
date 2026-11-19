@@ -1,3 +1,5 @@
+import { ResetFilters } from "./list_controls";
+import { AdaptiveSearch } from "./adaptive_search";
 import { useMonitorSections } from "./monitor_sections";
 import type { Act } from "./nodes";
 import { ConnectionIcon } from "./monitor_icons";
@@ -150,7 +152,7 @@ export function ConnectionsPage({
           }
         />
         <div className="monitor-search-row">
-          <label className="search">
+          <AdaptiveSearch>
             <Search size={18} />
             <input
               aria-label="查询连接"
@@ -158,9 +160,26 @@ export function ConnectionsPage({
               onChange={(e) => setQuery(e.target.value)}
               placeholder="查询来源、目标、域名、应用、接口或节点"
             />
-          </label>
+          </AdaptiveSearch>
           <TimeRangeControl range={range} />
-          <Button
+          <ResetFilters
+            active={
+              !!query ||
+              protocol !== "all" ||
+              iface !== "all" ||
+              node !== "all" ||
+              status !== "all" ||
+              scope !== "active" ||
+              range.isChanged
+            }
+            summary={[
+              query && `搜索：${query}`,
+              `协议：${protocol}`,
+              `接口：${iface}`,
+              `状态：${status}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
             onClick={() => {
               setQuery("");
               setProtocol("all");
@@ -170,9 +189,7 @@ export function ConnectionsPage({
               setMetric("count");
               setScope("active");
             }}
-          >
-            重置筛选
-          </Button>
+          />
           <Button
             onClick={() => {
               void r.refresh();
@@ -460,7 +477,12 @@ export function ConnectionsPage({
             />
 
             {detail && (
-              <Modal title="活动连接详情" onClose={() => setDetail(null)} wide>
+              <Modal
+                title="活动连接详情"
+                copyText={JSON.stringify(detail, null, 2)}
+                onClose={() => setDetail(null)}
+                wide
+              >
                 <JsonDetails data={detail} />
               </Modal>
             )}

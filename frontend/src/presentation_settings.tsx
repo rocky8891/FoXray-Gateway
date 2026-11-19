@@ -1,3 +1,5 @@
+import { NodeVisibilityPicker } from "./node_visibility_picker";
+import { hasChanges } from "./settings_save";
 import { SettingInfo } from "./ui";
 import { PageDisplayRangeIcon } from "./requirement_icons";
 import { ColorInput } from "./color_input";
@@ -134,53 +136,79 @@ export function PresentationSettings({
 }
 export function PageWidthSettings({ act }: { act: Act }) {
   const resource = useResource<Dict>("/api/monitoring/presentation", 15000),
-    [draft, setDraft] = useState<number | null>(null);
-  const value = draft ?? Number(resource.data?.content_width_percent ?? 80);
+    [draft, setDraft] = useState<Dict | null>(null);
+  const saved = {
+      content_width_percent: Number(resource.data?.content_width_percent ?? 80),
+      home_header_auto_hide: resource.data?.home_header_auto_hide === true,
+    },
+    value = { ...saved, ...draft };
   return (
     <Panel className="presentation-settings page-width-settings">
       <PageHeader
         title="页面显示范围"
         icon={<PageDisplayRangeIcon size={20} />}
-        description="设置主要内容占屏幕的宽度，默认80%，可调至100%；左右居中，小屏自动适配。"
+        description="设置页面宽度与首页标题栏显示方式；不影响其他页面导航。"
       />
       <SettingsSection>
-        <Field
-          label="页面显示宽度（%）"
-          info="80%保留两侧各10%的留白；100%铺满可用宽度。只修改页面显示。"
-        >
-          <NumberInput
-            aria-label="页面显示宽度（%）"
-            min={80}
-            max={100}
-            value={value}
-            onChange={(event) => setDraft(Number(event.target.value))}
-          />
-        </Field>
+        <div className="form-grid">
+          <Field
+            label="页面显示宽度（%）"
+            info="80%保留两侧留白；100%铺满可用宽度，首页右侧工具条自动收起，悬停或聚焦右边缘可展开。"
+          >
+            <NumberInput
+              aria-label="页面显示宽度（%）"
+              min={80}
+              max={100}
+              value={value.content_width_percent}
+              onChange={(e) =>
+                setDraft({
+                  ...value,
+                  content_width_percent: Number(e.target.value),
+                })
+              }
+            />
+          </Field>
+          <Field
+            label="首页标题栏自动隐藏"
+            info="开启后，首页顶部导航栏自动收起；悬停或聚焦顶部边缘可展开。其他页面保持显示。"
+          >
+            <select
+              aria-label="首页标题栏自动隐藏"
+              value={value.home_header_auto_hide ? "on" : "off"}
+              onChange={(e) =>
+                setDraft({
+                  ...value,
+                  home_header_auto_hide: e.target.value === "on",
+                })
+              }
+            >
+              <option value="off">关闭</option>
+              <option value="on">开启</option>
+            </select>
+          </Field>
+        </div>
       </SettingsSection>
       <SaveCard
         title="页面显示范围"
+        dirty={hasChanges(draft, saved)}
         disabled={
           !resource.data ||
-          !Number.isInteger(value) ||
-          value < 80 ||
-          value > 100
+          !Number.isInteger(value.content_width_percent) ||
+          value.content_width_percent < 80 ||
+          value.content_width_percent > 100
         }
-        defaults={() => setDraft(80)}
+        defaults={() =>
+          setDraft({ content_width_percent: 80, home_header_auto_hide: false })
+        }
         discard={() => setDraft(null)}
         save={async () => {
-          if (
-            draft != null &&
-            !(await act("/api/monitoring/presentation", {
-              content_width_percent: draft,
-            }))
-          )
-            return false;
+          if (!draft) return true;
+          if (!(await act("/api/monitoring/presentation", draft))) return false;
           await resource.refresh();
           setDraft(null);
           return true;
         }}
       />
-      <ErrorLine error={resource.error} />
     </Panel>
   );
 }
@@ -274,6 +302,16 @@ function GlobalPresentationSettings({ act }: { act: Act }) {
       </SettingsSection>
       <ErrorLine error={r.error || modules.error} />
       <SaveCard
+        dirty={
+          hasChanges(draft, { ...defaults, ...r.data }) ||
+          hasChanges(moduleDraft, {
+            host: true,
+            xray: true,
+            warp: true,
+            wireguard: true,
+            ...modules.data,
+          })
+        }
         title="监控总开关"
         disabled={!r.data || !modules.data}
         defaults={() => {
@@ -797,22 +835,7 @@ function OverviewLayoutSettings({
                 </div>
               ) : (
                 <>
-                  <div className="monitor-items-options overview-footer-options">
-                    {[
-                      ["overview_show_clock", "时间"],
-                      ["overview_show_data_status", "数据状态"],
-                    ].map(([key, label]) => (
-                      <label className="check" key={key}>
-                        <input
-                          type="checkbox"
-                          checked={p[key] === true}
-                          onChange={(e) => set(key, e.target.checked)}
-                        />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                  <div className="form-grid">
+                  <div className="form-grid node-display-fields">
                     <Field
                       label="显示数量"
                       validateNumber
@@ -829,48 +852,44 @@ function OverviewLayoutSettings({
                       />
                     </Field>
                     <Field label="显示节点">
-                      <select
-                        aria-label="节点显示范围"
-                        value={String(p.nodes_visibility_mode || "all")}
-                        onChange={(e) =>
-                          set("nodes_visibility_mode", e.target.value)
+                      <NodeVisibilityPicker
+                        nodes={(state?.nodes || []).filter(
+                          (n) => n.id !== "warp",
+                        )}
+                        mode={String(p.nodes_visibility_mode || "all")}
+                        selected={
+                          Array.isArray(p.nodes_visible_ids)
+                            ? (p.nodes_visible_ids as string[])
+                            : []
                         }
-                      >
-                        <option value="all">全部节点</option>
-                        <option value="selected">指定节点</option>
-                      </select>
+                        onModeChange={(v) => set("nodes_visibility_mode", v)}
+                        onChange={(v) => set("nodes_visible_ids", v)}
+                      />
                     </Field>
-                  </div>
-                  {p.nodes_visibility_mode === "selected" && (
-                    <div className="monitor-items-options">
-                      {nodeOptions.map(([id, name]) => (
-                        <label className="check" key={id}>
-                          <input
-                            type="checkbox"
-                            checked={
-                              Array.isArray(p.nodes_visible_ids) &&
-                              p.nodes_visible_ids.includes(id)
-                            }
-                            onChange={(e) =>
-                              set(
-                                "nodes_visible_ids",
-                                e.target.checked
-                                  ? [
-                                      ...((p.nodes_visible_ids as string[]) ||
-                                        []),
-                                      id,
-                                    ]
-                                  : (
-                                      (p.nodes_visible_ids as string[]) || []
-                                    ).filter((x) => x !== id),
-                              )
-                            }
-                          />
-                          {name}
-                        </label>
-                      ))}
+                    <div
+                      className="field node-footer-field"
+                      role="group"
+                      aria-label="显示信息"
+                    >
+                      <span className="field-title">显示信息</span>
+                      <div className="overview-footer-options">
+                        {[
+                          ["overview_show_clock", "时间"],
+                          ["overview_show_data_status", "数据状态"],
+                        ].map(([key, label]) => (
+                          <label className="check" key={key}>
+                            <input
+                              type="checkbox"
+                              aria-label={label}
+                              checked={p[key] === true}
+                              onChange={(e) => set(key, e.target.checked)}
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </>
               )}
             </SettingsSection>
@@ -1418,6 +1437,11 @@ function OverviewLayoutSettings({
         </div>
         <ErrorLine error={r.error || sectionError} />
         <SaveCard
+          dirty={hasChanges(draft, {
+            ...defaults,
+            ...themedAppearance(state?.manager_settings.presentation),
+            ...themedAppearance(r.data),
+          })}
           duplicateTarget={topSaveTarget}
           localActionsEnabled={!!r.data}
           title="配置与同步"

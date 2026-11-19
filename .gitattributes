@@ -8,3 +8,9 @@
 *.yml text eol=lf
 *.zip binary
 *.webp binary
+
+*.css text eol=lf
+
+*.mjs text eol=lf
+
+*.json text eol=lf

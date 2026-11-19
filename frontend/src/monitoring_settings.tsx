@@ -1,3 +1,4 @@
+import { hasChanges } from "./settings_save";
 import type { OverviewView } from "./overview_policy";
 import { ProbeIntervalField } from "./probe_interval_settings";
 import { PresentationSettings } from "./presentation_settings";
@@ -54,6 +55,7 @@ function HostDataSettings({ act }: { act: Act }) {
       title="监控数据"
       act={act}
       ready={!!r.data}
+      extraDirty={storage != null && storage !== saved}
       validate={() => {
         const n = storage ?? saved,
           min = Math.max(10, Number(record(r.data?.policy).interval || 2));
@@ -169,6 +171,7 @@ export function DisplaySettings({ act }: { act: Act }) {
       </div>
       <ErrorLine error={r.error} />
       <SaveCard
+        dirty={hasChanges(draft, r.data)}
         title="显示与刷新"
         defaults={() =>
           setDraft({
@@ -210,18 +213,15 @@ export function MonitoringSettings({
   const [overviewView, setOverviewView] = useState<OverviewView | undefined>(
     initialOverviewView,
   );
-  const [module, setModule] = useState(
-      initialOverviewView ? "overview" : "all",
-    ),
+  const [module, setModule] = useState("overview"),
     tabs = [
       ["overview", "主页"],
       ["server", "服务器"],
       ...(state.components.xray ? [["xray", "Xray"]] : []),
       ...(state.components.warp ? [["warp", "WARP"]] : []),
       ...(state.components.wireguard ? [["wireguard", "WireGuard"]] : []),
-      ["all", "全局"],
     ];
-  const active = tabs.some(([id]) => id === module) ? module : "all";
+  const active = tabs.some(([id]) => id === module) ? module : "overview";
   return (
     <>
       <div className="monitor-settings-tabs">
@@ -250,17 +250,6 @@ export function MonitoringSettings({
             editorView={overviewView}
             onEditorViewChange={setOverviewView}
           />
-        ) : active === "all" ? (
-          <>
-            <PresentationSettings act={act} />
-            <DisplaySettings act={act} />
-            <DataPolicyCard
-              module="all"
-              kind=""
-              title="监控数据默认设置"
-              act={act}
-            />
-          </>
         ) : (
           <>
             <MonitorItemsSettings
@@ -298,5 +287,15 @@ export function MonitoringSettings({
         )}
       </SettingsSaveProvider>
     </>
+  );
+}
+
+export function GlobalMonitoringSettings({ act }: { act: Act }) {
+  return (
+    <SettingsSaveProvider expected={5}>
+      <PresentationSettings act={act} />
+      <DisplaySettings act={act} />
+      <DataPolicyCard module="all" kind="" title="监控数据默认设置" act={act} />
+    </SettingsSaveProvider>
   );
 }

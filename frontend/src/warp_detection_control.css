@@ -1,0 +1,51 @@
+.detection-split {
+  gap: 0;
+}
+.detection-split > .button:first-child {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  min-width: 124px;
+}
+.detection-split > .detection-options-trigger {
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  margin-left: -1px;
+  background: var(--button);
+  border-color: var(--line);
+}
+.detection-options-trigger[aria-expanded="true"] > svg {
+  transform: rotate(180deg);
+}
+.detection-options-popup {
+  position: fixed;
+  z-index: 1800;
+  width: 240px;
+  max-width: calc(100vw - 16px);
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: 0 8px 24px #0004;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.detection-options-popup > strong {
+  font-size: 13px;
+  line-height: 20px;
+  margin-bottom: 4px;
+}
+.detection-options-popup > .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
+}
+.detection-options-popup input {
+  flex: none;
+  accent-color: var(--accent);
+}
