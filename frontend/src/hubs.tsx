@@ -248,6 +248,7 @@ export function MonitoringHub({
         </Panel>
       ) : (
         <HostHistoryPage
+          presentation={record(state.manager_settings.presentation)}
           act={act}
           items={record(record(state.monitoring_items).host)}
         />

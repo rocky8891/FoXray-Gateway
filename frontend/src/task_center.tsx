@@ -342,12 +342,12 @@ export function Tasks({
             {detail ? (
               <div className="task-inline-detail">
                 <div className="task-detail-heading">
-                  <Button onClick={() => setDetail(null)}>返回列表</Button>
                   <strong>
                     {"task" in detail
                       ? detail.task.title
                       : detail.notice.operation || "执行结果"}
                   </strong>
+                  <Button onClick={() => setDetail(null)}>返回列表</Button>
                   <CopyButton
                     text={
                       "task" in detail

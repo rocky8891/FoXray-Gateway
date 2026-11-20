@@ -516,7 +516,7 @@ export function Operations({
               </>
             ),
           },
-          { key: "message", label: "操作内容", render: (r) => r.message },
+          { key: "message", label: "操作内容", width: "50%", render: (r) => r.message },
           { key: "read", label: "阅读状态", render: (r) => <ReadBadge read={isRead(logReadKeys(r))} /> },
           {
             key: "status",

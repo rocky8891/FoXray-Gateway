@@ -894,6 +894,7 @@ export function RowActions({
   return <>{rowActions(children, label)}</>;
 }
 export type Column<T> = {
+  width?: string;
   key: string;
   label: string;
   heading?: ReactNode;
@@ -981,7 +982,7 @@ export function Table<T>({
             {columns.map((c) => (
               <col
                 key={c.key}
-                style={edgeWidth(c) ? { width: edgeWidth(c) } : undefined}
+                style={c.width ? { width: c.width } : edgeWidth(c) ? { width: edgeWidth(c) } : undefined}
               />
             ))}
           </colgroup>

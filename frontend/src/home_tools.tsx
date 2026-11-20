@@ -1,4 +1,5 @@
-import { type ReactNode } from "react";
+import { useContext, type ReactNode } from "react";
+import { HomeHeaderContext } from "./home_header";
 import { createPortal } from "react-dom";
 export function HomeTools({
   fullWidth,
@@ -9,6 +10,7 @@ export function HomeTools({
   view: string;
   children: ReactNode;
 }) {
+  const header = useContext(HomeHeaderContext);
   const tools = (
     <aside
       className="overview-side-tools"
@@ -27,6 +29,13 @@ export function HomeTools({
           }}
         />
       )}
+      {header.hidden && <button type="button" className="button home-header-toggle"
+        aria-label={header.expanded ? "收起首页标题栏" : "展开首页标题栏"}
+        title={header.expanded ? "收起首页标题栏" : "展开首页标题栏"}
+        aria-expanded={header.expanded}
+        onClick={e => header.toggle(e.currentTarget)}>
+        <svg viewBox="100 75 310 365" aria-hidden="true"><image href="/foxray-icon.svg" width="512" height="512" /></svg>
+      </button>}
       {children}
     </aside>
   );

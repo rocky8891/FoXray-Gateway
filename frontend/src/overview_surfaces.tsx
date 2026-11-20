@@ -27,6 +27,8 @@ export function overviewSurfaceError(value: unknown): string {
             "opacity",
             "blur",
             "border_enabled",
+            "border_visible",
+            "module_borders",
             "border_color",
             "border_opacity",
             "shadow",
@@ -46,6 +48,10 @@ export function overviewSurfaceError(value: unknown): string {
       return "毛玻璃模糊须为0～40的整数";
     if (s.border_enabled !== undefined && typeof s.border_enabled !== "boolean")
       return "边框开关无效";
+    if (s.border_visible !== undefined && typeof s.border_visible !== "boolean")
+      return "显示边框开关无效";
+    if (s.module_borders !== undefined && (!s.module_borders || typeof s.module_borders !== "object" || Array.isArray(s.module_borders) || Object.entries(record(s.module_borders)).some(([key, value]) => !["host", "xray", "warp", "wireguard"].includes(key) || typeof value !== "boolean")))
+      return "监控卡片边框设置无效";
     if (
       s.border_color !== undefined &&
       !/^#[0-9a-f]{6}$/i.test(String(s.border_color))
@@ -126,7 +132,25 @@ export function overviewSurfaceVariables(value: unknown): CSSProperties {
             : "none";
       }
     }
+    if (s.border_visible === false) {
+      variables[`--overview-${id}-edge`] = "transparent";
+      variables[`--overview-${id}-shadow`] = "none";
+      variables[`--overview-${id}-border-hidden`] = "1";
+    }
   }
+  for (const layer of ["card", "detail"]) {
+    const surface = record(surfaces[layer]);
+    const borders = record(surface.module_borders);
+    for (const module of ["host", "xray", "warp", "wireguard"]) {
+      if (surface.border_visible === false || (borders[module] ?? module !== "host") === false) {
+        const prefix = `--overview-${module}${layer === "detail" ? "-detail" : ""}`;
+        variables[`${prefix}-edge`] = "transparent";
+        variables[`${prefix}-shadow`] = "none";
+      }
+    }
+  }
+  const details = record(surfaces.detail);
+  variables["--overview-host-detail-width"] = details.border_visible !== false && record(details.module_borders).host === true ? "1px" : "0px";
   const ring = String(p.services_wireguard_ring_color || "#3b4451");
   if (
     p.services_wireguard_ring_color ||
@@ -159,7 +183,7 @@ export function OverviewSurfaceSettings({
     <OverviewSettingsCard
       title="卡片外观"
       actions={actions}
-      info="三种主页共用分层外观，每层独立设置；开启自定义后生效，关闭恢复主题配色。透明度只作用于背景，文字保持清晰。毛玻璃模糊卡片背后的内容，背景完全不透明时效果不明显。"
+      info="三种主页共用分层外观，每层独立设置。“显示边框”可独立关闭，不必开启自定义外观；关闭后保留背景、布局和服务器圆环的数值进度。其余配色在开启自定义后生效；透明度只作用于背景，毛玻璃模糊背后的内容。"
     >
       <OverviewTextFields presentation={presentation} onChange={onTextChange} />
       {layers.map(([id, title]) => {
@@ -169,6 +193,8 @@ export function OverviewSurfaceSettings({
           opacity: 80,
           blur: 12,
           border_enabled: false,
+          border_visible: true,
+          module_borders: {},
           border_color: "#40516a",
           border_opacity: 60,
           shadow: 12,
@@ -180,7 +206,6 @@ export function OverviewSurfaceSettings({
             [id]: {
               ...s,
               [key]: value,
-              border_enabled: key === "enabled" ? value : s.enabled,
             },
           });
         return (
@@ -194,6 +219,28 @@ export function OverviewSurfaceSettings({
               />
               {title}
             </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                aria-label={`${title}显示边框`}
+                checked={s.border_visible !== false}
+                onChange={(e) => set("border_visible", e.target.checked)}
+              />
+              显示边框
+            </label>
+            {id !== "container" && (
+              <div className="monitor-items-options">
+                {[["host", "服务器"], ["xray", "Xray"], ["warp", "WARP"], ["wireguard", "WireGuard"]].map(([module, label]) => (
+                  <label className="check" key={module}>
+                    <input type="checkbox" aria-label={`${label}${id === "detail" ? "指标" : "卡片"}显示边框`}
+                      checked={(record(s.module_borders)[module] ?? module !== "host") !== false}
+                      disabled={!s.border_visible}
+                      onChange={e => set("module_borders", {...record(s.module_borders), [module]: e.target.checked})} />
+                    {label}显示边框
+                  </label>
+                ))}
+              </div>
+            )}
             <div className="form-grid">
               <Field label="背景颜色">
                 <ColorInput
@@ -237,7 +284,7 @@ export function OverviewSurfaceSettings({
                 <ColorInput
                   aria-label={`${title}边框颜色`}
                   value={String(s.border_color)}
-                  disabled={!s.enabled}
+                  disabled={!s.enabled || !s.border_visible}
                   onChange={(color) => set("border_color", color)}
                 />
               </Field>
@@ -251,7 +298,7 @@ export function OverviewSurfaceSettings({
                   min={0}
                   max={100}
                   value={100 - Number(s.border_opacity)}
-                  disabled={!s.enabled}
+                  disabled={!s.enabled || !s.border_visible}
                   onChange={(e) =>
                     set("border_opacity", 100 - Number(e.target.value))
                   }
@@ -267,7 +314,7 @@ export function OverviewSurfaceSettings({
                   min={0}
                   max={40}
                   value={Number(s.shadow)}
-                  disabled={!s.enabled}
+                  disabled={!s.enabled || !s.border_visible}
                   onChange={(e) => set("shadow", Number(e.target.value))}
                 />
               </Field>

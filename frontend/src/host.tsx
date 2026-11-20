@@ -888,9 +888,11 @@ export function OverviewViewPicker({
 
 export const HostHistoryPage = memo(function HostHistoryPage({
   items: enabledItems = {},
+  presentation = {},
   act,
 }: {
   items?: Dict;
+  presentation?: Dict;
   act?: Act;
 }) {
   const [layoutOpen, setLayoutOpen] = useState(false);
@@ -1016,7 +1018,7 @@ export const HostHistoryPage = memo(function HostHistoryPage({
       </Panel>
     );
   return (
-    <>
+    <div className="host-monitor-page" style={overviewSurfaceVariables(presentation)}>
       {layoutOpen && act && (
         <Modal
           className="monitor-layout-modal"
@@ -1331,10 +1333,10 @@ export const HostHistoryPage = memo(function HostHistoryPage({
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 });
-export function HostSettings({ act }: { act: Act }) {
+export function HostSettings({ act, embedded = false }: { act: Act; embedded?: boolean }) {
   const resource = useResource<Dict>("/api/system", 10000),
     [form, setForm] = useState<Dict | null>(null);
   useEffect(() => {
@@ -1343,12 +1345,13 @@ export function HostSettings({ act }: { act: Act }) {
   const current = record(resource.data?.current),
     set = (key: string, value: unknown) =>
       setForm((old) => ({ ...old, [key]: value }));
+  const Container = embedded ? "div" : Panel;
   return (
-    <Panel className="compact-settings-card host-metric-settings">
-      <PageHeader
-        title="监控指标"
-        description="设置默认显示指标。采集、保留和历史写入间隔在监控数据卡片中管理；历史滚动删除，延长保留不会补回已删除数据。"
-      />
+    <Container className="compact-settings-card host-metric-settings">
+      {!embedded && <PageHeader
+        title="默认指标与采集"
+        description="采集开关决定是否采集服务器指标；上方各指标开关只控制显示，两者作用不同。采集频率、保留和历史写入间隔在监控数据卡片中管理。"
+      />}
       <ErrorLine error={resource.error} />
       {form && (
         <>
@@ -1359,7 +1362,7 @@ export function HostSettings({ act }: { act: Act }) {
                 checked={!!form.enabled}
                 onChange={(e) => set("enabled", e.target.checked)}
               />
-              启用服务器监控
+              采集服务器指标
             </label>
             <div className="host-defaults-row">
               {(
@@ -1425,8 +1428,9 @@ export function HostSettings({ act }: { act: Act }) {
               </Field>
             </div>
           </SettingsSection>
-          <div className="form-footer">
+          <div className={embedded ? undefined : "form-footer"}>
             <SaveCard
+              showActions={!embedded}
  dirty={hasChanges(form, resource.data?.policy)}
               title="服务器"
               defaults={() =>
@@ -1468,7 +1472,7 @@ export function HostSettings({ act }: { act: Act }) {
           </div>
         </>
       )}
-    </Panel>
+    </Container>
   );
 }
 

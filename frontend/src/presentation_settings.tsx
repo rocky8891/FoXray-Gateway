@@ -169,11 +169,11 @@ export function PageWidthSettings({ act }: { act: Act }) {
             />
           </Field>
           <Field
-            label="首页标题栏自动隐藏"
-            info="开启后，首页顶部导航栏自动收起；悬停或聚焦顶部边缘可展开。其他页面保持显示。"
+            label="隐藏首页标题栏"
+            info="开启后默认收起首页标题栏；点击侧边工具栏的 FoXray 图标展开或收起，悬停不会展开。其他页面保持显示。"
           >
             <select
-              aria-label="首页标题栏自动隐藏"
+              aria-label="隐藏首页标题栏"
               value={value.home_header_auto_hide ? "on" : "off"}
               onChange={(e) =>
                 setDraft({

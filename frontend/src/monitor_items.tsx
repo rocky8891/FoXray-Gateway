@@ -8,7 +8,7 @@ import {
 import { HostRuntimePreview } from "./host_runtime_preview";
 import { TrafficSourceSetting } from "./traffic_source_setting";
 import { LayoutEditor, layoutEditorHelp } from "./layout_editor";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { record, type Dict, type State } from "./api";
 import {
   Panel,
@@ -59,11 +59,17 @@ export function MonitorItemsSettings({
   act,
   layoutEditor = false,
   chartPreviews = {},
+  children,
+  footer,
+  grouped = false,
 }: {
   module: string;
   act: Act;
   layoutEditor?: boolean;
   chartPreviews?: Record<string, MonitorPreviewSpec>;
+  children?: ReactNode;
+  footer?: ReactNode;
+  grouped?: boolean;
 }) {
   const resource = useResource<Dict>("/api/monitoring/items", 15000);
   const [draft, setDraft] = useState<Dict | null>(null);
@@ -89,12 +95,12 @@ export function MonitorItemsSettings({
     <>
       <Panel className="monitor-items-settings">
         <PageHeader
-          title="监控项开关"
+          title={module === "host" ? "监控指标采集与展示" : "监控项开关"}
           description={
             <>
               {"默认全部开启。关闭后隐藏对应卡片并将监控菜单置灰，历史数据保留；不修改代理、自动选路、探测策略或网络连接。连接监控关闭后停止该模块的连接采集。" +
                 (module === "host"
-                  ? "磁盘使用率仅在服务器运行状态和服务总览显示，不生成历史图，也不参与历史卡片排序。"
+                  ? "各指标开关控制卡片显示，隐藏卡片不会关闭服务器指标采集；下方“采集服务器指标”决定是否采集，默认指标决定首次显示内容。采集频率、保留和历史写入间隔在监控数据卡片中管理。磁盘使用率仅在服务器运行状态和服务总览显示，不生成历史图，也不参与历史卡片排序。"
                   : "")}
               <p>
                 {layoutEditor &&
@@ -219,7 +225,9 @@ export function MonitorItemsSettings({
           </ScaledMonitorPreview>
         )}
         <ErrorLine error={resource.error} />
+        {children}
         <SaveCard
+          showActions={!grouped}
  dirty={hasChanges(draft, {...defaults,...record(resource.data?.[module])})}
           title="监控项开关"
           defaults={() => setDraft(defaults)}
@@ -236,6 +244,7 @@ export function MonitorItemsSettings({
             return ok;
           }}
         />
+        {footer}
       </Panel>
     </>
   );

@@ -248,10 +248,15 @@ export function MonitoringSettings({
           />
         ) : (
           <>
-            <MonitorItemsSettings
-              module={active === "server" ? "host" : active}
-              act={act}
-            />
+            {active === "server" ? (
+              <SettingsSaveProvider inline expected={2}>
+                {footer => (
+                  <MonitorItemsSettings module="host" act={act} grouped footer={footer}>
+                    <HostSettings act={act} embedded />
+                  </MonitorItemsSettings>
+                )}
+              </SettingsSaveProvider>
+            ) : <MonitorItemsSettings module={active} act={act} />}
             {active === "server" ? (
               <>
                 <HostDataSettings act={act} />
@@ -261,7 +266,6 @@ export function MonitoringSettings({
                   title="活动连接"
                   act={act}
                 />
-                <HostSettings act={act} />
               </>
             ) : (
               <>

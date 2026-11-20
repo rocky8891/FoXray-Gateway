@@ -1,4 +1,5 @@
 import { useOverviewRandomTheme } from "./overview_random_theme";
+import { HomeHeaderContext } from "./home_header";
 import { OverviewFooter } from "./overview_footer";
 import { labelIcon } from "./ui_icons";
 import type { OverviewView } from "./overview_policy";
@@ -137,6 +138,10 @@ function App() {
   const hideHomeHeader =
     page === "overview" &&
     record(state?.manager_settings.presentation).home_header_auto_hide === true;
+  const [headerExpanded, setHeaderExpanded] = useState(false);
+  const [headerOrigin, setHeaderOrigin] = useState("calc(100vw - 30px) 150px");
+  const headerCollapsed = hideHomeHeader && !headerExpanded;
+  useEffect(() => { setHeaderExpanded(false); }, [page, hideHomeHeader]);
   const updates = useResource<Dict>("/api/updates", 60000);
   const [updateData, setUpdateData] = useState<Dict>({});
   useEffect(() => {
@@ -158,11 +163,11 @@ function App() {
       );
       document.documentElement.style.setProperty(
         "--header-edge",
-        (hideHomeHeader ? 8 : element.getBoundingClientRect().bottom) + "px",
+        (headerCollapsed ? 8 : element.offsetHeight) + "px",
       );
       document.documentElement.style.setProperty(
         "--header-height",
-        (hideHomeHeader ? 0 : element.getBoundingClientRect().height) + "px",
+        (headerCollapsed ? 0 : element.offsetHeight) + "px",
       );
     };
     const observer = new ResizeObserver(update);
@@ -173,7 +178,7 @@ function App() {
       observer.disconnect();
       window.removeEventListener("resize", update);
     };
-  }, [hideHomeHeader]);
+  }, [headerCollapsed]);
   const navigate = (next: Page) => {
     setOverviewEditor(undefined);
     setPage(next);
@@ -394,6 +399,11 @@ function App() {
         ? `管理服务在线，有告警：${managerWarning}`
         : "管理服务正常";
   return (
+    <HomeHeaderContext.Provider value={{hidden: hideHomeHeader, expanded: headerExpanded, toggle: button => {
+      const box = button.getBoundingClientRect();
+      setHeaderOrigin(`${box.x + box.width / 2}px ${box.y + box.height / 2}px`);
+      setHeaderExpanded(value => !value);
+    }}}>
     <UpdatesContext.Provider
       value={{ data: updateData, receive: setUpdateData }}
     >
@@ -406,19 +416,10 @@ function App() {
       <div
         className="home-header-shell"
         data-auto-hide={hideHomeHeader || undefined}
+        data-expanded={headerExpanded || undefined}
+        style={{"--home-header-origin": headerOrigin} as React.CSSProperties}
       >
-        {hideHomeHeader && (
-            <button
-              type="button"
-              className="home-header-handle"
-              aria-label="展开首页标题栏"
-              title="悬停、点击或聚焦以展开首页标题栏"
-              onKeyDown={(e) => {
-                if (e.key === "Escape") e.currentTarget.blur();
-              }}
-            />
-          )}
-        <header ref={header}>
+        <header ref={header} inert={headerCollapsed}>
           <a
             className="brand"
             href="#"
@@ -433,7 +434,7 @@ function App() {
           >
             <svg
               className="brand-logo"
-              viewBox="110 84 290 346"
+              viewBox="100 75 310 365"
               role="img"
               aria-label="FoXray"
             >
@@ -573,6 +574,7 @@ function App() {
       </TrafficWindowContext.Provider>
       {state && !state.read_only && <NetworkPending act={act} />}
     </UpdatesContext.Provider>
+    </HomeHeaderContext.Provider>
   );
 }
 createRoot(document.getElementById("root")!).render(<App />);

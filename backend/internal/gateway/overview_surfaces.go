@@ -18,7 +18,7 @@ func validOverviewSurfaces(value any) bool {
 			return false
 		}
 		for key := range s {
-			if key != "enabled" && key != "color" && key != "opacity" && key != "blur" && key != "border_enabled" && key != "border_color" && key != "border_opacity" && key != "shadow" {
+			if key != "enabled" && key != "color" && key != "opacity" && key != "blur" && key != "border_enabled" && key != "border_visible" && key != "module_borders" && key != "border_color" && key != "border_opacity" && key != "shadow" {
 				return false
 			}
 		}
@@ -34,6 +34,25 @@ func validOverviewSurfaces(value any) bool {
 		if v, exists := s["border_enabled"]; exists {
 			if _, ok := v.(bool); !ok {
 				return false
+			}
+		}
+		if v, exists := s["border_visible"]; exists {
+			if _, ok := v.(bool); !ok {
+				return false
+			}
+		}
+		if value, exists := s["module_borders"]; exists {
+			borders, ok := value.(map[string]any)
+			if !ok {
+				return false
+			}
+			for key, value := range borders {
+				if key != "host" && key != "xray" && key != "warp" && key != "wireguard" {
+					return false
+				}
+				if _, ok := value.(bool); !ok {
+					return false
+				}
 			}
 		}
 		if v, exists := s["border_color"]; exists && !surfaceColor.MatchString(str(v)) {

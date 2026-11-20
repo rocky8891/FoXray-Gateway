@@ -38,3 +38,29 @@ func TestOverviewEdgesAndTextPreserveExistingPreferences(t *testing.T) {
 		}
 	}
 }
+
+func TestOverviewBorderVisibilityPersistsWithoutServiceCommands(t *testing.T) {
+	a, runner := fixture(t)
+	calls := len(runner.calls)
+	style := M{"enabled": false, "color": "#171f2b", "opacity": 80, "blur": 12, "border_visible": true, "module_borders": M{"host": false, "xray": true, "warp": false, "wireguard": true}}
+	if err := a.savePresentation(M{"overview_surfaces": M{"card": style}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.savePresentation(M{"services_layout": "sidebar"}); err != nil {
+		t.Fatal(err)
+	}
+	card := obj(obj(a.presentationPolicy()["overview_surfaces"])["card"])
+	if yes(obj(card["module_borders"])["host"]) || !yes(obj(card["module_borders"])["xray"]) || len(runner.calls) != calls {
+		t.Fatal("border preferences were lost or ran service commands")
+	}
+	for _, bad := range []M{{"border_visible": "no"}, {"module_borders": M{"host": "no"}}, {"module_borders": M{"unknown": false}}, {"module_borders": []any{false}}} {
+		invalid := clone(style)
+		for key, value := range bad {
+			invalid[key] = value
+		}
+		before := fingerprint(a.settings)
+		if a.savePresentation(M{"overview_surfaces": M{"card": invalid}}) == nil || before != fingerprint(a.settings) {
+			t.Fatal("invalid border preferences changed settings")
+		}
+	}
+}

@@ -613,11 +613,21 @@ body .overview-footer > .data-freshness {
   position: fixed;
   top: 0;
   left: 0;
-  transform: translateY(-100%);
-  transition: transform 0.18s ease;
+  transform-origin: var(--home-header-origin);
+  transform: scale(0.025, 0.05);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform .38s cubic-bezier(.22,.8,.24,1), opacity .24s ease, visibility .38s;
 }
-.home-header-shell[data-auto-hide="true"]:is(:hover, :focus-within, :has(header [aria-expanded="true"])) > header {
-  transform: translateY(0);
+.home-header-shell[data-auto-hide="true"][data-expanded="true"] > header {
+  transform: scale(1);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+.home-header-shell[data-auto-hide="true"][data-expanded="true"] {
+  height: var(--header-height);
 }
 .home-header-handle {
   position: fixed;
@@ -631,6 +641,55 @@ body .overview-footer > .data-freshness {
   background: transparent;
   z-index: 81;
   cursor: pointer;
+}
+
+/* Explicit card borders preserve spacing and metric progress rings. */
+.overview-page .service-overview-card.service-host {
+  border-color: var(--overview-host-edge, var(--overview-card-edge, var(--line))) !important;
+  box-shadow: var(--overview-host-shadow, var(--overview-card-shadow, none)) !important;
+}
+.overview-page .service-overview-card.service-xray {
+  border-color: var(--overview-xray-edge, var(--overview-card-edge, var(--line))) !important;
+  box-shadow: var(--overview-xray-shadow, var(--overview-card-shadow, none)) !important;
+}
+.overview-page .service-overview-card.service-warp {
+  border-color: var(--overview-warp-edge, var(--overview-card-edge, var(--line))) !important;
+  box-shadow: var(--overview-warp-shadow, var(--overview-card-shadow, none)) !important;
+}
+.overview-page .service-overview-card.service-wireguard {
+  border-color: var(--overview-wireguard-edge, var(--overview-card-edge, var(--line))) !important;
+  box-shadow: var(--overview-wireguard-shadow, var(--overview-card-shadow, none)) !important;
+}
+.overview-page .service-host.summary-v417[class] .summary-metric {
+  border: var(--overview-host-detail-width, 0px) solid var(--overview-host-detail-edge, var(--overview-detail-edge, var(--line))) !important;
+}
+.overview-page .service-xray .summary-metric {
+  border-color: var(--overview-xray-detail-edge, var(--overview-detail-edge, var(--line))) !important;
+  box-shadow: var(--overview-xray-detail-shadow, var(--overview-detail-shadow, none)) !important;
+}
+.overview-page .service-warp .summary-metric {
+  border-color: var(--overview-warp-detail-edge, var(--overview-detail-edge, var(--line))) !important;
+  box-shadow: var(--overview-warp-detail-shadow, var(--overview-detail-shadow, none)) !important;
+}
+.overview-page .service-wireguard .service-tunnel-row {
+  border-color: var(--overview-wireguard-detail-edge, var(--overview-detail-edge, var(--line))) !important;
+  box-shadow: var(--overview-wireguard-detail-shadow, var(--overview-detail-shadow, none)) !important;
+}
+.overview-page[style*="--overview-detail-border-hidden"] :is(.summary-metric,.node-metric-surface,.service-tunnel-row,.exit-chart-section>.chart,.exit-chart-section>.current-flow-chart) {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline-color: transparent !important;
+}
+.overview-side-tools .home-header-toggle svg, header .brand .brand-logo { overflow: visible; }
+.overview-side-tools button.home-header-toggle svg { width: 27px !important; height: 29px !important; flex: none; }
+.task-detail-heading { display: flex; flex-wrap: wrap; }
+.task-detail-heading > strong { flex: 0 0 100%; order: -1; white-space: normal; overflow-wrap: anywhere; }
+.task-detail-heading > .button:last-child { margin-left: auto; }
+.monitor-items-settings .host-metric-settings { padding: 0; margin: 16px 0 0; }
+.monitor-items-settings > .save-group-footer { margin-top: 16px; }
+.host-monitor-page :is(.host-runtime-panel,.host-history-charts>.panel,.host-connections-wrap>.panel) {
+  border-color: var(--overview-host-edge, var(--overview-card-edge, var(--line))) !important;
+  box-shadow: var(--overview-host-shadow, var(--overview-card-shadow, none)) !important;
 }
 
 /* Preview 0.9.2-preview.3: one field rhythm throughout home settings. */
