@@ -1049,7 +1049,7 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
             title="代理模式"
             description="选择分流模式和接管范围；只接管 IPv4 公网 TCP／UDP"
           />
-          <div className="xray-runtime-summary">
+          <div className="xray-runtime-summary settings-section" aria-label="当前代理状态">
             <div>
               <span>当前出口</span>
               <strong title={current?.name}>

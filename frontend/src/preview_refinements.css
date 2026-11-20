@@ -1,4 +1,34 @@
 .page-width-settings>.settings-section { padding:14px 16px; }
+.xray-proxy-panel > .xray-runtime-summary {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.xray-observation-policy {
+  display: grid;
+  gap: 16px;
+}
+.xray-observation-policy > .settings-section-title,
+.xray-observation-policy > .field {
+  margin: 0;
+}
+.xray-dns-switches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 28px;
+}
+.xray-dns-switches > .check {
+  margin: 0;
+  min-height: 24px;
+}
+.xray-observation-policy > .form-grid {
+  gap: 16px 24px;
+}
+@media (max-width: 599px) {
+  .xray-proxy-panel > .xray-runtime-summary { padding: 12px; }
+  .xray-observation-policy > .form-grid { grid-template-columns: minmax(0, 1fr); }
+}
 @media(max-width:599px) { .page-width-settings>.settings-section { padding:12px; } }
 /* The monitoring logo belongs to the secondary navigation row. */
 .monitoring-shortcut-page #secondary-navigation { align-items:center; gap:6px; }
@@ -22,6 +52,7 @@
   white-space:nowrap !important; overflow-wrap:normal; word-break:normal;
 }
 .connection-address { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.connection-domain { display:block; min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 @media(max-width:720px) {
  .connections-table-panel>.page-heading { flex-wrap:wrap; }
  .connections-detail-tools { width:100%; }

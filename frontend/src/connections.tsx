@@ -393,8 +393,9 @@ export function ConnectionsPage({
                 {
                   key: "domain",
                   label: "域名",
+                  width: "320px",
                   render: (v) => (
-                    <span title={String(v.domain_note || "历史记录未采集域名")}>
+                    <span className="connection-domain" title={[String(v.domain || "未观测"), String(v.domain_note || "")].filter(Boolean).join("\n")}>
                       {String(v.domain || "未观测")}
                     </span>
                   ),
@@ -402,6 +403,7 @@ export function ConnectionsPage({
                 {
                   key: "state",
                   label: "状态",
+                  width: "144px",
                   render: (v) =>
                     ["近期有流量", "Active"].includes(String(v.state)) ? (
                       <span className="connection-active-status">
@@ -411,10 +413,11 @@ export function ConnectionsPage({
                       String(v.state)
                     ),
                 },
-                ...(module === "xray" && scope !== "transport" ? [{key:"routing",label:"出站",width:"260px",render:(v: Dict)=><span title={String(v.routing_note || "旧记录未采集出站归属")}>{v.routing_classification === "proxy" ? "代理" : "未确认（不计入代理数）"}</span>}] : []),
+                ...(module === "xray" && scope !== "transport" ? [{key:"routing",label:"出站",width:"160px",render:(v: Dict)=><span title={String(v.routing_note || "旧记录未采集出站归属")}>{v.routing_classification === "proxy" ? "代理" : "未确认（不计入代理数）"}</span>}] : []),
                 {
                   key: "interface",
                   label: "接口",
+                  width: "144px",
                   render: (v) => (
                     <>
                       <span>
