@@ -8,6 +8,41 @@ import (
 	"time"
 )
 
+func TestLongRunningTaskSurvivesHistoryChurn(t *testing.T) {
+	a, _ := fixture(t)
+	a.jobs.items = []*Job{}
+	for i := 0; i < 110; i++ {
+		a.jobs.items = append(a.jobs.items, &Job{ID: fmt.Sprintf("done-%d", i), Status: "success"})
+	}
+	a.jobs.items = append(a.jobs.items, &Job{ID: "long-warp", Status: "running", Group: "warp.verify"})
+	job, err := a.submit("新增任务", "probe.latency", func(context.Context, *Job) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		a.jobs.mu.RLock()
+		found, finished := false, false
+		for _, j := range a.jobs.items {
+			if j.ID == "long-warp" {
+				found = true
+			}
+			if j.ID == job && j.Status != "running" {
+				finished = true
+			}
+		}
+		a.jobs.mu.RUnlock()
+		if !found {
+			t.Fatal("long-running WARP task evicted by recent completed jobs")
+		}
+		if finished {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("new task did not finish")
+}
+
 func TestTaskSourcesPersistInHistory(t *testing.T) {
 	a, _ := fixture(t)
 	manual, err := a.submit("手动检测", "probe.latency", func(_ context.Context, j *Job) error { a.stage(j, "手动详细结果"); return nil })

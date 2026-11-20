@@ -76,6 +76,7 @@ export function WarpPage({ act }: { act: Act }) {
     [failure, setFailure] = useState("");
   const [submitting, setSubmitting] = useState(false),
     [pendingTask, setPendingTask] = useState<string | null>(null);
+  const [runningOperation, setRunningOperation] = useState("");
   const busy = submitting || pendingTask !== null;
   const [runningScope, setRunningScope] = useState<
       "current" | "candidate" | null
@@ -221,11 +222,12 @@ export function WarpPage({ act }: { act: Act }) {
   const runAction = async (path: string, data: Dict) => {
     if (busy) return;
     setSubmitting(true);
+    setRunningOperation(String(data.operation || ""));
     setFailure("");
     setRunningScope(
       data.operation === "test-current"
         ? "current"
-        : data.operation === "scan"
+        : data.operation === "scan" || data.operation === "discover" || data.operation === "verify-best"
           ? "candidate"
           : null,
     );
@@ -439,10 +441,10 @@ export function WarpPage({ act }: { act: Act }) {
               title="候选端点"
               description={
                 <>
-                  {"按协议发现端点，选择检测指标；每批最多检测 10 个"}
+                  {"重新发现会扩大采样、初筛连通性、验证真实隧道并按质量排序；保留当前端点，不自动切换。"}
                   <p>
                     RTT／丢包与带宽分别保留检测时间。未建立隧道不记作 0 ms 或
-                    100% 丢包。每批最多检测 10 个候选。
+                    100% 丢包。预检域名与官方客户端一致；独立预检通过仍需实际切换确认。重新发现最多抽样测速3个候选，每个最多5MiB；手动检测每批最多10个候选。
                   </p>
                 </>
               }
@@ -455,11 +457,14 @@ export function WarpPage({ act }: { act: Act }) {
                 onClick={() => void action("discover")}
               >
                 <RefreshCw size={15} />
-                重新发现
+                {busy && runningOperation === "discover" ? "发现中…" : "重新发现"}
               </Button>
               <Button disabled={busy} onClick={() => void action("restore")}>
                 <RotateCcw size={15} />
                 恢复候选
+              </Button>
+              <Button disabled={busy || !current.connected} onClick={() => setConfirm({operation:"verify-best",confirmed:true})}>
+                {busy && runningOperation === "verify-best" ? "验证中…" : "验证优选"}
               </Button>
               <DetectionControl
                 label="候选端点"
@@ -601,16 +606,25 @@ export function WarpPage({ act }: { act: Act }) {
                       </ListFilter>
                     </span>
                   ),
-                  render: (r) =>
+                  render: (r) => <>
+                    <span>{
                     r.current
                       ? "当前已连接"
+                      : r.official_ok === false
+                        ? "官方连接未通过"
+                      : r.official_ok === true
+                        ? "官方连接已验证"
+                      : r.tested && r.probe_profile !== "official-sni-v1"
+                        ? "旧检测结果，请重测"
                       : r.durable
                         ? "独立探测通过"
                         : r.handshake
                           ? "连接后中断"
                           : r.tested
                             ? "未建连"
-                            : "未检测",
+                            : "未检测"}</span>
+                    {!!r.official_at && <small>{"官方验证：" + timestamp(r.official_at)}</small>}
+                  </>,
                 },
                 {
                   key: "rtt",
@@ -731,7 +745,9 @@ export function WarpPage({ act }: { act: Act }) {
       {confirm && (
         <Confirm
           title={
-            confirm.service_action === "connect"
+            confirm.operation === "verify-best"
+              ? "验证并优选 WARP 端点"
+              : confirm.service_action === "connect"
               ? "连接 WARP 隧道"
               : confirm.service_action === "disconnect"
                 ? "断开 WARP 隧道"
@@ -740,7 +756,9 @@ export function WarpPage({ act }: { act: Act }) {
           message={
             <>
               <p>
-                {confirm.service_action
+                {confirm.operation === "verify-best"
+                  ? "将实际切换最多3个预检候选，测量RTT、丢包、真延迟与已启用的下载速度，期间WARP会短暂中断。只有最终复测稳定改善至少5分才保留新端点，否则恢复并确认原隧道。下载量与时长使用当前测速设置。"
+                  : confirm.service_action
                   ? "将" +
                     (confirm.service_action === "connect" ? "连接" : "断开") +
                     "隔离 WARP 隧道。"

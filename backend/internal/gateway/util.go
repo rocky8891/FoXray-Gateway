@@ -308,7 +308,17 @@ func (a *App) submitTask(title, group, source string, fn func(context.Context, *
 	a.jobs.mu.Lock()
 	a.jobs.items = append([]*Job{j}, a.jobs.items...)
 	if len(a.jobs.items) > 100 {
-		a.jobs.items = a.jobs.items[:100]
+		kept := make([]*Job, 0, 108)
+		completed := 0
+		for _, item := range a.jobs.items {
+			if item.Status == "running" || item.Status == "queued" {
+				kept = append(kept, item)
+			} else if completed < 100 {
+				kept = append(kept, item)
+				completed++
+			}
+		}
+		a.jobs.items = kept
 	}
 	a.jobs.mu.Unlock()
 	go func() {

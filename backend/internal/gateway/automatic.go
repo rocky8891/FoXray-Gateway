@@ -29,6 +29,10 @@ func (a *App) warpAutomatic() {
 				continue
 			}
 			a.scoutOperate.Unlock()
+			if !a.warpOperate.TryLock() {
+				continue
+			}
+			a.warpOperate.Unlock()
 			current := a.warp()
 			if !yes(current["connected"]) {
 				continue
@@ -109,7 +113,7 @@ func (a *App) chooseWarp(ctx context.Context, j *Job, protocol string, policy M)
 	var active M
 	for _, v := range arr(obj(fresh["collections"])[protocol]) {
 		r := obj(v)
-		if yes(r["durable"]) && now()-num(r["tested_at"]) < 900 && r["rtt_ms"] != nil && r["loss_pct"] != nil && num(r["loss_pct"]) <= 20 {
+		if !officialWarpCoolingDown(r) && str(r["probe_profile"]) == scoutProbeProfile && yes(r["durable"]) && now()-num(r["tested_at"]) < 900 && r["rtt_ms"] != nil && r["loss_pct"] != nil && num(r["loss_pct"]) <= 20 {
 			rows = append(rows, r)
 			if str(r["endpoint"]) == endpoint {
 				active = r
@@ -142,10 +146,15 @@ func (a *App) chooseWarp(ctx context.Context, j *Job, protocol string, policy M)
 		a.jobDetail(j, "候选更优，等待后续检测确认；当前隧道保持")
 		return nil
 	}
-	if e := a.activateWarp(ctx, j, protocol, str(best["endpoint"])); e != nil {
+	if e := a.verifyBestWarp(ctx, j, protocol); e != nil {
 		return e
 	}
-	state["last_switch"], state["streak"] = now(), 0
+	a.invalidateWarp()
+	after := a.warp()
+	if firstNonempty(str(after["endpoint_address"]), str(after["override"])) != endpoint {
+		state["last_switch"] = now()
+	}
+	state["streak"] = 0
 	return writeJSON(filepath.Join(a.base, "private", "warp-auto.json"), state)
 }
 func recordMap(v any) M { return obj(v) }

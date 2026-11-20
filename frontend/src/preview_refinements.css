@@ -1,4 +1,19 @@
 /* Content defines popup width, not a blanket minimum. */
+.read-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.read-badge.is-unread { color: var(--metric-blue); font-weight: 650; }
+.read-badge > span { font-size: 8px; }
+.task-center-row.unread { background: color-mix(in srgb, var(--metric-blue) 7%, transparent); }
+.task-center-row .read-badge { display: inline-flex; margin-top: 3px; }
+.task-center-panel .task-center-footer { flex-wrap: wrap; gap: 6px; }
 .module-tab-dropdown > .icon-select > .icon-select-trigger {
   height: var(--menu-button-height);
   min-height: var(--menu-button-height);

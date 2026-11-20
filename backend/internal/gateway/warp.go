@@ -2,10 +2,8 @@ package gateway
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
-	"math/big"
 	"net"
 	"path/filepath"
 	"sort"
@@ -65,6 +63,20 @@ func (a *App) scoutStatus() M {
 	m["current"] = current
 	m["installed"] = regular(filepath.Join(a.base, "probe-tools", "warpscout"))
 	m["protocols"] = scoutProtocols
+	official := M{}
+	_ = readJSON(filepath.Join(a.base, "warp-official-results.json"), &official)
+	for kind, values := range obj(m["collections"]) {
+		for _, value := range arr(values) {
+			row := obj(value)
+			if result := obj(official[kind+":"+str(row["endpoint"])]); len(result) > 0 {
+				row["official_ok"], row["official_at"] = result["connected"], result["checked_at"]
+			}
+			if yes(row["current"]) {
+				row["official_ok"] = true
+				row["official_at"] = now()
+			}
+		}
+	}
 	policy := M{}
 	_ = readJSON(filepath.Join(a.base, "warp-endpoints.json"), &policy)
 	m["policy"] = policy
@@ -108,39 +120,31 @@ func (a *App) warpAction(path string, d M) (M, error) {
 	if !validPort {
 		return nil, errors.New("该协议的端口不支持")
 	}
-	if op == "discover" || op == "refresh" || op == "restore" {
+	if op == "discover" || op == "refresh" {
+		job, err := a.submit("WARP 优选端点发现", "warp.discover", func(ctx context.Context, j *Job) error {
+			return a.discoverWarp(ctx, j, protocol, p)
+		})
+		return M{"ok": err == nil, "id": job}, err
+	}
+	if op == "verify-best" {
+		if !yes(d["confirmed"]) {
+			return nil, errors.New("实际优选会短暂切换 WARP，请先确认")
+		}
+		job, err := a.submit("WARP 官方端点验证优选", "warp.verify", func(ctx context.Context, j *Job) error { return a.verifyBestWarp(ctx, j, protocol) })
+		return M{"ok": err == nil, "id": job}, err
+	}
+	if op == "restore" {
+		if !a.scoutOperate.TryLock() {
+			return nil, errors.New("候选检测进行中，请等待完成后恢复候选")
+		}
+		defer a.scoutOperate.Unlock()
 		m := a.scoutStatus()
 		collections := obj(m["collections"])
 		previous := obj(m["previous"])
-		if op == "restore" {
-			if len(arr(previous[protocol])) == 0 {
-				return nil, errors.New("没有上次候选列表")
-			}
-			collections[protocol], previous[protocol] = previous[protocol], collections[protocol]
-		} else {
-			previous[protocol] = clone(arr(collections[protocol]))
-			rows := []any{}
-			current := obj(m["current"])
-			pinned := firstNonempty(str(current["endpoint_address"]), str(current["override"]))
-			seen := map[string]bool{}
-			if endpointValid(pinned) {
-				rows = append(rows, M{"endpoint": pinned, "protocol": protocol, "pinned": true})
-				seen[pinned] = true
-			}
-			for len(rows) < 10 {
-				x, _ := rand.Int(rand.Reader, big.NewInt(254))
-				pool := "162.159.198."
-				if protocol == "wg" {
-					pool = "162.159.192."
-				}
-				address := pool + strconv.Itoa(int(x.Int64())+1) + ":" + strconv.Itoa(p)
-				if !seen[address] {
-					rows = append(rows, M{"endpoint": address, "protocol": protocol})
-					seen[address] = true
-				}
-			}
-			collections[protocol] = rows
+		if len(arr(previous[protocol])) == 0 {
+			return nil, errors.New("没有上次候选列表")
 		}
+		collections[protocol], previous[protocol] = previous[protocol], collections[protocol]
 		m["collections"], m["previous"] = collections, previous
 		return M{"ok": true}, writeJSON(filepath.Join(a.base, "warp-scout-results.json"), m)
 	}
@@ -228,14 +232,19 @@ func (a *App) warpAction(path string, d M) (M, error) {
 func (a *App) activateWarp(ctx context.Context, j *Job, protocol, endpoint string) error {
 	a.warpOperate.Lock()
 	defer a.warpOperate.Unlock()
+	return a.activateWarpLocked(ctx, j, protocol, endpoint)
+}
+func (a *App) activateWarpLocked(ctx context.Context, j *Job, protocol, endpoint string) error {
 	if e := a.verifyWarp(); e != nil {
 		return e
 	}
+	a.jobDetail(j, fmt.Sprintf("目标端点：%s；隧道类型：%s", endpoint, protocol))
 	if protocol == "masque-h2" && endpoint != "" {
 		a.stage(j, "通过独立认证隧道预检候选端点，原隧道保持连接")
 		if err := a.preflightWarpCandidate(ctx, endpoint); err != nil {
 			return err
 		}
+		a.jobDetail(j, "独立候选预检通过；官方客户端连接仍需单独确认")
 	}
 	old := a.warp()
 	set := func(proto, option, target string) error {
@@ -273,37 +282,35 @@ func (a *App) activateWarp(ctx context.Context, j *Job, protocol, endpoint strin
 	}
 	if e == nil {
 		actual := a.warp()
-		if endpoint != "" && firstNonempty(str(actual["endpoint_address"]), str(actual["override"])) != endpoint {
+		if endpoint != "" && !warpEndpointConfirmed(actual, endpoint) {
 			e = errors.New("客户端未确认目标端点")
 		}
 	}
 	if e != nil {
-		restoreCtx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		a.recordWarpOfficial(protocol, endpoint, false)
+		a.jobDetail(j, "官方客户端连接未通过："+e.Error())
+		restoreCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
-		_, _ = a.warpCommand(restoreCtx, "disconnect")
-		if proto := str(old["protocol"]); proto == "MASQUE" || proto == "WireGuard" {
-			_, _ = a.warpCommand(restoreCtx, "tunnel", "protocol", "set", proto)
-			if proto == "MASQUE" && str(old["masque_options"]) != "" {
-				_, _ = a.warpCommand(restoreCtx, "tunnel", "masque-options", "set", str(old["masque_options"]))
-			}
-		}
-		if oldTarget := str(old["override"]); oldTarget != "" {
-			_, _ = a.warpCommand(restoreCtx, "tunnel", "endpoint", "set", oldTarget)
-		} else {
-			_, _ = a.warpCommand(restoreCtx, "tunnel", "endpoint", "reset")
+		if restoreErr := a.restoreWarpConnection(restoreCtx, j, old); restoreErr != nil {
+			a.jobDetail(j, restoreErr.Error())
+			return errors.New(e.Error() + "；回退未完成，请检查 WARP 状态")
 		}
 		if yes(old["connected"]) {
-			_, _ = a.warpCommand(restoreCtx, "connect")
+			a.jobDetail(j, "已确认原隧道恢复连接")
+			return errors.New(e.Error() + "；已恢复原端点并确认原隧道连接")
 		}
-		return errors.New(e.Error() + "；已恢复原端点设置，恢复连接状态另行确认")
+		return errors.New(e.Error() + "；已恢复原端点设置，原隧道保持断开")
 	}
 	policy := M{}
 	_ = readJSON(filepath.Join(a.base, "warp-endpoints.json"), &policy)
-	policy["auto"] = false
+	if j.Source != "automatic" && j.Group != "warp.verify" {
+		policy["auto"] = false
+	}
 	if err := writeJSON(filepath.Join(a.base, "warp-endpoints.json"), policy); err != nil {
 		return errors.New("目标隧道已连接，但自动选择策略保存失败，请核对设置")
 	}
 	a.stage(j, "已确认目标隧道连接")
+	a.recordWarpOfficial(protocol, endpoint, true)
 	return nil
 }
 func durationMS(s string) any {

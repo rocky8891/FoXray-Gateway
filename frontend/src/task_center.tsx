@@ -1,6 +1,6 @@
 import { CopyButton } from "./resource_controls";
+import { ReadBadge, taskReadKeys, useReadState } from "./read_state";
 import {
-  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -33,7 +33,7 @@ const statusClass = (status: string) =>
     ? "accent"
     : status === "partial"
       ? "fair"
-      : status === "running"
+      : status === "running" || status === "queued"
         ? "muted"
         : "poor";
 const statusLabel = (status: string) =>
@@ -41,11 +41,11 @@ const statusLabel = (status: string) =>
     ? "执行成功"
     : status === "partial"
       ? "部分成功"
-      : status === "running"
+        : status === "queued" ? "排队等待" : status === "running"
         ? "正在执行"
         : "执行失败";
 function StatusIcon({ status }: { status: string }) {
-  return status === "running" ? (
+  return status === "running" || status === "queued" ? (
     <LoaderCircle size={16} className="spin" />
   ) : status === "success" ? (
     <CheckCircle2 size={16} className="accent" />
@@ -83,15 +83,7 @@ export function Tasks({
     [loading, setLoading] = useState(false),
     [failure, setFailure] = useState("");
   const [pageSize, setPageSize] = useState(() => (innerHeight < 650 ? 3 : 5));
-  const [seen, setSeen] = useState<Set<string>>(() => {
-    try {
-      return new Set(
-        JSON.parse(localStorage.getItem("foxray.tasks.seen") || "[]"),
-      );
-    } catch {
-      return new Set();
-    }
-  });
+  const { isRead, markRead } = useReadState();
   const panelRoot = useRef<HTMLElement>(null);
   const toastRoot = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null),
@@ -156,17 +148,6 @@ export function Tasks({
       removeEventListener("scroll", align);
     };
   }, [toast, open]);
-  const remember = useCallback(
-    (ids: string[]) =>
-      setSeen((old) => {
-        const values = [...new Set([...old, ...ids])].slice(-250);
-        if (values.length === old.size && values.every((id) => old.has(id)))
-          return old;
-        localStorage.setItem("foxray.tasks.seen", JSON.stringify(values));
-        return new Set(values);
-      }),
-    [],
-  );
   useEffect(() => {
     const resize = () => setPageSize(innerHeight < 650 ? 3 : 5);
     addEventListener("resize", resize);
@@ -212,12 +193,12 @@ export function Tasks({
   useEffect(() => {
     if (detail && "task" in detail && detail.task.status === "running") {
       const latest = tasks.find((t) => t.id === detail.task.id);
-      if (latest && terminal(latest)) setDetail({ task: latest });
+      if (latest && terminal(latest)) {
+        markRead(taskReadKeys(latest));
+        setDetail({ task: latest });
+      }
     }
-  }, [resource.data, detail]);
-  useEffect(() => {
-    if (open) remember(tasks.filter(terminal).map((t) => t.id));
-  }, [open, resource.data, remember]);
+  }, [resource.data, detail, markRead]);
   useEffect(() => {
     if (!open) return;
     const outside = (e: PointerEvent) => {
@@ -238,7 +219,7 @@ export function Tasks({
     };
   }, [open]);
   useEffect(() => {
-    if (!open || tab !== "history") return;
+    if (tab !== "history") return;
     const controller = new AbortController();
     setLoading(true);
     setFailure("");
@@ -274,7 +255,8 @@ export function Tasks({
     return () => controller.abort();
   }, [open, tab, cursor, historyVersion]);
   const running = tasks.filter((t) => !terminal(t));
-  const unread = tasks.filter((t) => terminal(t) && !seen.has(t.id));
+  const unread = [...new Map([...tasks, ...history.filter(visibleTask), ...localHistory].map(t => [t.id,t])).values()]
+    .filter((t) => terminal(t) && !isRead(taskReadKeys(t)));
   const unreadErrors = unread.filter((t) => t.status === "error").length;
   const unreadPartial = unread.filter((t) => t.status === "partial").length;
   const warning = resource.error
@@ -292,7 +274,7 @@ export function Tasks({
   useEffect(() => {
     onWarningChange?.(warning);
   }, [onWarningChange, warning]);
-  const count = running.length;
+  const count = running.length + unread.length;
   const historyRows = [
     ...new Map(
       [
@@ -313,7 +295,11 @@ export function Tasks({
     onClear();
     setDetail(value);
     setOpen(true);
-    if ("task" in value) remember([value.task.id]);
+    if ("task" in value && terminal(value.task)) markRead(taskReadKeys(value.task));
+    if ("notice" in value) {
+      const local = localHistory.find(t => t.message === value.notice.message && t.title === (value.notice.operation || "本次操作"));
+      if (local) markRead(taskReadKeys(local));
+    }
   };
   const closeToast = () => {
     setToast(null);
@@ -325,7 +311,7 @@ export function Tasks({
       <button
         type="button"
         className="button ghost task-center-trigger"
-        title="任务"
+        title={`任务：${running.length} 项执行中，${unread.length} 项未读结果`}
         aria-label={`任务，${running.length}项执行中，${unread.length}项未读结果`}
         aria-expanded={open}
         onClick={() => {
@@ -339,7 +325,7 @@ export function Tasks({
         <ListTodo size={18} />
         <span>任务</span>
         <span
-          className={"task-count running" + (!count ? " empty" : "")}
+          className={"task-count " + (running.length ? "running" : "unread") + (!count ? " empty" : "")}
           aria-hidden={!count}
         >
           {count > 99 ? "99+" : count}
@@ -453,13 +439,14 @@ export function Tasks({
                 <div className="task-center-rows">
                   {rows.slice(start, start + pageSize).map((t) => (
                     <button
-                      className="task-center-row"
+                      className={"task-center-row" + (terminal(t) && !isRead(taskReadKeys(t)) ? " unread" : "")}
                       key={t.id}
                       onClick={() => showDetail({ task: t })}
                     >
                       <StatusIcon status={t.status} />
                       <span>
                         <strong>{t.title}</strong>
+                        {terminal(t) && <ReadBadge read={isRead(taskReadKeys(t))} />}
                         <small>
                           {timestamp(t.finished || t.started)}
                           {t.source === "automatic"
@@ -485,6 +472,12 @@ export function Tasks({
                   )}
                 </div>
                 <div className="task-center-footer">
+                  {tab === "history" && <Button size="compact"
+                    title="将已加载的任务历史标为已读；阅读状态仅保存在当前浏览器"
+                    disabled={!historyRows.some(t => !isRead(taskReadKeys(t)))}
+                    onClick={() => markRead(historyRows.flatMap(taskReadKeys))}>
+                    全部标为已读
+                  </Button>}
                   <Button
                     disabled={!currentPage}
                     onClick={() => setPage(currentPage - 1)}

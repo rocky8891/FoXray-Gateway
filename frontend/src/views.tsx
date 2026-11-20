@@ -1,4 +1,5 @@
 import { ResetFilters } from "./list_controls";
+import { ReadBadge, logReadKeys, useReadState } from "./read_state";
 import { hasChanges } from "./settings_save";
 import { PaginatedCards } from "./resource_controls";
 import { NodeManagementIcon } from "./requirement_icons";
@@ -450,6 +451,7 @@ export function Operations({
   kind?: string;
   title?: string;
 }) {
+  const { isRead, markRead } = useReadState();
   const [before, setBefore] = useState(""),
     [archive, setArchive] = useState<Operation[]>([]),
     [detail, setDetail] = useState<Dict | null>(null),
@@ -480,8 +482,11 @@ export function Operations({
     <Panel>
       <PageHeader
         title={title}
-        description="日志保存在服务器，按设置的保留周期滚动清理；点击可查看详情"
-        actions={<Button onClick={() => void refresh()}>刷新</Button>}
+        description="查看详情后标为已读，与对应任务结果同步；阅读状态保存在当前浏览器，不同浏览器各自记录。日志仍按服务器保留周期清理。"
+        actions={<>
+          <Button disabled={!rows.some(r => !isRead(logReadKeys(r)))} onClick={() => markRead(rows.flatMap(logReadKeys))}>全部标为已读</Button>
+          <Button onClick={() => void refresh()}>刷新</Button>
+        </>}
       />
       <ErrorLine error={error || failure} />
       <Table
@@ -512,6 +517,7 @@ export function Operations({
             ),
           },
           { key: "message", label: "操作内容", render: (r) => r.message },
+          { key: "read", label: "阅读状态", render: (r) => <ReadBadge read={isRead(logReadKeys(r))} /> },
           {
             key: "status",
             label: "结果",
@@ -545,7 +551,7 @@ export function Operations({
                 ariaLabel="查看日志"
                 onClick={() => {
                   void api<Dict>("/api/operations/" + encodeURIComponent(r.id))
-                    .then(setDetail)
+                    .then((data) => { setDetail(data); markRead(logReadKeys(r)); })
                     .catch((e) => setFailure(errorMessage(e)));
                 }}
               >
@@ -573,6 +579,7 @@ export function Operations({
   );
 }
 export function Switches() {
+  const { isRead, markRead } = useReadState();
   const { data, error, refresh } = useResource<{ items: Dict[] }>(
     "/api/switches",
     5000,
@@ -609,6 +616,10 @@ export function Switches() {
             render: (r) => text(r.duration) + " 秒",
           },
           { key: "error", label: "原因", render: (r) => text(r.error) },
+          { key: "read", label: "阅读状态", render: (r) => {
+            const keys = ["switch:" + String(r.time) + ":" + String(r.target)];
+            return <Button size="compact" iconOnly={false} title="标为已读" disabled={isRead(keys)} onClick={() => markRead(keys)}><ReadBadge read={isRead(keys)} /></Button>;
+          } },
         ]}
       />
     </Panel>
@@ -1696,6 +1707,7 @@ export function Diagnostics({ act }: { act: Act }) {
   );
 }
 export function DiagnosticLog({ act }: { act: Act }) {
+  const { isRead, markRead } = useReadState();
   const diagnostic = useDiagnosticRunner(act);
   const [detail, setDetail] = useState<Operation | null>(null);
   const history = useResource<{ items: Operation[] }>(
@@ -1709,8 +1721,11 @@ export function DiagnosticLog({ act }: { act: Act }) {
       window.removeEventListener("foxray:diagnostic-completed", refresh);
   }, [history.refresh]);
   useEffect(() => {
-    if (diagnostic.result) setDetail(diagnostic.result);
-  }, [diagnostic.result]);
+    if (diagnostic.result) {
+      setDetail(diagnostic.result);
+      markRead(logReadKeys(diagnostic.result));
+    }
+  }, [diagnostic.result, markRead]);
   return (
     <>
       {" "}
@@ -1734,6 +1749,7 @@ export function DiagnosticLog({ act }: { act: Act }) {
           columns={[
             { key: "time", label: "时间", render: (r) => timestamp(r.time) },
             { key: "message", label: "内容", render: (r) => r.message },
+            { key: "read", label: "阅读状态", render: (r) => <ReadBadge read={isRead(logReadKeys(r))} /> },
             {
               key: "status",
               label: "结果",
@@ -1744,7 +1760,7 @@ export function DiagnosticLog({ act }: { act: Act }) {
               label: "操作",
               render: (r) => (
                 <div className="actions">
-                  <Button onClick={() => setDetail(r)}>查看日志</Button>
+                  <Button onClick={() => { setDetail(r); markRead(logReadKeys(r)); }}>查看日志</Button>
                   <Button
                     disabled={
                       diagnostic.pending || !record(r.details).parameters

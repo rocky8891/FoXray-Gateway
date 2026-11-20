@@ -12,12 +12,13 @@ import (
 	"time"
 )
 
-const scoutMASQUESNI = "consumer-masque-proxy.cloudflareclient.com"
+const scoutMASQUESNI = "consumer-masque.cloudflareclient.com"
+const scoutProbeProfile = "official-sni-v1"
 
 type scoutProbeEnvironment struct{ binary, account, uid, gid string }
 
 func scoutMASQUEArgs(protocol string) []string {
-	if protocol == "masque-h2" {
+	if protocol == "masque-h2" || protocol == "masque" {
 		return []string{"--masque-sni", scoutMASQUESNI}
 	}
 	return nil
@@ -66,6 +67,7 @@ func (a *App) probeScoutCandidate(ctx context.Context, env scoutProbeEnvironment
 	_, runErr := a.runner.Run(child, scoutScanArgs(env, protocol, target, report, latency), "")
 	raw, readErr := os.ReadFile(report)
 	result := parseScoutReport(string(raw), protocol, target)
+	result["probe_profile"], result["probe_sni"] = scoutProbeProfile, scoutMASQUESNI
 	if runErr != nil || readErr != nil || child.Err() != nil {
 		result["durable"] = false
 		result["probe_error"] = "独立候选隧道检测失败或超时"
@@ -95,7 +97,7 @@ func mergeScoutMetrics(old, measured M, metrics []string) M {
 	if result == nil {
 		result = M{}
 	}
-	for _, key := range []string{"endpoint", "protocol", "tested", "tested_at", "handshake", "durable"} {
+	for _, key := range []string{"endpoint", "protocol", "tested", "tested_at", "handshake", "durable", "probe_profile", "probe_sni"} {
 		result[key] = measured[key]
 	}
 	delete(result, "probe_error")

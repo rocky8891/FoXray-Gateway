@@ -179,7 +179,11 @@ func (a *App) warpCommand(ctx context.Context, args ...string) (string, error) {
 	return out, e
 }
 func (a *App) waitWarp(ctx context.Context, j *Job, seconds int) error {
+	return a.waitWarpState(ctx, j, seconds, true)
+}
+func (a *App) waitWarpState(ctx context.Context, j *Job, seconds int, failFast bool) error {
 	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
+	failedChecks := 0
 	for time.Now().Before(deadline) {
 		child, cancel := context.WithDeadline(ctx, deadline)
 		c, stop := context.WithTimeout(child, 4*time.Second)
@@ -189,6 +193,15 @@ func (a *App) waitWarp(ctx context.Context, j *Job, seconds int) error {
 		if e == nil && strings.Contains(status, "Status update: Connected") {
 			a.invalidateWarp()
 			return nil
+		}
+		if failFast && e == nil && strings.Contains(status, "Status update: Unable") && strings.Contains(strings.ToLower(status), "failed to perform happy eyeballs") {
+			failedChecks++
+			if failedChecks >= 2 {
+				a.invalidateWarp()
+				return errors.New("WARP 官方客户端连接握手失败（Happy Eyeballs），目标端点未连接")
+			}
+		} else {
+			failedChecks = 0
 		}
 		a.stage(j, fmt.Sprintf("等待 WARP 隧道确认 · 剩余 %d 秒；Xray 保持独立", int(time.Until(deadline).Seconds())))
 		select {
