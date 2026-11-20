@@ -146,7 +146,7 @@ export function DiagnosticReport({
       </p>
       <dl className="diagnostic-facts">
         <div>
-          <dt>目标</dt>
+          <dt>{d.dns_routing_mode ? "请求填写的DNS目标" : "目标"}</dt>
           <dd>
             {String(p.target || p.host || "—")}:{String(p.port || 443)}
           </dd>
@@ -173,6 +173,7 @@ export function DiagnosticReport({
         {Boolean(record(d.route_observer).note) && record(d.actual_node).status !== "observed" && <div><dt>节点观测状态</dt><dd>{String(record(d.route_observer).note)}</dd></div>}
         {Boolean(d.observed_path) && <div><dt>事件确认路径</dt><dd>{String(d.observed_path)}</dd></div>}
         {d.dns_routing_mode != null && <div><dt>DNS测试机制</dt><dd>{String(d.dns_routing_mode)}</dd></div>}
+        {d.dns_actual_upstream != null && <div><dt>实际DNS上游</dt><dd>{String(d.dns_actual_upstream)}</dd></div>}
         {d.dns_query_ms != null && <div><dt>DNS查询应答耗时</dt><dd>{Number(d.dns_query_ms).toFixed(2)} ms（包含发送查询与接收应答，不是本地UDP套接字或TCP接管耗时）</dd></div>}
         {d.dns_query_name != null && <div><dt>DNS查询与记录类型</dt><dd>{String(d.dns_query_name)} · A</dd></div>}
         {Array.isArray(d.dns_answers) && <div><dt>DNS应答地址</dt><dd>{d.dns_answers.join("、")}</dd></div>}

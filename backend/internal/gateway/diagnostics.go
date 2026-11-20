@@ -150,8 +150,11 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 		obj(result["parameters"])["query"] = query
 		var measured M
 		var err error
-		if scope == "lan" && smartLAN && enabled && capture {
+		if smartLAN && enabled && capture {
 			measured, err = a.measureDiagnosticLANDNS(ctx, target, p, query, protocol == "dns_tcp")
+			if scope != "lan" {
+				measured["dns_routing_mode"] = "本机智能DNS；实际经过网关解析器与上游"
+			}
 		} else {
 			measured, err = measureDiagnosticDNS(ctx, target, p, query, protocol == "dns_tcp")
 		}
@@ -217,8 +220,17 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 			node = a.observedDiagnosticNode(event)
 		}
 
+		node["diagnostic_scope"] = scope
 		result["actual_node"] = node
-		result["observed_path"] = diagnosticObservedPath(node, host, p)
+		pathHost, pathPort := host, p
+		if address := str(result["dns_actual_upstream"]); address != "" {
+			if h, port, err := net.SplitHostPort(address); err == nil {
+				if number, e := strconv.Atoi(port); e == nil {
+					pathHost, pathPort = h, number
+				}
+			}
+		}
+		result["observed_path"] = diagnosticObservedPath(node, pathHost, pathPort)
 		result["path_status"] = node["status"]
 		a.jobDetail(j, "本次连接路径："+str(result["observed_path"]))
 	}

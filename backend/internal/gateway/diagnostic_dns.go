@@ -108,6 +108,7 @@ func (a *App) measureDiagnosticLANDNS(ctx context.Context, target string, port i
 	trace.mu.Lock()
 	if trace.success >= 0 && trace.success < len(trace.flows) {
 		result["probe_connections"] = []any{trace.flows[trace.success]}
+		result["dns_actual_upstream"] = obj(trace.flows[trace.success])["target"]
 	} else {
 		result["probe_connections"] = append([]any{}, trace.flows...)
 	}

@@ -134,12 +134,13 @@ func (d *LANResolver) serveUDP(conn *net.UDPConn) {
 			continue
 		}
 		original := dnsOriginalUDP(oob[:on])
+		local := dnsLocalUDP(oob[:on])
 		select {
 		case d.slots <- struct{}{}:
 		default:
 			continue
 		}
-		go func(raw []byte, peer *net.UDPAddr, original string) {
+		go func(raw []byte, peer *net.UDPAddr, original, local string) {
 			defer func() { <-d.slots }()
 			ctx := context.WithValue(d.app.ctx, dnsOriginalPeerKey{}, peer.String())
 			response := d.resolve(ctx, raw, original, "udp")
@@ -147,9 +148,9 @@ func (d *LANResolver) serveUDP(conn *net.UDPConn) {
 				response = dnsErrorReply(raw, 0, true)
 			}
 			if len(response) > 0 {
-				conn.WriteToUDP(response, peer)
+				writeDNSReplyUDP(conn, response, peer, local)
 			}
-		}(append([]byte{}, raw[:n]...), peer, original)
+		}(append([]byte{}, raw[:n]...), peer, original, local)
 	}
 }
 func (d *LANResolver) serveTCP(listener net.Listener) {
@@ -206,7 +207,7 @@ func (d *LANResolver) resolve(ctx context.Context, raw []byte, original, network
 	}
 	d.app.mu.RLock()
 	applied := d.app.applied
-	enabled := yes(d.app.cfg["capture_lan"]) && yes(d.app.cfg["lan_dns_intercept"])
+	enabled := (yes(d.app.cfg["capture_lan"]) || yes(d.app.cfg["capture_host"])) && yes(d.app.cfg["lan_dns_intercept"])
 	d.app.mu.RUnlock()
 	c := d.policySnapshot()
 	if !applied || !enabled {
@@ -300,6 +301,11 @@ func (a *App) lanDNSAction(c M, domain, original, network string) string {
 func (a *App) lanDNSDecision(c M, domain, original, network string) (string, bool) {
 	for _, v := range activeRules(c) {
 		r := obj(v)
+		// Generic IP bypass rules describe the original resolver's transport, not
+		// the queried name. Only explicitly scoped DNS IP rules override smart DNS.
+		if r["type"] == "ip" && str(r["port"]) == "" {
+			continue
+		}
 		if !yes(r["enabled"]) || !dnsRulePort(str(r["port"])) {
 			continue
 		}
@@ -444,16 +450,41 @@ func configureLANResolverEngine(engine M, selected string) {
 	routing := obj(engine["routing"])
 	routing["rules"] = append([]any{M{"type": "field", "inboundTag": []string{"smartdns-direct"}, "outboundTag": "out-direct"}, M{"type": "field", "inboundTag": []string{"smartdns-proxy"}, "outboundTag": "out-" + selected}}, arr(routing["rules"])...)
 }
-func lanDNSCaptureRules(c M) string {
-	if !yes(c["lan_dns_intercept"]) || !yes(c["capture_lan"]) {
+func lanDNSCaptureRules(c M, engineUID ...string) string {
+	if !yes(c["lan_dns_intercept"]) || (!yes(c["capture_lan"]) && !yes(c["capture_host"])) {
 		return ""
 	}
+	text := ""
+	lan := yes(c["capture_lan"])
 	for _, v := range arr(customVPNExclusions(c)["interfaces"]) {
 		if str(v) == "ens16" {
-			return ""
+			lan = false
 		}
 	}
-	return fmt.Sprintf(" chain dns_prerouting { type nat hook prerouting priority -100; policy accept; iifname \"ens16\" ip saddr 192.168.1.0/24 meta l4proto { tcp, udp } th dport 53 redirect to :%d; }\n chain dns_input { type filter hook input priority -5; policy accept; iifname \"lo\" meta l4proto { tcp, udp } th dport %d accept; iifname \"ens16\" ip saddr 192.168.1.0/24 meta l4proto { tcp, udp } th dport %d accept; meta l4proto { tcp, udp } th dport %d drop; }\n", lanDNSPort, lanDNSPort, lanDNSPort, lanDNSPort)
+	if lan {
+		text += fmt.Sprintf(" chain dns_prerouting { type nat hook prerouting priority -100; policy accept; iifname \"ens16\" ip saddr 192.168.1.0/24 meta l4proto { tcp, udp } th dport 53 redirect to :%d; }\n", lanDNSPort)
+	}
+	if yes(c["capture_host"]) && len(engineUID) > 0 {
+		if _, err := strconv.Atoi(engineUID[0]); err == nil {
+			skip := ""
+			devices := []string{}
+			for _, v := range arr(c["_dns_vpn_devices"]) {
+				if safeName.MatchString(str(v)) {
+					devices = append(devices, strconv.Quote(str(v)))
+				}
+			}
+			if len(devices) > 0 {
+				skip = "oifname { " + strings.Join(devices, ", ") + " } return; "
+			}
+			text += fmt.Sprintf(" chain dns_output { type nat hook output priority -100; policy accept; meta skuid %s return; socket mark 0x100cf return; meta l4proto { tcp, udp } th sport %d return; %smeta nfproto ipv4 meta l4proto { tcp, udp } th dport 53 redirect to :%d; }\n", engineUID[0], lanDNSPort, skip, lanDNSPort)
+		}
+	}
+	allowLAN := ""
+	if lan {
+		allowLAN = fmt.Sprintf("iifname \"ens16\" ip saddr 192.168.1.0/24 meta l4proto { tcp, udp } th dport %d accept; ", lanDNSPort)
+	}
+	text += fmt.Sprintf(" chain dns_input { type filter hook input priority -5; policy accept; iifname \"lo\" meta nfproto ipv4 meta l4proto { tcp, udp } th dport %d accept; %smeta nfproto ipv4 meta l4proto { tcp, udp } th dport %d drop; }\n", lanDNSPort, allowLAN, lanDNSPort)
+	return text
 }
 
 type dnsOriginalPeerKey struct{}
@@ -461,7 +492,7 @@ type dnsOriginalPeerKey struct{}
 func dnsNeedsOriginalIP(c M) bool {
 	for _, v := range activeRules(c) {
 		r := obj(v)
-		if yes(r["enabled"]) && r["type"] == "ip" && dnsRulePort(str(r["port"])) {
+		if yes(r["enabled"]) && r["type"] == "ip" && str(r["port"]) != "" && dnsRulePort(str(r["port"])) {
 			return true
 		}
 	}

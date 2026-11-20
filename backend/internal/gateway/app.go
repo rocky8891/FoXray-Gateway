@@ -430,7 +430,7 @@ func first(a, b any) any {
 func (a *App) Start() {
 	a.started.Do(func() {
 		a.startRoutingWebhook()
-		if !a.readonly && a.applied && yes(a.cfg["capture_lan"]) && yes(a.cfg["lan_dns_intercept"]) {
+		if !a.readonly && a.applied && (yes(a.cfg["capture_lan"]) || yes(a.cfg["capture_host"])) && yes(a.cfg["lan_dns_intercept"]) {
 			_ = a.lanDNS.start()
 		}
 		a.refreshSnapshot()

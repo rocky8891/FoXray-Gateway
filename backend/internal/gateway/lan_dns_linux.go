@@ -18,7 +18,12 @@ func enableDNSOriginalDestination(conn *net.UDPConn) error {
 		return err
 	}
 	var controlErr error
-	err = raw.Control(func(fd uintptr) { controlErr = unix.SetsockoptInt(int(fd), unix.SOL_IP, unix.IP_RECVORIGDSTADDR, 1) })
+	err = raw.Control(func(fd uintptr) {
+		controlErr = unix.SetsockoptInt(int(fd), unix.SOL_IP, unix.IP_RECVORIGDSTADDR, 1)
+		if controlErr == nil {
+			controlErr = unix.SetsockoptInt(int(fd), unix.SOL_IP, unix.IP_PKTINFO, 1)
+		}
+	})
 	if err != nil {
 		return err
 	}
@@ -84,4 +89,32 @@ func dnsOriginalConntrack(peer string) string {
 		result = candidate
 	}
 	return result
+}
+
+func dnsLocalUDP(oob []byte) string {
+	messages, err := unix.ParseSocketControlMessage(oob)
+	if err != nil {
+		return ""
+	}
+	for _, m := range messages {
+		if m.Header.Level == unix.SOL_IP && m.Header.Type == unix.IP_PKTINFO && len(m.Data) >= 12 {
+			return net.IP(m.Data[8:12]).String()
+		}
+	}
+	return ""
+}
+func writeDNSReplyUDP(conn *net.UDPConn, raw []byte, peer *net.UDPAddr, local string) {
+	ip := net.ParseIP(local).To4()
+	if ip == nil {
+		conn.WriteToUDP(raw, peer)
+		return
+	}
+	oob := make([]byte, unix.CmsgSpace(unix.SizeofInet4Pktinfo))
+	header := (*unix.Cmsghdr)(unsafe.Pointer(&oob[0]))
+	header.Level = unix.SOL_IP
+	header.Type = unix.IP_PKTINFO
+	header.SetLen(unix.CmsgLen(unix.SizeofInet4Pktinfo))
+	info := (*unix.Inet4Pktinfo)(unsafe.Pointer(&oob[unix.CmsgLen(0)]))
+	copy(info.Spec_dst[:], ip)
+	conn.WriteMsgUDP(raw, oob, peer)
 }

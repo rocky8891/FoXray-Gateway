@@ -141,6 +141,9 @@ func diagnosticObservedPath(node M, host string, port int) string {
 	parts := []string{"网关诊断进程", "vpm-tun（核心事件）", "Xray"}
 	if strings.HasPrefix(str(node["inbound_tag"]), "smartdns-") {
 		parts = []string{"网关诊断进程", "LAN DNS解析器（规则模拟）", "Xray智能DNS入口（核心事件）"}
+		if node["diagnostic_scope"] == "host" {
+			parts[1] = "本机智能DNS解析器"
+		}
 	}
 	if device := str(node["interface"]); device != "" {
 		parts = append(parts, device+"（出站配置）")

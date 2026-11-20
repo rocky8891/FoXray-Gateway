@@ -245,7 +245,7 @@ func (a *App) buildEngine(c, native M, selected string) (M, error) {
 		obj(ins[0])["sniffing"] = M{"enabled": true, "destOverride": []string{"http", "tls", "quic"}, "metadataOnly": false, "routeOnly": true}
 	}
 	engine := M{"log": M{"access": "none", "error": "none", "loglevel": "none"}, "inbounds": ins, "outbounds": outs, "routing": M{"domainStrategy": "AsIs", "rules": rules}}
-	if yes(c["lan_dns_intercept"]) && yes(c["capture_lan"]) {
+	if yes(c["lan_dns_intercept"]) && (yes(c["capture_lan"]) || yes(c["capture_host"])) {
 		configureLANResolverEngine(engine, selected)
 	}
 	return a.engineTelemetry(engine), nil
@@ -429,7 +429,13 @@ func (a *App) captureRulesForEngine(c, native M, uid string) (string, error) {
 		out += "  return\n"
 	}
 	pre = customInputSkip + pre
-	smart := lanDNSCaptureRules(c)
+	smartConfig := clone(c)
+	dnsDevices := []any{}
+	for _, device := range uniq(devices) {
+		dnsDevices = append(dnsDevices, device)
+	}
+	smartConfig["_dns_vpn_devices"] = dnsDevices
+	smart := lanDNSCaptureRules(smartConfig, uid)
 	return "table inet vpm {\n" + smart + " chain prerouting {\n type filter hook prerouting priority -130; policy accept;\n" + pre + " }\n chain output {\n type route hook output priority -130; policy accept;\n" + out + " }\n}\n", nil
 }
 func (a *App) attach(c M) error {
@@ -510,7 +516,7 @@ func (a *App) proxyControlConfigLocked(data M, prepared M) error {
 		if !valid {
 			return errors.New("目标节点不存在或已停用")
 		}
-		if yes(c["lan_dns_intercept"]) && yes(c["capture_lan"]) && !a.readonly {
+		if yes(c["lan_dns_intercept"]) && (yes(c["capture_lan"]) || yes(c["capture_host"])) && !a.readonly {
 			if err := a.lanDNS.start(); err != nil {
 				return err
 			}
@@ -548,7 +554,7 @@ func (a *App) proxyControlConfigLocked(data M, prepared M) error {
 	a.mu.Unlock()
 	if e == nil {
 		a.lanDNS.invalidate()
-		if !yes(c["enabled"]) || !yes(c["capture_lan"]) || !yes(c["lan_dns_intercept"]) {
+		if !yes(c["enabled"]) || (!yes(c["capture_lan"]) && !yes(c["capture_host"])) || !yes(c["lan_dns_intercept"]) {
 			a.lanDNS.stop()
 		}
 		a.routes.setDomainCollection(yes(c["domain_identification"]))

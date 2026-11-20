@@ -65,6 +65,7 @@ func TestKernelLANDNSTransparentUDPAndTCPWithCoreFallback(t *testing.T) {
 	run("ip", "-n", client, "link", "set", cdev, "up")
 	run("ip", "-n", client, "link", "set", "lo", "up")
 	run("ip", "-n", client, "route", "add", "default", "via", "192.168.1.1")
+	run("ip", "-n", gateway, "route", "add", "default", "via", "192.168.1.2")
 	temp := t.TempDir()
 	done := filepath.Join(temp, "finished")
 	childTemp := filepath.Join(temp, "child")
@@ -139,6 +140,9 @@ print('16 transparent queries passed; arbitrary resolver replies preserve origin
 }
 func runLANDNSKernelChild(t *testing.T) {
 	a, _ := fixture(t)
+	if out, err := adminRun([]string{"sysctl", "-qw", "net.ipv4.conf.all.rp_filter=2"}, ""); err != nil {
+		t.Fatal(out, err)
+	}
 	a.applied = true
 	a.cfg["enabled"] = true
 	a.cfg["capture_lan"] = true
@@ -219,7 +223,7 @@ func runLANDNSKernelChild(t *testing.T) {
 	_, inboundPort, _ := net.SplitHostPort(inboundAddress)
 	inboundNumber, _ := strconv.Atoi(inboundPort)
 	reserve.Close()
-	engine := M{"log": M{"loglevel": "none", "access": "none", "error": "none"}, "inbounds": []any{}, "outbounds": []any{M{"tag": "out-direct", "protocol": "freedom", "settings": M{}}, M{"tag": "out-n1", "protocol": "freedom", "settings": M{}}}, "routing": M{"rules": []any{}}}
+	engine := M{"log": M{"loglevel": "none", "access": "none", "error": "none"}, "inbounds": []any{}, "outbounds": []any{M{"tag": "out-direct", "protocol": "freedom", "settings": M{}, "streamSettings": M{"sockopt": M{"mark": 65743}}}, M{"tag": "out-n1", "protocol": "freedom", "settings": M{}, "streamSettings": M{"sockopt": M{"mark": 65743}}}}, "routing": M{"rules": []any{}}}
 	engine["inbounds"] = []any{M{"tag": "tun", "listen": "127.0.0.1", "port": inboundNumber, "protocol": "dokodemo-door", "settings": M{"address": targetHost, "port": portNumber, "network": "tcp"}, "sniffing": M{"enabled": true, "destOverride": []string{"http", "tls", "quic"}, "metadataOnly": false, "routeOnly": true}}}
 	configureLANResolverEngine(engine, "n1")
 	obj(engine["routing"])["rules"] = append(arr(obj(engine["routing"])["rules"]), M{"type": "field", "inboundTag": []string{"tun"}, "outboundTag": "out-direct"})
@@ -252,7 +256,7 @@ func runLANDNSKernelChild(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer a.lanDNS.stop()
-	text, err := a.captureRulesForEngine(a.cfg, M{}, "0")
+	text, err := a.captureRulesForEngine(a.cfg, M{}, "65534")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,7 +322,13 @@ func runLANDNSKernelChild(t *testing.T) {
 			t.Fatal("smart DNS path mislabeled as TUN")
 		}
 	}
-	if num(a.lanDNS.status()["answers"]) != 18 || num(a.lanDNS.status()["failovers"]) < 2 {
+	for _, tcpOnly := range []bool{false, true} {
+		result, err := measureDiagnosticDNS(a.ctx, "203.0.113.250", 53, "foreign.test", tcpOnly)
+		if err != nil || !yes(result["dns_response_verified"]) {
+			t.Fatal("host DNS bypassed smart resolver", result, err, a.lanDNS.status())
+		}
+	}
+	if num(a.lanDNS.status()["answers"]) != 20 || num(a.lanDNS.status()["failovers"]) < 2 {
 		t.Fatal("fallback or answers missing", a.lanDNS.status())
 	}
 	tags := map[string]bool{}

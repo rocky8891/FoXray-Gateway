@@ -144,3 +144,28 @@ func TestLANDNSRegexAndUnknownDomainFallback(t *testing.T) {
 		t.Fatal("direct group did not fall back to proxy", calls)
 	}
 }
+
+func TestSmartDNSHostCaptureRespectsScopeAndCoreBypass(t *testing.T) {
+	c := M{"capture_host": true, "capture_lan": false, "lan_dns_intercept": true, "_dns_vpn_devices": []any{"wg-home"}}
+	text := lanDNSCaptureRules(c, "123")
+	for _, part := range []string{"chain dns_output", "meta skuid 123 return", "socket mark 0x100cf return", "oifname { \"wg-home\" } return", "meta nfproto ipv4", "th dport 53 redirect to :1053"} {
+		if !strings.Contains(text, part) {
+			t.Fatal("missing host DNS protection", part, text)
+		}
+	}
+	if strings.Contains(text, "chain dns_prerouting") {
+		t.Fatal("host capture enabled LAN interception")
+	}
+	c["capture_host"] = false
+	if lanDNSCaptureRules(c, "123") != "" {
+		t.Fatal("DNS interception escaped selected capture scope")
+	}
+}
+
+func TestSmartDNSDoesNotTreatGenericPrivateIPBypassAsDNSDomainPolicy(t *testing.T) {
+	a, _ := fixture(t)
+	c := M{"custom_rules": []any{M{"enabled": true, "type": "ip", "targets": []any{"127.0.0.0/8", "192.168.0.0/16"}, "action": "direct", "network": "tcp,udp", "port": ""}}, "_proxy_domains": []any{"google.com"}}
+	if a.lanDNSAction(c, "www.google.com", "127.0.0.1", "udp") != "proxy" || a.lanDNSAction(c, "www.google.com", "192.168.1.8", "udp") != "proxy" {
+		t.Fatal("gateway compatibility address changed queried-domain policy")
+	}
+}
