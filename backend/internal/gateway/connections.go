@@ -364,7 +364,11 @@ func (m *ConnectionMonitor) collect() {
 	if now()-m.applicationAt > 5 {
 		socketsForMetadata = ""
 	}
+	a.mu.RLock()
+	domainEnabled := yes(a.cfg["domain_identification"])
+	a.mu.RUnlock()
 	enrichConnectionMetadata(rows, socketsForMetadata, m.existingDomainHints(now()))
+	enrichWebhookDomains(rows, a.routes.domainHints(), domainEnabled)
 	engine := M{}
 	if readJSON(filepath.Join(a.base, "engine.json"), &engine) != nil {
 		engine = M{}
@@ -374,10 +378,17 @@ func (m *ConnectionMonitor) collect() {
 	for key, tag := range m.routeHints {
 		actualRoutes[key] = tag
 	}
-	for key, tag := range a.routes.hints() {
+	webhookHints := a.routes.hints()
+	for key, tag := range webhookHints {
 		actualRoutes[key] = tag
 	}
 	rows, routingSummary = filterXrayBusiness(rows, engine, actualRoutes)
+	for _, row := range rows {
+		key := socketMetadataKey(str(row["protocol"]), str(row["source"]), str(row["destination"]))
+		if row["module"] == "xray" && str(row["outbound_tag"]) != "" && webhookHints[key] == str(row["outbound_tag"]) {
+			row["routing_note"] = "Xray核心Webhook的完整IP连接元组与实际出站标签匹配"
+		}
+	}
 	if summary := obj(summaries["xray"]); summaries["xray"] != nil {
 		for key, value := range routingSummary {
 			summary[key] = value
@@ -388,8 +399,8 @@ func (m *ConnectionMonitor) collect() {
 		}
 	}
 	for _, row := range rows {
-		if row["module"] == "xray" && str(row["domain"]) == "" && !yes(row["_deferred"]) {
-			row["domain_note"] = m.domainHintStatus
+		if row["module"] == "xray" && str(row["domain"]) == "" && domainEnabled && !yes(row["_deferred"]) {
+			row["domain_note"] = "未收到可关联的核心域名事件；纯IP、加密握手或未捕获握手时可能无法识别。已有日志状态：" + m.domainHintStatus
 		}
 	}
 	if yes(components["xray"]) {

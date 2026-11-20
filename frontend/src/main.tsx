@@ -439,11 +439,11 @@ function App() {
           >
             <svg
               className="brand-logo"
-              viewBox="100 75 310 365"
+              viewBox="105 83 292 349"
               role="img"
               aria-label="FoXray"
             >
-              <image href="/foxray-icon.svg" width="512" height="512" />
+              <image href="/foxray-icon.svg?v=0.9.3" width="512" height="512" />
             </svg>
             <div>
               <div className="brand-title-row">
@@ -574,7 +574,7 @@ function App() {
                   <DataFreshness statusRefresh={statusRefresh} />
                 )}
                 <footer>
-                  {versionLabel(state?.version || "0.9.2")} · Go / React ·
+                  {versionLabel(state?.version || "0.9.3")} · Go / React ·
                   网络变更采用预览、确认与回退
                 </footer>
               </main>

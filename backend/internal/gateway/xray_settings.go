@@ -97,6 +97,8 @@ func (a *App) saveXraySettingsLocked(data M) error {
 		}
 		return err
 	}
+	a.lanDNS.invalidate()
+	a.routes.setDomainCollection(yes(next["domain_identification"]))
 	a.audit("policy.save", "Xray 配置与 ICMP 设置已统一保存", true, M{"routing_changed": routingChanged, "icmp_changed": icmpChanged})
 	return nil
 }

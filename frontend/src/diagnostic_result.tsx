@@ -126,16 +126,22 @@ export function DiagnosticReport({
       ...record(operation.details),
     },
     p = record(d.parameters),
-    passed = d.ok == null ? operation.status === "success" : d.ok === true;
+    passed = d.ok == null ? operation.status === "success" : d.ok === true,
+    tcpOnly = p.protocol === "tcp",
+    resultTitle = tcpOnly
+      ? passed ? "TCP建连完成，目标可用性未验证" : "TCP建连未完成"
+      : String(p.protocol).startsWith("dns")
+        ? passed ? "DNS应答验证通过" : "DNS查询未通过"
+        : passed ? "连接测试通过" : "连接测试未通过";
   const body = (
     <>
       <PageHeader
         title="诊断结果"
-        icon={passed ? <CheckCircle2 size={20} /> : <CircleAlert size={20} />}
+        icon={passed && !tcpOnly ? <CheckCircle2 size={20} /> : <CircleAlert size={20} />}
         description={timestamp(operation.time)}
       />
-      <p className={passed ? "good" : "poor"} role="status">
-        <strong>{passed ? "连接测试通过" : "连接测试未通过"}</strong> ·{" "}
+      <p className={passed ? tcpOnly ? "fair" : "good" : "poor"} role="status">
+        <strong>{resultTitle}</strong> ·{" "}
         {operation.message}
       </p>
       <dl className="diagnostic-facts">
@@ -156,20 +162,26 @@ export function DiagnosticReport({
           <dd>{String(d.resolved_ip || "解析未完成")}</dd>
         </div>
         <div>
-          <dt>配置预计路径</dt>
+          <dt>配置接管判断（非实际路径）</dt>
           <dd>{String(d.expected || "未取得路径")}</dd>
         </div>
-        <div>
+        {p.protocol!=="icmp" && <div>
           <dt>本次实际节点</dt>
-          <dd>{record(d.actual_node).status === "observed" ? String(record(d.actual_node).display) : "未确认：未收到本次连接匹配的核心事件"}</dd>
+          <dd>{record(d.actual_node).status === "observed" ? String(record(d.actual_node).display) : String(record(d.actual_node).note || "未确认：未收到本次连接匹配的核心事件")}</dd>
         </div>
+        }
         {Boolean(record(d.route_observer).note) && record(d.actual_node).status !== "observed" && <div><dt>节点观测状态</dt><dd>{String(record(d.route_observer).note)}</dd></div>}
         {Boolean(d.observed_path) && <div><dt>事件确认路径</dt><dd>{String(d.observed_path)}</dd></div>}
+        {d.dns_routing_mode != null && <div><dt>DNS测试机制</dt><dd>{String(d.dns_routing_mode)}</dd></div>}
+        {d.dns_query_ms != null && <div><dt>DNS查询应答耗时</dt><dd>{Number(d.dns_query_ms).toFixed(2)} ms（包含发送查询与接收应答，不是本地UDP套接字或TCP接管耗时）</dd></div>}
+        {d.dns_query_name != null && <div><dt>DNS查询与记录类型</dt><dd>{String(d.dns_query_name)} · A</dd></div>}
+        {Array.isArray(d.dns_answers) && <div><dt>DNS应答地址</dt><dd>{d.dns_answers.join("、")}</dd></div>}
+        {Array.isArray(d.probe_connections) && <div><dt>实际查询传输协议</dt><dd>{[...new Set(d.probe_connections.map(v=>String(record(v).network).toUpperCase()))].join(" → ")}</dd></div>}
         {d.http_ttfb_ms != null && d.http_response_received === true && <div>
           <dt>HTTPS首字节延迟</dt><dd>{Number(d.http_ttfb_ms).toFixed(2)} ms（含建连、TLS及请求响应；不是本地TCP接管耗时）</dd>
         </div>}
         {d.tls_handshake_ms != null && <div><dt>TLS握手阶段</dt><dd>{Number(d.tls_handshake_ms).toFixed(2)} ms</dd></div>}
-        {d.dns_ms != null && <div><dt>DNS解析（单独计时）</dt><dd>{Number(d.dns_ms).toFixed(2)} ms；不计入HTTPS首字节</dd></div>}
+        {d.dns_ms != null && <div><dt>DNS解析（单独计时）</dt><dd>{d.dns_lookup_performed === false ? "目标为IP，未执行DNS查询" : `${Number(d.dns_ms).toFixed(2)} ms${p.protocol === "tls" ? "；不计入HTTPS首字节" : ""}`}</dd></div>}
         {d.http_status != null && <div><dt>目标HTTP状态</dt><dd>{String(d.http_status)}</dd></div>}
         {d.tcp_ms != null && (
           <div>

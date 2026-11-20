@@ -59,12 +59,15 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 		return errors.New("目标 IP 或域名无效")
 	}
 	protocol := str(data["protocol"])
-	if protocol != "icmp" && protocol != "tcp" && protocol != "tls" {
+	if protocol != "icmp" && protocol != "tcp" && protocol != "tls" && protocol != "dns" && protocol != "dns_tcp" {
 		protocol = "tls"
 	}
 	p := int(num(data["port"]))
 	if p == 0 {
 		p = 443
+		if protocol == "dns" || protocol == "dns_tcp" {
+			p = 53
+		}
 	}
 	if p < 1 || p > 65535 {
 		return errors.New("端口无效")
@@ -78,6 +81,7 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 	dnsStarted := time.Now()
 	ips, e := net.DefaultResolver.LookupIP(ctx, "ip4", host)
 	result["dns_ms"] = float64(time.Since(dnsStarted)) / float64(time.Millisecond)
+	result["dns_lookup_performed"] = net.ParseIP(host) == nil
 	if e != nil || len(ips) == 0 {
 		if e != nil {
 			return fmt.Errorf("目标解析失败：%w", e)
@@ -96,6 +100,7 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 	enabled, active := a.applied, a.active
 	capture := yes(a.cfg["capture_host"])
 	profile := str(a.cfg["route_profile"])
+	smartLAN := yes(a.cfg["lan_dns_intercept"])
 	exclusions := M{"vpn_exclusions": clone(a.cfg["vpn_exclusions"])}
 	if scope == "lan" {
 		capture = yes(a.cfg["capture_lan"])
@@ -104,6 +109,9 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 	expected := "系统原路径"
 	if enabled && capture && !defaultCaptureBypass(target) && protocol != "icmp" {
 		expected = "Xray → " + active + "（需结合分流模式 " + profile + " 与排除规则判断）"
+	}
+	if scope == "lan" && capture && enabled && smartLAN && (protocol == "dns" || protocol == "dns_tcp") {
+		expected = "LAN智能DNS接管：自定义规则优先，上游由DNS策略选择；PC填写的DNS地址不决定实际上游。本次仍为网关发起的规则模拟测试"
 	}
 	if vpnExcludedTarget(exclusions, host, target) {
 		expected = "VPN自定义排除 → 系统直连"
@@ -115,6 +123,10 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 	result["parameters"] = M{"target": host, "port": p, "scope": scope, "source": source, "protocol": protocol}
 	result["resolved_ip"], result["route"], result["expected"] = target, raw, expected
 	ok := false
+	started := time.Now()
+	if protocol != "icmp" {
+		result["route_observer"] = a.routingWebhookStatus()
+	}
 	if protocol == "icmp" {
 		child, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
@@ -133,9 +145,27 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 		if err != nil && !ok {
 			a.jobDetail(j, "ICMP 无有效回应，不等于 HTTPS 不可用")
 		}
+	} else if protocol == "dns" || protocol == "dns_tcp" {
+		query := firstNonempty(str(data["query"]), "www.google.com")
+		obj(result["parameters"])["query"] = query
+		var measured M
+		var err error
+		if scope == "lan" && smartLAN && enabled && capture {
+			measured, err = a.measureDiagnosticLANDNS(ctx, target, p, query, protocol == "dns_tcp")
+		} else {
+			measured, err = measureDiagnosticDNS(ctx, target, p, query, protocol == "dns_tcp")
+		}
+		for key, value := range measured {
+			result[key] = value
+		}
+		ok = err == nil
+		if err != nil {
+			result["test_error"] = err.Error()
+			a.jobDetail(j, err.Error())
+		} else {
+			a.jobDetail(j, fmt.Sprintf("DNS应答验证：%s；查询 %s；%.2f ms", str(result["dns_server"]), query, num(result["dns_query_ms"])))
+		}
 	} else if protocol == "tls" {
-		result["route_observer"] = a.routingWebhookStatus()
-		started := time.Now()
 		measured, err := measureDiagnosticHTTPS(ctx, host, target, p, nil)
 		for key, value := range measured {
 			result[key] = value
@@ -154,16 +184,7 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 		if yes(result["http_response_received"]) {
 			a.jobDetail(j, fmt.Sprintf("目标HTTPS首字节：%.2f ms；HTTP %v", num(result["http_ttfb_ms"]), result["http_status"]))
 		}
-		node := M{"status": "unconfirmed"}
-		if source := str(result["local_source"]); source != "" {
-			if event, found := a.diagnosticRouteEvent(ctx, source, net.JoinHostPort(target, strconv.Itoa(p)), started); found {
-				node = a.observedDiagnosticNode(event)
-			}
-		}
-		result["actual_node"] = node
-		result["observed_path"] = diagnosticObservedPath(node, host, p)
-		result["path_status"] = node["status"]
-		a.jobDetail(j, "本次连接路径："+str(result["observed_path"]))
+
 	} else {
 		start := time.Now()
 		dial := net.Dialer{Timeout: 8 * time.Second}
@@ -172,6 +193,9 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 			defer conn.Close()
 			result["tcp_ms"] = float64(time.Since(start)) / float64(time.Millisecond)
 			result["tcp_connected"] = true
+			result["local_source"] = conn.LocalAddr().String()
+			result["verification_scope"] = "tcp_connect_only"
+			result["target_response_verified"] = false
 			ok = true
 			a.jobDetail(j, fmt.Sprintf("TCP建连：%.2f ms；此项不证明目标TLS或HTTP可用", num(result["tcp_ms"])))
 		} else {
@@ -180,6 +204,24 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 		}
 	}
 
+	if protocol != "icmp" {
+		node := M{"status": "unconfirmed", "note": "未收到本次连接匹配的核心事件；不推断实际出站"}
+		if protocol == "tcp" {
+			node["note"] = "纯TCP测试不发送应用数据，可能尚未触发TUN后的核心路由；未观测到事件时不推断实际出站"
+		}
+		candidates := arr(result["probe_connections"])
+		if source := str(result["local_source"]); source != "" {
+			candidates = append(candidates, M{"network": "tcp", "source": source, "target": net.JoinHostPort(target, strconv.Itoa(p))})
+		}
+		if event, found := a.diagnosticRouteCandidates(ctx, candidates, started); found {
+			node = a.observedDiagnosticNode(event)
+		}
+
+		result["actual_node"] = node
+		result["observed_path"] = diagnosticObservedPath(node, host, p)
+		result["path_status"] = node["status"]
+		a.jobDetail(j, "本次连接路径："+str(result["observed_path"]))
+	}
 	result["ok"] = ok
 
 	if !ok {
@@ -201,6 +243,12 @@ func diagnosticResultSummary(result M) string {
 	if yes(result["ok"]) {
 		outcome = "通过"
 	}
+	if str(p["protocol"]) == "dns" || str(p["protocol"]) == "dns_tcp" {
+		if yes(result["dns_response_verified"]) {
+			return fmt.Sprintf("%s · DNS有效应答 %.2f ms · %s", target, num(result["dns_query_ms"]), outcome)
+		}
+		return fmt.Sprintf("%s · DNS查询未通过 · %s", target, firstNonempty(str(result["test_error"]), str(result["error"])))
+	}
 	if yes(result["http_response_received"]) && yes(result["tls_verified"]) {
 		return fmt.Sprintf("%s · HTTPS首字节 %.2f ms · %s", target, num(result["http_ttfb_ms"]), outcome)
 	}
@@ -208,7 +256,11 @@ func diagnosticResultSummary(result M) string {
 		return fmt.Sprintf("%s · HTTPS未通过 · %s", target, firstNonempty(str(result["test_error"]), str(result["error"])))
 	}
 	if result["tcp_ms"] != nil {
-		return fmt.Sprintf("%s · 仅TCP建连 %.2f ms · %s", target, num(result["tcp_ms"]), outcome)
+		observation := "实际出站未确认"
+		if str(obj(result["actual_node"])["status"]) == "observed" {
+			observation = "实际出站已确认"
+		}
+		return fmt.Sprintf("%s · TCP建连完成 %.2f ms · 目标应用未验证；%s", target, num(result["tcp_ms"]), observation)
 	}
 	if result["icmp_success_pct"] != nil {
 		return fmt.Sprintf("%s · ICMP成功率 %v%% · %s", target, result["icmp_success_pct"], outcome)

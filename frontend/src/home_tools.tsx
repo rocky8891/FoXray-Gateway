@@ -34,7 +34,7 @@ export function HomeTools({
         title={header.expanded ? "收起首页标题栏" : "展开首页标题栏"}
         aria-expanded={header.expanded}
         onClick={e => header.toggle(e.currentTarget)}>
-        <svg viewBox="100 75 310 365" aria-hidden="true"><image href="/foxray-icon.svg" width="512" height="512" /></svg>
+        <svg viewBox="105 83 292 349" aria-hidden="true"><image href="/foxray-icon.svg?v=0.9.3" width="512" height="512" /></svg>
       </button>}
       {children}
     </aside>

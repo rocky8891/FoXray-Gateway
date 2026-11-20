@@ -1,3 +1,4 @@
+import { XrayObservationPolicy, DEFAULT_DIRECT_DNS, DEFAULT_PROXY_DNS } from "./xray_observation_policy";
 import { ResetFilters } from "./list_controls";
 import { MarkAllReadButton, ReadBadge, logReadKeys, switchReadKeys, useReadState } from "./read_state";
 import { hasChanges } from "./settings_save";
@@ -956,6 +957,11 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
     capture_host: true,
     capture_lan: true,
     vpn_exclusions: { mode: "default", interfaces: [], cidrs: [], domains: [] },
+    dns_direct_servers: DEFAULT_DIRECT_DNS,
+    domain_identification: false,
+    dns_force_proxy: false,
+    lan_dns_intercept: true,
+    dns_proxy_servers: DEFAULT_PROXY_DNS,
   };
   const detectDefaults = {
     latency_enabled: true,
@@ -1116,6 +1122,7 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
               </div>
             </Field>
           </div>
+          <XrayObservationPolicy runtime={state.dns_proxy} value={draft} onChange={update} disabled={state.read_only} />
           <VPNExclusionsEditor
             value={draft.vpn_exclusions}
             onChange={(v) => update("vpn_exclusions", v)}
@@ -1614,6 +1621,11 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
                         "rule_sets",
                         "active_rule_set",
                         "vpn_exclusions",
+                        "dns_direct_servers",
+                        "domain_identification",
+                        "dns_force_proxy",
+                        "lan_dns_intercept",
+                        "dns_proxy_servers",
                       ].map((k) => [k, draft[k]]),
                     )
                   : { ...state.config, enabled: action === "enable" },
@@ -1639,6 +1651,7 @@ export function Diagnostics({ act }: { act: Act }) {
     target: "www.google.com",
     port: 443,
     protocol: "tls",
+    query: "www.google.com",
     scope: "host",
     source: "",
   });
@@ -1648,7 +1661,7 @@ export function Diagnostics({ act }: { act: Act }) {
       <Panel>
         <PageHeader
           title="路径探测"
-          description="区分配置预计路径与核心事件确认的实际节点；HTTPS测量到目标响应首字节，TCP建连耗时不作为目标访问延迟。LAN来源只做规则模拟，实际请求由网关发起。"
+          description="区分配置预计路径、核心事件确认的实际出站和目标响应；HTTPS测量首字节，DNS实际查询并验证A记录应答，TCP仅测建连、不代表应用可用。LAN来源只做规则模拟，实际请求由网关发起。"
         />
         <div className="form-grid">
           <Field label="目标 IP 或域名">
@@ -1660,10 +1673,15 @@ export function Diagnostics({ act }: { act: Act }) {
           <Field label="协议">
             <select
               value={String(data.protocol)}
-              onChange={(e) => set("protocol", e.target.value)}
+              onChange={(e) => {
+                const protocol=e.target.value;
+                setData(old=>({...old,protocol,port: [53,443].includes(Number(old.port)) ? protocol.startsWith("dns") ? 53 : 443 : old.port}));
+              }}
             >
               <option value="tls">HTTPS端到端（TLS＋首字节）</option>
-              <option value="tcp">TCP</option>
+              <option value="dns">DNS查询（UDP，必要时TCP）</option>
+              <option value="dns_tcp">DNS查询（TCP）</option>
+              <option value="tcp">TCP（仅建连）</option>
               <option value="icmp">ICMP</option>
             </select>
           </Field>
@@ -1677,6 +1695,7 @@ export function Diagnostics({ act }: { act: Act }) {
               onChange={(e) => set("port", Number(e.target.value))}
             />
           </Field>
+          {String(data.protocol).startsWith("dns") && <Field label="DNS查询域名"><input aria-label="DNS查询域名" value={String(data.query || "")} onChange={e=>set("query",e.target.value)} /></Field>}
           <Field label="判断范围">
             <select
               value={String(data.scope)}

@@ -83,6 +83,7 @@ export interface Config extends Dict {
   endpoints: Dict[];
 }
 export interface State {
+  dns_proxy?: Dict;
   monitoring_items?: Dict;
   connection_monitor?: Dict;
   version: string;

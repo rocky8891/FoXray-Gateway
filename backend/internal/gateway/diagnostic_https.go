@@ -60,7 +60,7 @@ func measureDiagnosticHTTPS(ctx context.Context, host, target string, port int, 
 	if err != nil {
 		return result, err
 	}
-	request.Header.Set("User-Agent", "FoXray-Diagnostics/0.9.2")
+	request.Header.Set("User-Agent", "FoXray-Diagnostics/0.9.3")
 	client := &http.Client{Transport: transport, Timeout: 20 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	response, err := client.Do(request)
 	if response != nil {
@@ -112,7 +112,7 @@ func (a *App) observedDiagnosticNode(e routeEvent) M {
 		protocol = "Hysteria2"
 	}
 	sock := obj(obj(out["streamSettings"])["sockopt"])
-	node := M{"status": "observed", "outbound_tag": e.Outbound, "protocol": protocol, "interface": sock["interface"], "basis": "本次源连接元组与Xray核心Webhook事件匹配；节点地址、协议及接口由该出站配置解析"}
+	node := M{"inbound_tag": e.Inbound, "status": "observed", "outbound_tag": e.Outbound, "protocol": protocol, "interface": sock["interface"], "basis": "本次源连接元组与Xray核心Webhook事件匹配；节点地址、协议及接口由该出站配置解析"}
 	if e.Outbound == "out-direct" {
 		node["display"] = "Xray直连"
 	} else if e.Outbound == "out-block" {
@@ -139,6 +139,9 @@ func diagnosticObservedPath(node M, host string, port int) string {
 		return "未观测到本次连接的Xray出站事件；不以当前选中节点代替实测"
 	}
 	parts := []string{"网关诊断进程", "vpm-tun（核心事件）", "Xray"}
+	if strings.HasPrefix(str(node["inbound_tag"]), "smartdns-") {
+		parts = []string{"网关诊断进程", "LAN DNS解析器（规则模拟）", "Xray智能DNS入口（核心事件）"}
+	}
 	if device := str(node["interface"]); device != "" {
 		parts = append(parts, device+"（出站配置）")
 	}

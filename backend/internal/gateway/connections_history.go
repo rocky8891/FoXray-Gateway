@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS business_node_samples(node TEXT,t INTEGER,count INTEG
 	signatures := map[string]string{}
 	for _, r := range rows {
 		key := str(r["id"])
-		signature := fmt.Sprint(r["last_packet"], "|", r["upload"], "|", r["download"], "|", r["state"], "|", r["active"], "|", r["domain"], "|", r["application"], "|", r["routing_classification"], "|", r["outbound_tag"], "|", r["proxy_counted"])
+		signature := fmt.Sprint(r["last_packet"], "|", r["upload"], "|", r["download"], "|", r["state"], "|", r["active"], "|", r["domain"], "|", r["domain_basis"], "|", r["application"], "|", r["routing_classification"], "|", r["outbound_tag"], "|", r["proxy_counted"])
 		signatures[key] = signature
 		if m.persisted[key] == signature {
 			continue

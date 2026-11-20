@@ -28,6 +28,7 @@ type App struct {
 	monitorMu                               sync.RWMutex
 	monitoringItems                         M
 	connections                             *ConnectionMonitor
+	lanDNS                                  *LANResolver
 	routes                                  *routeObserver
 	updateMu                                sync.Mutex
 	listener                                string
@@ -78,14 +79,16 @@ func New(base, ui string, readonly bool) (*App, error) {
 	a := &App{base: base, ui: ui, readonly: readonly, runner: SystemRunner{}, ctx: ctx, cancel: cancel, results: map[string]M{}, history: map[string][]M{}, pendingImports: map[string]M{}, jobs: jobSet{gate: make(chan struct{}, 8)}}
 	a.connections = newConnectionMonitor(a)
 	a.routes = newRouteObserver()
+	a.lanDNS = newLANResolver(a)
 	a.monitoringItems = defaultMonitorItems()
 	_ = readJSON(filepath.Join(base, "monitoring-items.json"), &a.monitoringItems)
 	a.monitoringItems["host"] = canonicalHostMonitorItems(obj(a.monitoringItems["host"]))
-	a.cfg = M{"enabled": false, "mode": "manual", "fallback_active": false, "selected": "direct", "interval": 30, "latency_enabled": true, "latency_concurrency": 4, "speed_url": "https://cachefly.cachefly.net/100mb.test", "speed_timeout": 15, "speed_enabled": true, "speed_size_mb": 50, "speed_concurrency": 1, "timeout": 10, "failures": 3, "hold": 300, "improvement": 5, "confirmations": 3, "route_profile": "bypass_cn", "capture_host": true, "capture_lan": true, "score_latency_window_minutes": 30, "score_latency_min_samples": 1, "score_metrics": []any{"latency"}, "score_weights": M{"latency": 80, "loss": 10, "speed": 10}, "latency_url": "https://www.google.com/generate_204", "custom_rules": []any{}, "rule_sets": []any{}, "active_rule_set": "", "bypass_ips": []any{}, "vpn_exclusions": defaultVPNExclusions(), "endpoints": []any{}}
+	a.cfg = M{"enabled": false, "mode": "manual", "fallback_active": false, "selected": "direct", "interval": 30, "latency_enabled": true, "latency_concurrency": 4, "speed_url": "https://cachefly.cachefly.net/100mb.test", "speed_timeout": 15, "speed_enabled": true, "speed_size_mb": 50, "speed_concurrency": 1, "timeout": 10, "failures": 3, "hold": 300, "improvement": 5, "confirmations": 3, "route_profile": "bypass_cn", "capture_host": true, "capture_lan": true, "score_latency_window_minutes": 30, "score_latency_min_samples": 1, "score_metrics": []any{"latency"}, "score_weights": M{"latency": 80, "loss": 10, "speed": 10}, "latency_url": "https://www.google.com/generate_204", "custom_rules": []any{}, "rule_sets": []any{}, "active_rule_set": "", "bypass_ips": []any{}, "vpn_exclusions": defaultVPNExclusions(), "dns_direct_servers": defaultDirectDNSServers(), "domain_identification": false, "dns_force_proxy": false, "lan_dns_intercept": true, "dns_proxy_servers": defaultProxyDNSServers(), "endpoints": []any{}}
 	if e := readJSON(filepath.Join(base, "config.json"), &a.cfg); e != nil && !os.IsNotExist(e) {
 		cancel()
 		return nil, errors.New("代理配置无法读取")
 	}
+	a.routes.setDomainCollection(yes(a.cfg["domain_identification"]))
 	migratePresetSources(a.cfg)
 	a.native = M{"nodes": []any{}, "subscriptions": []any{}, "excluded": M{}}
 	if e := readJSON(filepath.Join(base, "private", "nodes.json"), &a.native); e != nil && !os.IsNotExist(e) {
@@ -415,7 +418,7 @@ func (a *App) state() M {
 	if yes(a.components["warp"]) && !yes(a.settings["proxy_paused"]) {
 		fallback = "warp"
 	}
-	return M{"monitoring_items": a.monitorItemsSnapshot(), "connection_monitor": M{"xray": connections["module:xray"], "warp": connections["module:warp"], "wireguard": connections["module:wireguard"]}, "version": Version, "backend": "Go", "frontend": "TypeScript/React", "read_only": a.readonly, "config": a.publicConfigLocked(), "nodes": nodes, "native": native, "scores": scores, "state": M{"active": a.active, "applied": a.applied, "last_switch": a.lastSwitch, "active_since": a.activeSince, "recovery_issue": a.recoveryIssue, "history": clone(a.history)}, "components": clone(a.components), "manager_settings": clone(a.settings), "icmp_policy": clone(a.icmp), "proxy": M{"enabled": a.applied, "host_exit": map[bool]string{true: a.active, false: fallback}[a.applied && yes(a.cfg["capture_host"])], "lan_exit": map[bool]string{true: a.active, false: fallback}[a.applied && yes(a.cfg["capture_lan"])], "route_profile": a.cfg["route_profile"]}}
+	return M{"dns_proxy": a.lanDNS.status(), "monitoring_items": a.monitorItemsSnapshot(), "connection_monitor": M{"xray": connections["module:xray"], "warp": connections["module:warp"], "wireguard": connections["module:wireguard"]}, "version": Version, "backend": "Go", "frontend": "TypeScript/React", "read_only": a.readonly, "config": a.publicConfigLocked(), "nodes": nodes, "native": native, "scores": scores, "state": M{"active": a.active, "applied": a.applied, "last_switch": a.lastSwitch, "active_since": a.activeSince, "recovery_issue": a.recoveryIssue, "history": clone(a.history)}, "components": clone(a.components), "manager_settings": clone(a.settings), "icmp_policy": clone(a.icmp), "proxy": M{"enabled": a.applied, "host_exit": map[bool]string{true: a.active, false: fallback}[a.applied && yes(a.cfg["capture_host"])], "lan_exit": map[bool]string{true: a.active, false: fallback}[a.applied && yes(a.cfg["capture_lan"])], "route_profile": a.cfg["route_profile"]}}
 }
 func first(a, b any) any {
 	if a != nil {
@@ -427,6 +430,9 @@ func first(a, b any) any {
 func (a *App) Start() {
 	a.started.Do(func() {
 		a.startRoutingWebhook()
+		if !a.readonly && a.applied && yes(a.cfg["capture_lan"]) && yes(a.cfg["lan_dns_intercept"]) {
+			_ = a.lanDNS.start()
+		}
 		a.refreshSnapshot()
 		a.traffic.start()
 		a.host.start()

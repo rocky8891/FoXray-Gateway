@@ -184,14 +184,28 @@ func (a *App) buildEngine(c, native M, selected string) (M, error) {
 	if selected == "direct" {
 		outs = append(outs, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": M{"interface": "ens16", "mark": 65743}}})
 	}
-	rules = append([]any{M{"type": "field", "inboundTag": []string{"tun"}, "port": "53", "network": "tcp,udp", "outboundTag": "out-" + selected}}, rules...)
+	dnsServers, err := directDNSServers(c)
+	if err != nil {
+		return nil, err
+	}
+	if yes(c["dns_force_proxy"]) {
+		rules = append(rules, M{"type": "field", "inboundTag": []string{"tun"}, "port": "53", "network": "tcp,udp", "outboundTag": "out-" + selected})
+	}
+	if len(dnsServers) > 0 && !yes(c["dns_force_proxy"]) {
+		rules = append(rules, M{"type": "field", "inboundTag": []string{"tun"}, "ip": dnsServers, "port": "53", "network": "tcp,udp", "outboundTag": "out-direct"})
+		if selected != "direct" {
+			outs = append(outs, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": M{"interface": "ens16", "mark": 65743}}})
+		}
+	}
 	if str(c["route_profile"]) == "gfwlist" {
 		data := M{}
 		if e := readJSON(filepath.Join(a.base, "rules", "gfwlist_domains.json"), &data); e != nil {
 			return nil, errors.New("GFWList 规则不存在")
 		}
 		obj(ins[0])["sniffing"] = M{"enabled": true, "destOverride": []string{"http", "tls", "quic"}, "routeOnly": true}
-		outs = append(outs, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": M{"interface": "ens16", "mark": 65743, "domainStrategy": "UseIPv4"}}})
+		if (len(dnsServers) == 0 || yes(c["dns_force_proxy"])) && selected != "direct" {
+			outs = append(outs, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": M{"interface": "ens16", "mark": 65743, "domainStrategy": "UseIPv4"}}})
+		}
 		for _, k := range []string{"direct", "proxy"} {
 			domains := []string{}
 			for _, d := range arr(data[k]) {
@@ -214,11 +228,7 @@ func (a *App) buildEngine(c, native M, selected string) (M, error) {
 		custom = append([]any{M{"type": "field", "inboundTag": []string{"tun"}, "domain": domains, "outboundTag": "out-direct"}}, custom...)
 	}
 	if len(custom) > 0 {
-		if len(rules) > 0 {
-			rules = append(rules[:1], append(custom, rules[1:]...)...)
-		} else {
-			rules = custom
-		}
+		rules = append(custom, rules...)
 		tags := map[string]bool{}
 		for _, v := range outs {
 			tags[str(obj(v)["tag"])] = true
@@ -231,7 +241,13 @@ func (a *App) buildEngine(c, native M, selected string) (M, error) {
 		}
 		obj(ins[0])["sniffing"] = M{"enabled": true, "destOverride": []string{"http", "tls", "quic"}, "routeOnly": true}
 	}
+	if yes(c["domain_identification"]) {
+		obj(ins[0])["sniffing"] = M{"enabled": true, "destOverride": []string{"http", "tls", "quic"}, "metadataOnly": false, "routeOnly": true}
+	}
 	engine := M{"log": M{"access": "none", "error": "none", "loglevel": "none"}, "inbounds": ins, "outbounds": outs, "routing": M{"domainStrategy": "AsIs", "rules": rules}}
+	if yes(c["lan_dns_intercept"]) && yes(c["capture_lan"]) {
+		configureLANResolverEngine(engine, selected)
+	}
 	return a.engineTelemetry(engine), nil
 }
 func (a *App) engineTelemetry(engine M) M {
@@ -408,12 +424,13 @@ func (a *App) captureRulesForEngine(c, native M, uid string) (string, error) {
 		if _, e := os.Stat("/sys/fs/cgroup/system.slice/vone-linux.service"); e == nil {
 			out += "  socket cgroupv2 level 2 \"system.slice/vone-linux.service\" return comment \"foxray-vone-bypass\"\n"
 		}
-		out += "  ct direction reply return\n" + skip + mark
+		out += "  ct direction reply return\n" + dns + skip + mark
 	} else {
 		out += "  return\n"
 	}
 	pre = customInputSkip + pre
-	return "table inet vpm {\n chain prerouting {\n type filter hook prerouting priority -130; policy accept;\n" + pre + " }\n chain output {\n type route hook output priority -130; policy accept;\n" + out + " }\n}\n", nil
+	smart := lanDNSCaptureRules(c)
+	return "table inet vpm {\n" + smart + " chain prerouting {\n type filter hook prerouting priority -130; policy accept;\n" + pre + " }\n chain output {\n type route hook output priority -130; policy accept;\n" + out + " }\n}\n", nil
 }
 func (a *App) attach(c M) error {
 	a.mu.RLock()
@@ -470,7 +487,7 @@ func (a *App) proxyControlConfigLocked(data M, prepared M) error {
 	if prepared != nil {
 		c = clone(prepared)
 	}
-	for _, k := range []string{"enabled", "route_profile", "capture_host", "capture_lan", "selected", "mode", "vpn_exclusions"} {
+	for _, k := range []string{"enabled", "route_profile", "capture_host", "capture_lan", "selected", "mode", "vpn_exclusions", "dns_direct_servers", "domain_identification", "dns_force_proxy", "lan_dns_intercept", "dns_proxy_servers"} {
 		if v, ok := data[k]; ok {
 			c[k] = v
 		}
@@ -492,6 +509,11 @@ func (a *App) proxyControlConfigLocked(data M, prepared M) error {
 		}
 		if !valid {
 			return errors.New("目标节点不存在或已停用")
+		}
+		if yes(c["lan_dns_intercept"]) && yes(c["capture_lan"]) && !a.readonly {
+			if err := a.lanDNS.start(); err != nil {
+				return err
+			}
 		}
 		if e := a.startEngine(c, native, target); e != nil {
 			return e
@@ -525,12 +547,20 @@ func (a *App) proxyControlConfigLocked(data M, prepared M) error {
 	e := a.persist()
 	a.mu.Unlock()
 	if e == nil {
+		a.lanDNS.invalidate()
+		if !yes(c["enabled"]) || !yes(c["capture_lan"]) || !yes(c["lan_dns_intercept"]) {
+			a.lanDNS.stop()
+		}
+		a.routes.setDomainCollection(yes(c["domain_identification"]))
 		a.switchRecord(oldActive, target, str(first(data["method"], "manual")), true, "")
 		a.audit("proxy.updated", "代理状态已更新", true, M{"active": target, "enabled": c["enabled"], "route_profile": c["route_profile"]})
 	}
 	return e
 }
 func validateConfig(c M) error {
+	if err := validateObservationPolicy(c); err != nil {
+		return err
+	}
 	if _, err := normalizeVPNExclusions(c["vpn_exclusions"]); err != nil {
 		return err
 	}
