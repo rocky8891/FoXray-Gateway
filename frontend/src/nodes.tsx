@@ -10,7 +10,7 @@ import {
 import { ListFilter, SortHeading } from "./list_controls";
 import type { HomeRandomTheme } from "./overview_random_theme";
 import { RandomThemeIcon, RestoreThemeIcon } from "./requirement_icons";
-import { useId, useRef } from "react";
+import { useId, useRef, useLayoutEffect } from "react";
 import { ConnectedTime } from "./connected_time";
 import { AllNodesIcon } from "./log_icons";
 import { TrueLatencyIcon } from "./requirement_icons";
@@ -1216,6 +1216,28 @@ export function Home({
     page === "nodes" ? (layout === "single" ? "single" : "grid") : layout,
     move,
   );
+  const [viewportCapacity, setViewportCapacity] = useState(4);
+  useLayoutEffect(() => {
+    if (preview || page !== "nodes") return;
+    const panel = editRoot.current?.querySelector<HTMLElement>(".dashboard-nodes");
+    if (!panel) return;
+    const measure = () => {
+      const style = getComputedStyle(panel);
+      const footer = panel.querySelector<HTMLElement>(".resource-pagination");
+      const usable = Math.max(80, panel.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - (footer?.offsetHeight || 40) - 24);
+      const columns = tableView || layout === "single" || panel.clientWidth < 680 ? 1 : 2;
+      const count = tableView ? Math.max(1, Math.floor((usable - 56) / 72)) : Math.max(1, Math.floor(usable / 230)) * columns;
+      panel.style.setProperty("--home-node-columns", String(columns));
+      panel.style.setProperty("--home-node-rows", String(Math.max(1, Math.floor(usable / 230))));
+      setViewportCapacity(old => old === count ? old : count);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(panel);
+    const footer = panel.querySelector(".resource-pagination");
+    if (footer) observer.observe(footer);
+    measure();
+    return () => observer.disconnect();
+  }, [page, preview, tableView, layout, editRoot]);
   const editControls =
     page !== "nodes" &&
     (act || preview) &&
@@ -1488,6 +1510,7 @@ export function Home({
             {tableView && orderedNodes.length > 0 ? (
               <NodeTable
                 nodes={sortOverviewNodes(orderedNodes, tableSort)}
+                pageSizeLimit={preview ? undefined : viewportCapacity}
                 sort={tableSort || undefined}
                 onSort={(key) =>
                   setTableSort((old) => ({
@@ -1506,6 +1529,7 @@ export function Home({
             ) : (
               <PaginatedCards
                 className="paged-overview"
+                pageSizeLimit={preview ? undefined : viewportCapacity}
                 resetKey={orderedNodes.map((n) => n.id).join(",")}
               >
                 {orderedNodes.map((node) => (
@@ -1540,7 +1564,9 @@ export function NodeTable({
   onOpen,
   total,
   selectedCount,
+  pageSizeLimit,
 }: {
+  pageSizeLimit?: number;
   total?: number;
   selectedCount?: number;
   onOpen?: (node: Node) => void;
@@ -1675,6 +1701,7 @@ export function NodeTable({
   return (
     <Table
       rows={nodes}
+      pageSizeLimit={pageSizeLimit}
       total={total}
       selectedCount={selectedCount}
       columns={

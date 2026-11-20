@@ -11,6 +11,9 @@ const layers = [
   ["detail", "指标卡片"],
 ] as const;
 
+const defaultModuleBorder = (layer: string, module: string) =>
+  layer === "card" || module !== "host";
+
 export function overviewSurfaceError(value: unknown): string {
   if (value === undefined) return "";
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -132,7 +135,7 @@ export function overviewSurfaceVariables(value: unknown): CSSProperties {
             : "none";
       }
     }
-    if (s.border_visible === false) {
+    if (id === "container" && s.border_visible === false) {
       variables[`--overview-${id}-edge`] = "transparent";
       variables[`--overview-${id}-shadow`] = "none";
       variables[`--overview-${id}-border-hidden`] = "1";
@@ -142,7 +145,7 @@ export function overviewSurfaceVariables(value: unknown): CSSProperties {
     const surface = record(surfaces[layer]);
     const borders = record(surface.module_borders);
     for (const module of ["host", "xray", "warp", "wireguard"]) {
-      if (surface.border_visible === false || (borders[module] ?? module !== "host") === false) {
+      if ((borders[module] ?? (surface.border_visible === false ? false : defaultModuleBorder(layer, module))) === false) {
         const prefix = `--overview-${module}${layer === "detail" ? "-detail" : ""}`;
         variables[`${prefix}-edge`] = "transparent";
         variables[`${prefix}-shadow`] = "none";
@@ -150,7 +153,7 @@ export function overviewSurfaceVariables(value: unknown): CSSProperties {
     }
   }
   const details = record(surfaces.detail);
-  variables["--overview-host-detail-width"] = details.border_visible !== false && record(details.module_borders).host === true ? "1px" : "0px";
+  variables["--overview-host-detail-width"] = record(details.module_borders).host === true ? "1px" : "0px";
   const ring = String(p.services_wireguard_ring_color || "#3b4451");
   if (
     p.services_wireguard_ring_color ||
@@ -187,6 +190,7 @@ export function OverviewSurfaceSettings({
     >
       <OverviewTextFields presentation={presentation} onChange={onTextChange} />
       {layers.map(([id, title]) => {
+        const raw = record(surfaces[id]);
         const s = {
           enabled: false,
           color: "#171f2b",
@@ -198,7 +202,11 @@ export function OverviewSurfaceSettings({
           border_color: "#40516a",
           border_opacity: 60,
           shadow: 12,
-          ...record(surfaces[id]),
+          ...raw,
+          ...(id !== "container" ? {
+            border_visible: true,
+            module_borders: Object.fromEntries(["host", "xray", "warp", "wireguard"].map(module => [module, record(raw.module_borders)[module] ?? (raw.border_visible === false ? false : defaultModuleBorder(id, module))])),
+          } : {}),
         };
         const set = (key: string, value: unknown) =>
           onChange({
@@ -219,7 +227,7 @@ export function OverviewSurfaceSettings({
               />
               {title}
             </label>
-            <label className="check">
+            {id === "container" && <label className="check">
               <input
                 type="checkbox"
                 aria-label={`${title}显示边框`}
@@ -227,13 +235,13 @@ export function OverviewSurfaceSettings({
                 onChange={(e) => set("border_visible", e.target.checked)}
               />
               显示边框
-            </label>
+            </label>}
             {id !== "container" && (
               <div className="monitor-items-options">
                 {[["host", "服务器"], ["xray", "Xray"], ["warp", "WARP"], ["wireguard", "WireGuard"]].map(([module, label]) => (
                   <label className="check" key={module}>
                     <input type="checkbox" aria-label={`${label}${id === "detail" ? "指标" : "卡片"}显示边框`}
-                      checked={(record(s.module_borders)[module] ?? module !== "host") !== false}
+                      checked={(record(s.module_borders)[module] ?? defaultModuleBorder(id, module)) !== false}
                       disabled={!s.border_visible}
                       onChange={e => set("module_borders", {...record(s.module_borders), [module]: e.target.checked})} />
                     {label}显示边框

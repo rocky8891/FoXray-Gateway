@@ -1,4 +1,5 @@
 import { ResetFilters } from "./list_controls";
+import { useConnectionTableControls } from "./connection_table_controls";
 import { AdaptiveSearch } from "./adaptive_search";
 import { useMonitorSections } from "./monitor_sections";
 import type { Act } from "./nodes";
@@ -85,6 +86,7 @@ export function ConnectionsPage({
     10000,
   );
   const summary = record(record(r.data?.summaries)[module]);
+  const proxyReady = module !== "xray" || scope === "transport" || summary.count_scope === "confirmed-proxy-v2";
   const rows = list(r.data?.items).filter(
     (v) =>
       (status === "all" || v.state === status) &&
@@ -93,10 +95,8 @@ export function ConnectionsPage({
         v.source,
         v.destination,
         v.node_id,
-        v.process,
         v.interface,
         v.domain,
-        v.application,
       ]
         .join(" ")
         .toLowerCase()
@@ -104,10 +104,12 @@ export function ConnectionsPage({
   );
   const total = (key: string) => {
     const valid = rows.filter((v) => v[key] != null);
+    if (!proxyReady) return "—";
     return valid.length
       ? formatCapacity(valid.reduce((n, v) => n + Number(v[key]), 0))
       : "—";
   };
+  const detailsTable = useConnectionTableControls(rows, module + "|" + scope);
   return (
     <div className="connections-page">
       <Panel className="connections-controls">
@@ -132,8 +134,8 @@ export function ConnectionsPage({
               <p>
                 域名仅读取已配置的 Xray
                 访问日志，没有匹配域名证据时显示“未观测”；不自动开启日志、不反查
-                IP。应用仅通过本机套接字精确匹配进程名，转发客户端的进程信息不会随TCP／UDP连接传到网关，需客户端提供。将鼠标移到“未观测／未识别”上可查看本条原因。Xray
-                模块统计包括所有实际经过该模块的业务连接，不能可靠拆分为当前出口节点连接数。
+                IP。将鼠标移到“未观测”上可查看本条原因。Xray
+                模块仅统计已确认代理出站的业务连接，直连及阻断已剔除；归属未确认的单列且不计入代理数。确认依据为Xray核心Webhook或访问日志的完整IP连接元组；不以配置推断出站，未收到事件时不猜测归属。
               </p>
               <p>
                 字节为连接观测累计，不等于所选范围内新增量；“—”表示尚无计数。首个采样不显示虚构速率。
@@ -149,6 +151,7 @@ export function ConnectionsPage({
             r.error ||
             String(r.data?.error || "") ||
             (scope === "active" ? String(summary.error || "") : "")
+            || (!proxyReady ? "当前采集端仍为入口统计口径；需配套更新后端，才能显示剔除直连后的代理业务连接数。" : "")
           }
         />
         <div className="monitor-search-row">
@@ -158,7 +161,7 @@ export function ConnectionsPage({
               aria-label="查询连接"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="查询来源、目标、域名、应用、接口或节点"
+              placeholder="查询源、目标、域名、接口或节点"
             />
           </AdaptiveSearch>
           <TimeRangeControl range={range} />
@@ -311,14 +314,15 @@ export function ConnectionsPage({
                       ? "观测连接"
                       : scope === "transport"
                         ? "传输连接"
-                        : "活动连接"}{" "}
+                        : module === "xray" ? "已确认代理" : "活动连接"}{" "}
                     <strong>
-                      {scope !== "active" || summary.available
-                        ? rows.length
+                      {proxyReady && (scope !== "active" || summary.available)
+                        ? rows.filter(v => module !== "xray" || scope === "transport" || v.routing_classification === "proxy").length
                         : "—"}
                       {summary.partial ? "（部分）" : ""}
                     </strong>
                   </span>
+                  {module === "xray" && scope === "active" && <span>未确认 <strong>{proxyReady ? Number(summary.unclassified_count || 0) : rows.length}</strong> · 已排除直连 <strong>{proxyReady ? Number(summary.direct_excluded || 0) : "—"}</strong></span>}
                   <span>
                     <ArrowUp size={14} className="traffic-up" />
                     上传字节 <strong>{total("upload")}</strong>
@@ -340,34 +344,31 @@ export function ConnectionsPage({
                 <ErrorLine
                   error={chart.error || String(chart.data?.error || "")}
                 />
-                <HostChart
+                {proxyReady ? <HostChart
                   data={list(chart.data?.items)}
                   fields={
                     metric === "count" ? ["count"] : ["upload", "download"]
                   }
-                  labels={metric === "count" ? ["活动连接"] : ["上传", "下载"]}
+                  labels={metric === "count" ? [module === "xray" ? "已确认代理" : "活动连接"] : ["上传", "下载"]}
                   unit={metric === "count" ? "count" : "rate"}
                   domain={[
                     Number(chart.data?.start || Date.now() / 1000 - 86400),
                     Number(chart.data?.end || Date.now() / 1000),
                   ]}
-                />
+                /> : <p className="small muted">等待新的代理业务连接采样，旧入口总量不作为代理曲线展示。</p>}
               </>
             )}
           </Panel>
         ),
         details: (
           <Panel className="connections-table-panel">
-            <PageHeader title="连接详情" icon={<List size={20} />} />
+            <PageHeader title="连接详情" icon={<List size={20} />} description="列头可排序或筛选，数值按实际字节、速率或秒数比较；搜索和列筛选作用于当前已加载连接，不改变上方历史曲线。" actions={detailsTable.toolbar} />
             <Table
-              rows={rows}
-              total={
-                scope === "active"
-                  ? Number(summary.count || 0)
-                  : list(r.data?.items).length
-              }
+              rows={detailsTable.rows}
+              paginationResetKey={detailsTable.paginationKey + "|" + [query,protocol,iface,node,status].join("|")}
+              total={list(r.data?.items).length}
               rowKey={(v) => String(v.id)}
-              columns={[
+              columns={detailsTable.columns([
                 {
                   key: "serial",
                   label: "序号",
@@ -375,38 +376,30 @@ export function ConnectionsPage({
                 },
                 {
                   key: "source",
-                  label: "来源",
-                  render: (v) => String(v.source),
+                  label: "源",
+                  width: detailsTable.addressWidth("source"),
+                  render: (v) => <span className="connection-address" title={String(v.source)}>{String(v.source)}</span>,
                 },
                 {
                   key: "destination",
                   label: "目标",
-                  render: (v) => String(v.destination),
+                  width: detailsTable.addressWidth("destination"),
+                  render: (v) => <span className="connection-address" title={String(v.destination)}>{String(v.destination)}</span>,
+                },
+                {
+                  key: "protocol",
+                  label: "协议",
+                  width: "100px",
+                  render: (v) => String(v.protocol).toUpperCase(),
                 },
                 {
                   key: "domain",
-                  label: "域名线索",
+                  label: "域名",
                   render: (v) => (
                     <span title={String(v.domain_note || "历史记录未采集域名")}>
                       {String(v.domain || "未观测")}
                     </span>
                   ),
-                },
-                {
-                  key: "application",
-                  label: "本机进程",
-                  render: (v) => (
-                    <span
-                      title={String(v.application_note || "历史记录未采集应用")}
-                    >
-                      {String(v.application || "未识别")}
-                    </span>
-                  ),
-                },
-                {
-                  key: "protocol",
-                  label: "协议",
-                  render: (v) => String(v.protocol).toUpperCase(),
                 },
                 {
                   key: "state",
@@ -420,14 +413,15 @@ export function ConnectionsPage({
                       String(v.state)
                     ),
                 },
+                ...(module === "xray" && scope !== "transport" ? [{key:"routing",label:"出站",width:"260px",render:(v: Dict)=><span title={String(v.routing_note || "旧记录未采集出站归属")}>{v.routing_classification === "proxy" ? "代理" : "未确认（不计入代理数）"}</span>}] : []),
                 {
-                  key: "node",
-                  label: "节点 / 接口",
+                  key: "interface",
+                  label: "接口",
                   render: (v) => (
                     <>
                       <span>
                         {String(
-                          v.node_name || v.node_id || v.interface || "未归属",
+                          v.interface || "未识别",
                         )}
                       </span>
                       <small>{String(v.kind || "")}</small>
@@ -436,7 +430,7 @@ export function ConnectionsPage({
                 },
                 {
                   key: "upload",
-                  label: "上传数据 / 速率",
+                  label: "上传数据／速率",
                   render: (v) => (
                     <>
                       {v.upload == null ? "—" : formatCapacity(v.upload)}
@@ -448,7 +442,7 @@ export function ConnectionsPage({
                 },
                 {
                   key: "download",
-                  label: "下载数据 / 速率",
+                  label: "下载数据／速率",
                   render: (v) => (
                     <>
                       {v.download == null ? "—" : formatCapacity(v.download)}
@@ -473,7 +467,7 @@ export function ConnectionsPage({
                     <Button onClick={() => setDetail(v)}>详情</Button>
                   ),
                 },
-              ]}
+              ])}
             />
 
             {detail && (

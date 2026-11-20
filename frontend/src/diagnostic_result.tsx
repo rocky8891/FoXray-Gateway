@@ -156,13 +156,25 @@ export function DiagnosticReport({
           <dd>{String(d.resolved_ip || "解析未完成")}</dd>
         </div>
         <div>
-          <dt>预计路径</dt>
+          <dt>配置预计路径</dt>
           <dd>{String(d.expected || "未取得路径")}</dd>
         </div>
+        <div>
+          <dt>本次实际节点</dt>
+          <dd>{record(d.actual_node).status === "observed" ? String(record(d.actual_node).display) : "未确认：未收到本次连接匹配的核心事件"}</dd>
+        </div>
+        {Boolean(record(d.route_observer).note) && record(d.actual_node).status !== "observed" && <div><dt>节点观测状态</dt><dd>{String(record(d.route_observer).note)}</dd></div>}
+        {Boolean(d.observed_path) && <div><dt>事件确认路径</dt><dd>{String(d.observed_path)}</dd></div>}
+        {d.http_ttfb_ms != null && d.http_response_received === true && <div>
+          <dt>HTTPS首字节延迟</dt><dd>{Number(d.http_ttfb_ms).toFixed(2)} ms（含建连、TLS及请求响应；不是本地TCP接管耗时）</dd>
+        </div>}
+        {d.tls_handshake_ms != null && <div><dt>TLS握手阶段</dt><dd>{Number(d.tls_handshake_ms).toFixed(2)} ms</dd></div>}
+        {d.dns_ms != null && <div><dt>DNS解析（单独计时）</dt><dd>{Number(d.dns_ms).toFixed(2)} ms；不计入HTTPS首字节</dd></div>}
+        {d.http_status != null && <div><dt>目标HTTP状态</dt><dd>{String(d.http_status)}</dd></div>}
         {d.tcp_ms != null && (
           <div>
-            <dt>TCP建连</dt>
-            <dd>{String(d.tcp_ms)} ms</dd>
+            <dt>TCP接管／建连</dt>
+            <dd>{Number(d.tcp_ms).toFixed(2)} ms（可能仅为本地TUN响应，不能作为目标访问延迟）</dd>
           </div>
         )}
         {p.protocol === "tls" && (

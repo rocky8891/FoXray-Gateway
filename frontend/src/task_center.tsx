@@ -1,5 +1,5 @@
 import { CopyButton } from "./resource_controls";
-import { ReadBadge, taskReadKeys, useReadState } from "./read_state";
+import { ReadAllIcon, ReadBadge, taskReadKeys, useReadState } from "./read_state";
 import {
   useEffect,
   useLayoutEffect,
@@ -476,7 +476,7 @@ export function Tasks({
                     title="将已加载的任务历史标为已读；阅读状态仅保存在当前浏览器"
                     disabled={!historyRows.some(t => !isRead(taskReadKeys(t)))}
                     onClick={() => markRead(historyRows.flatMap(taskReadKeys))}>
-                    全部标为已读
+                    <ReadAllIcon />全部标为已读
                   </Button>}
                   <Button
                     disabled={!currentPage}

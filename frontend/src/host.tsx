@@ -805,11 +805,13 @@ export function OverviewPage({
   state,
   act,
   onLayout,
+  onMonitoring,
   randomTheme,
 }: {
   state: State;
   act: Act;
   onLayout: (view: OverviewView) => void;
+  onMonitoring: () => void;
   randomTheme: HomeRandomTheme;
 }) {
   useAppearanceTheme();
@@ -820,7 +822,7 @@ export function OverviewPage({
     return configuredView;
   });
   useEffect(() => setTab(configuredView), [configuredView]);
-  const navigation = <OverviewViewPicker value={tab} onChange={setTab} />;
+  const navigation = <OverviewViewPicker value={tab} onChange={setTab} onMonitoring={onMonitoring} />;
   const presentation = {
     ...record(state.manager_settings.presentation),
     ...randomTheme.values,
@@ -849,10 +851,12 @@ export function OverviewViewPicker({
   value,
   onChange,
   label = "主页切换",
+  onMonitoring,
 }: {
   value: OverviewView;
   onChange: (value: OverviewView) => void;
   label?: string;
+  onMonitoring?: () => void;
 }) {
   return (
     <div className="overview-view-picker">
@@ -860,7 +864,7 @@ export function OverviewViewPicker({
         label={label}
         triggerTitle={label === "主页切换" ? label : undefined}
         value={value}
-        onChange={(next) => onChange(next as OverviewView)}
+        onChange={(next) => next === "monitoring" ? onMonitoring?.() : onChange(next as OverviewView)}
         options={[
           {
             value: "services",
@@ -880,6 +884,7 @@ export function OverviewViewPicker({
             icon: <NodeManagementIcon size={18} />,
             tone: "purple",
           },
+          ...(onMonitoring ? [{ value: "monitoring", label: "详细监控", icon: <Monitor size={18} />, tone: "blue" }] : []),
         ]}
       />
     </div>

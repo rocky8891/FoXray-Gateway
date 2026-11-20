@@ -235,6 +235,7 @@ func (a *App) buildEngine(c, native M, selected string) (M, error) {
 	return a.engineTelemetry(engine), nil
 }
 func (a *App) engineTelemetry(engine M) M {
+	a.attachRoutingWebhooks(engine)
 	traffic := M{}
 	_ = readJSON(filepath.Join(a.base, "private", "traffic-policy.json"), &traffic)
 	if yes(traffic["enabled"]) {

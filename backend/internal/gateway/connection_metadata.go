@@ -64,6 +64,7 @@ func (m *ConnectionMonitor) existingDomainHints(stamp float64) map[string]string
 	}
 	m.metadataAt = stamp
 	m.domainHints = map[string]string{}
+	m.routeHints = map[string]string{}
 	m.domainHintStatus = "Xray核心未配置可读取的文件访问日志；未自动开启日志或重载核心"
 	// The manager's generated config normally disables access logging. Reading an
 	// existing configured log does not enable logging or reload the core.
@@ -101,6 +102,7 @@ func (m *ConnectionMonitor) existingDomainHints(stamp float64) map[string]string
 		}
 	}
 	m.domainHints = parseAccessDomains(string(raw), stamp)
+	m.routeHints = parseAccessRoutes(string(raw), stamp)
 	m.domainHintStatus = "已读取已有Xray访问日志；近60秒内无来源、协议和目标端口唯一匹配的域名证据"
 	return m.domainHints
 }

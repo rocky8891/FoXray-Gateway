@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -18,6 +19,7 @@ type ConnectionMonitor struct {
 	metadataAt         float64
 	domainHintStatus   string
 	domainHints        map[string]string
+	routeHints         map[string]string
 	applicationAt      float64
 	applicationSockets string
 	wake               chan struct{}
@@ -363,6 +365,28 @@ func (m *ConnectionMonitor) collect() {
 		socketsForMetadata = ""
 	}
 	enrichConnectionMetadata(rows, socketsForMetadata, m.existingDomainHints(now()))
+	engine := M{}
+	if readJSON(filepath.Join(a.base, "engine.json"), &engine) != nil {
+		engine = M{}
+	}
+	var routingSummary M
+	actualRoutes := map[string]string{}
+	for key, tag := range m.routeHints {
+		actualRoutes[key] = tag
+	}
+	for key, tag := range a.routes.hints() {
+		actualRoutes[key] = tag
+	}
+	rows, routingSummary = filterXrayBusiness(rows, engine, actualRoutes)
+	if summary := obj(summaries["xray"]); summaries["xray"] != nil {
+		for key, value := range routingSummary {
+			summary[key] = value
+		}
+		summary["note"] = "仅统计已确认由Xray代理出站的业务连接；已剔除直连及阻断，未确认归属单列且不计入。仅依据核心Webhook或完整IP访问日志证据，不以配置推断归属。历史曲线不混入旧的入口总量。"
+		if num(summary["unclassified_count"]) > 0 {
+			summary["partial"] = true
+		}
+	}
 	for _, row := range rows {
 		if row["module"] == "xray" && str(row["domain"]) == "" && !yes(row["_deferred"]) {
 			row["domain_note"] = m.domainHintStatus
@@ -405,7 +429,7 @@ func (m *ConnectionMonitor) collect() {
 		}
 		r["observed_seconds"] = stamp - num(r["first_seen"])
 		next[str(r["id"])] = r
-		if yes(r["active"]) {
+		if yes(r["active"]) && proxyConnectionCounted(r) {
 			counts[str(r["node_id"])]++
 		}
 		delete(r, "destination_ip")
@@ -424,7 +448,7 @@ func (m *ConnectionMonitor) collect() {
 		sum["count"] = 0
 		sum["protocols"] = M{"tcp": 0, "udp": 0}
 		for _, r := range rows {
-			if str(r["module"]) == module && yes(r["active"]) {
+			if str(r["module"]) == module && yes(r["active"]) && proxyConnectionCounted(r) {
 				sum["count"] = num(sum["count"]) + 1
 				protocols := obj(sum["protocols"])
 				if proto := str(r["protocol"]); proto == "tcp" || proto == "udp" {

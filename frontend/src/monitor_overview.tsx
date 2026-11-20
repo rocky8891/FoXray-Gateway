@@ -243,6 +243,7 @@ function SummaryHeader({
           "--summary-ring-stroke",
           String(400 / fit.diameter),
         );
+        card.style.setProperty("--summary-disk-inset", `${2 + 200 / fit.diameter}%`);
         card.dataset.ringColumns = String(fit.columns);
         card.dataset.circleLayout = fit.layout;
         card
@@ -258,6 +259,7 @@ function SummaryHeader({
               "--summary-ring-stroke",
               String(400 / diameter),
             );
+            metric.style.setProperty("--summary-disk-inset", `${2 + 200 / diameter}%`);
             fitText(metric, diameter * 0.8, diameter);
           });
       } else {
@@ -451,6 +453,7 @@ function SummaryMetric({
       data-summary-slot={slot}
       style={slot == null ? undefined : { order: slot }}
     >
+      {percent !== undefined && <span className="summary-disk-fill" aria-hidden="true" />}
       {percent !== undefined && (
         <svg
           className="summary-percent-ring"

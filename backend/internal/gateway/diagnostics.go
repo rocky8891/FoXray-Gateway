@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -76,7 +75,9 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 		return errors.New("来源 IP 无效")
 	}
 	a.stage(j, "解析目标并查询当前内核路径")
+	dnsStarted := time.Now()
 	ips, e := net.DefaultResolver.LookupIP(ctx, "ip4", host)
+	result["dns_ms"] = float64(time.Since(dnsStarted)) / float64(time.Millisecond)
 	if e != nil || len(ips) == 0 {
 		if e != nil {
 			return fmt.Errorf("目标解析失败：%w", e)
@@ -132,34 +133,53 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 		if err != nil && !ok {
 			a.jobDetail(j, "ICMP 无有效回应，不等于 HTTPS 不可用")
 		}
+	} else if protocol == "tls" {
+		result["route_observer"] = a.routingWebhookStatus()
+		started := time.Now()
+		measured, err := measureDiagnosticHTTPS(ctx, host, target, p, nil)
+		for key, value := range measured {
+			result[key] = value
+		}
+		ok = err == nil
+		if err != nil {
+			result["test_error"] = err.Error()
+			a.jobDetail(j, err.Error())
+		}
+		if result["tcp_ms"] != nil {
+			a.jobDetail(j, fmt.Sprintf("本地TCP接管／建连：%.2f ms（不作为目标访问延迟）", num(result["tcp_ms"])))
+		}
+		if yes(result["tls_verified"]) {
+			a.jobDetail(j, fmt.Sprintf("目标TLS证书校验通过；握手 %.2f ms", num(result["tls_handshake_ms"])))
+		}
+		if yes(result["http_response_received"]) {
+			a.jobDetail(j, fmt.Sprintf("目标HTTPS首字节：%.2f ms；HTTP %v", num(result["http_ttfb_ms"]), result["http_status"]))
+		}
+		node := M{"status": "unconfirmed"}
+		if source := str(result["local_source"]); source != "" {
+			if event, found := a.diagnosticRouteEvent(ctx, source, net.JoinHostPort(target, strconv.Itoa(p)), started); found {
+				node = a.observedDiagnosticNode(event)
+			}
+		}
+		result["actual_node"] = node
+		result["observed_path"] = diagnosticObservedPath(node, host, p)
+		result["path_status"] = node["status"]
+		a.jobDetail(j, "本次连接路径："+str(result["observed_path"]))
 	} else {
 		start := time.Now()
 		dial := net.Dialer{Timeout: 8 * time.Second}
-		conn, er := dial.DialContext(ctx, "tcp", net.JoinHostPort(target, strconv.Itoa(p)))
-		if er == nil {
+		conn, err := dial.DialContext(ctx, "tcp", net.JoinHostPort(target, strconv.Itoa(p)))
+		if err == nil {
 			defer conn.Close()
-			result["tcp_ms"] = max(1, time.Since(start).Milliseconds())
+			result["tcp_ms"] = float64(time.Since(start)) / float64(time.Millisecond)
 			result["tcp_connected"] = true
-			a.jobDetail(j, fmt.Sprintf("TCP 建连：%v ms", result["tcp_ms"]))
 			ok = true
-			if protocol == "tls" {
-				t := tls.Client(conn, &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12})
-				handshakeCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
-				defer cancel()
-				if er = t.HandshakeContext(handshakeCtx); er == nil {
-					result["tls_verified"] = true
-					a.jobDetail(j, "TLS 证书校验通过")
-				} else {
-					ok = false
-					result["test_error"] = er.Error()
-					a.jobDetail(j, "TLS 校验或握手未完成："+er.Error())
-				}
-			}
+			a.jobDetail(j, fmt.Sprintf("TCP建连：%.2f ms；此项不证明目标TLS或HTTP可用", num(result["tcp_ms"])))
 		} else {
-			result["test_error"] = er.Error()
-			a.jobDetail(j, "TCP 连接未完成："+er.Error())
+			result["test_error"] = err.Error()
+			a.jobDetail(j, "TCP连接未完成："+err.Error())
 		}
 	}
+
 	result["ok"] = ok
 
 	if !ok {
@@ -181,8 +201,14 @@ func diagnosticResultSummary(result M) string {
 	if yes(result["ok"]) {
 		outcome = "通过"
 	}
+	if yes(result["http_response_received"]) && yes(result["tls_verified"]) {
+		return fmt.Sprintf("%s · HTTPS首字节 %.2f ms · %s", target, num(result["http_ttfb_ms"]), outcome)
+	}
+	if str(p["protocol"]) == "tls" {
+		return fmt.Sprintf("%s · HTTPS未通过 · %s", target, firstNonempty(str(result["test_error"]), str(result["error"])))
+	}
 	if result["tcp_ms"] != nil {
-		return fmt.Sprintf("%s · TCP %v ms · %s", target, result["tcp_ms"], outcome)
+		return fmt.Sprintf("%s · 仅TCP建连 %.2f ms · %s", target, num(result["tcp_ms"]), outcome)
 	}
 	if result["icmp_success_pct"] != nil {
 		return fmt.Sprintf("%s · ICMP成功率 %v%% · %s", target, result["icmp_success_pct"], outcome)

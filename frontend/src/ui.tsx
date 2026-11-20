@@ -911,6 +911,8 @@ export function Table<T>({
   paginate = true,
   keepHeaders = false,
   footerActions,
+  pageSizeLimit,
+  paginationResetKey,
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -920,6 +922,8 @@ export function Table<T>({
   paginate?: boolean;
   keepHeaders?: boolean;
   footerActions?: ReactNode;
+  pageSizeLimit?: number;
+  paginationResetKey?: string;
 }) {
   const edgeWidth = (c: Column<T>) =>
     c.label === "选择" || ["selected", "select"].includes(c.key)
@@ -931,10 +935,10 @@ export function Table<T>({
           ? 48
           : 0;
   const minTableWidth = columns.reduce(
-    (sum, c) => sum + (edgeWidth(c) || 140),
+    (sum, c) => sum + (edgeWidth(c) || (c.width && /^\d+px$/.test(c.width) ? Number.parseFloat(c.width) : 140)),
     0,
   );
-  const pagination = usePagination(rows, rows.map(rowKey).join("\u001f"));
+  const pagination = usePagination(rows, paginationResetKey ?? rows.map(rowKey).join("\u001f"), pageSizeLimit);
   const shown = paginate ? pagination.items : rows;
   const offset = paginate ? pagination.start : 0;
   const tableRef = useRef<HTMLTableElement>(null);
@@ -974,6 +978,7 @@ export function Table<T>({
           style={
             {
               "--first-column-width": firstWidth + "px",
+              "--table-min-width": minTableWidth + "px",
               minWidth: minTableWidth,
             } as React.CSSProperties
           }

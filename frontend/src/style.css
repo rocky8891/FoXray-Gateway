@@ -5778,7 +5778,7 @@ main{width:var(--content-width,80%)!important}
 .management-card .node-title-tools{display:flex;flex-direction:row;align-items:center;gap:8px;min-height:28px}.management-card .node-title-line{align-items:center}.management-card .node-title-copy{min-width:0;flex:1}.management-card .node-card-actions .button{min-height:28px;height:28px;padding:4px 8px;font-size:11px}
 @media(min-width:1000px){:is(.overview-layout-top[data-overview-anchor=service-host]>.summary-v417.service-host,.overview-layout-top[data-overview-anchor=service-xray]>.summary-v417.service-xray,.overview-layout-top[data-overview-anchor=service-warp]>.summary-v417.service-warp):not(:is(.service-style-radial,.service-style-radial-diamond))>.service-overview-surface>.service-metric-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;grid-template-rows:1fr!important}}
 @media(max-width:999px){.overview-page .dashboard-current .dashboard-exit-grid>.summary-v417{min-height:300px!important;height:300px!important}.overview-page .dashboard-current .dashboard-exit-grid>.summary-v417.service-wireguard{min-height:460px!important;height:460px!important}.overview-page .dashboard-current .dashboard-exit-grid>.summary-v417:is(.service-style-radial,.service-style-radial-diamond).service-host{min-height:350px!important;height:350px!important}.overview-page .dashboard-current .dashboard-exit-grid>.summary-v417:is(.service-style-radial,.service-style-radial-diamond).service-wireguard{min-height:620px!important;height:620px!important}.overview-page .summary-v417{--summary-value-size:18px;--summary-label-size:11px}.overview-page .summary-v417 .service-overview-heading{height:50px;min-height:50px}.overview-page .summary-v417 .service-overview-heading>.service-overview-identity-row{top:28px!important;left:0!important;right:0!important;height:20px}.overview-page .summary-v417 .service-tunnel-row>.service-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-template-rows:repeat(2,minmax(0,1fr))!important;padding-top:18px;box-sizing:border-box}.overview-page .summary-v417:is(.service-style-radial,.service-style-radial-diamond).service-wireguard>.service-tunnel-list{grid-template-columns:1fr!important;grid-template-rows:repeat(2,minmax(0,1fr))!important}.overview-page .summary-v417:is(.service-style-radial,.service-style-radial-diamond).service-wireguard .summary-metric>strong{font-size:15px!important}.management-card .node-title-line{align-items:flex-start}.management-card .node-title-tools{flex-wrap:wrap;justify-content:flex-end}}
-.page-width-settings .field{max-width:320px}
+.page-width-settings .field{max-width:none}
 .overview-page .summary-v417:is(.service-style-radial,.service-style-radial-diamond).service-host .summary-metric[data-summary-metric=load]{top:4px!important}.overview-page .summary-v417:is(.service-style-radial,.service-style-radial-diamond).service-host .summary-metric[data-summary-metric=root]{bottom:4px!important}
 
 /* shared cards, accessible state dots and geometric ring presets. */
@@ -6569,8 +6569,8 @@ html[data-theme=light]{background:linear-gradient(105deg,#edf7f8,#f4eff5) fixed}
 @media(hover:hover){
 .overview-page .service-overview-card,.overview-page .service-overview-card:not(.service-wireguard) .summary-metric,.overview-page .service-wireguard .service-tunnel-row{transition:background-color .15s,outline-color .15s;outline:1px solid transparent;outline-offset:-1px}
 .overview-page .summary-v417>.service-overview-surface:hover{background:transparent!important;box-shadow:none!important}
-.overview-page .dashboard-exit-grid>.service-overview-card:hover:not(:has(:is(.summary-metric,.service-tunnel-row):hover)){background:color-mix(in srgb,var(--overview-card-paint,var(--card)) 94%,var(--text) 6%)!important;outline-color:color-mix(in srgb,var(--text) 30%,transparent);box-shadow:none!important}
-.overview-page .summary-v417:not(.service-wireguard) .summary-metric:hover,.overview-page .summary-v417.service-wireguard .service-tunnel-row:hover{background:color-mix(in srgb,var(--overview-detail-paint,var(--panel)) 94%,var(--text) 6%)!important;outline-color:color-mix(in srgb,var(--text) 30%,transparent);box-shadow:none!important}
+.overview-page .dashboard-exit-grid>.service-overview-card:not(.service-host):hover:not(:has(:is(.summary-metric,.service-tunnel-row):hover)){background:color-mix(in srgb,var(--overview-card-paint,var(--card)) 94%,var(--text) 6%)!important;outline-color:color-mix(in srgb,var(--text) 30%,transparent);box-shadow:none!important}
+.overview-page .summary-v417:not(.service-wireguard,.service-host) .summary-metric:hover,.overview-page .summary-v417.service-wireguard .service-tunnel-row:hover{background:color-mix(in srgb,var(--overview-detail-paint,var(--panel)) 94%,var(--text) 6%)!important;outline-color:color-mix(in srgb,var(--text) 30%,transparent);box-shadow:none!important}
 }
 @media(prefers-reduced-motion:reduce){.overview-page .service-overview-card,.overview-page .summary-metric,.overview-page .service-tunnel-row{transition:none!important}}
 
@@ -6630,14 +6630,10 @@ html[data-theme=light]{background:linear-gradient(105deg,#edf7f8,#f4eff5) fixed}
 .metric-hover-info{box-sizing:border-box;position:fixed;z-index:12000;pointer-events:none;max-width:min(320px,calc(100% - 24px));padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);color:var(--text);box-shadow:0 5px 18px #0003;font-size:12px;line-height:1.5}
 .metric-hover-info>p{margin:4px 0 0;color:var(--muted)}
 @media(hover:hover){
-.performance-overview .gauge-ring:hover{background:color-mix(in srgb,var(--panel) 92%,var(--text) 8%)}
-.overview-page .dashboard-exit-grid>.service-overview-card:hover:not(:has(:is(.summary-metric,.service-tunnel-row):hover)),.overview-page .summary-v417:not(.service-wireguard) .summary-metric:hover,.overview-page .summary-v417.service-wireguard .service-tunnel-row:hover,.overview-page .node-card.overview-node-card:hover:not(:has(.node-metric-surface:hover)),.overview-page .overview-node-card .node-metric-surface:hover,.overview-page .exit-chart-section:hover{border-color:transparent!important;outline-color:transparent!important;box-shadow:none!important}
+.overview-page .dashboard-exit-grid>.service-overview-card:not(.service-host):hover:not(:has(:is(.summary-metric,.service-tunnel-row):hover)),.overview-page .summary-v417:not(.service-wireguard,.service-host) .summary-metric:hover,.overview-page .summary-v417.service-wireguard .service-tunnel-row:hover,.overview-page .node-card.overview-node-card:hover:not(:has(.node-metric-surface:hover)),.overview-page .overview-node-card .node-metric-surface:hover,.overview-page .exit-chart-section:hover{border-color:transparent!important;outline-color:transparent!important;box-shadow:none!important}
 }
 
-/* A filled metric disk must not leave a dark rim outside its SVG track. */
-@media(hover:hover){
-.overview-page .service-host.summary-v417[data-adaptive-circles=true]:hover:not(:has(.summary-metric:hover)) .summary-metric{background:transparent!important;box-shadow:none!important}
-}
+/* Server metric disks retain their configured fill while the pointer moves. */
 .color-picker-modes>button[aria-pressed=true]{color:var(--accent);border-color:var(--accent)}
 
 /* Center the metric icon itself on the ring axis; keep the chevron close. */

@@ -28,6 +28,7 @@ type App struct {
 	monitorMu                               sync.RWMutex
 	monitoringItems                         M
 	connections                             *ConnectionMonitor
+	routes                                  *routeObserver
 	updateMu                                sync.Mutex
 	listener                                string
 	interfaceCache                          interfaceCounterCache
@@ -76,6 +77,7 @@ func New(base, ui string, readonly bool) (*App, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	a := &App{base: base, ui: ui, readonly: readonly, runner: SystemRunner{}, ctx: ctx, cancel: cancel, results: map[string]M{}, history: map[string][]M{}, pendingImports: map[string]M{}, jobs: jobSet{gate: make(chan struct{}, 8)}}
 	a.connections = newConnectionMonitor(a)
+	a.routes = newRouteObserver()
 	a.monitoringItems = defaultMonitorItems()
 	_ = readJSON(filepath.Join(base, "monitoring-items.json"), &a.monitoringItems)
 	a.monitoringItems["host"] = canonicalHostMonitorItems(obj(a.monitoringItems["host"]))
@@ -424,6 +426,7 @@ func first(a, b any) any {
 
 func (a *App) Start() {
 	a.started.Do(func() {
+		a.startRoutingWebhook()
 		a.refreshSnapshot()
 		a.traffic.start()
 		a.host.start()

@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS business_node_samples(node TEXT,t INTEGER,count INTEG
 	groups := map[string]M{}
 
 	for _, r := range rows {
-		if yes(r["_deferred"]) {
+		if yes(r["_deferred"]) || !proxyConnectionCounted(r) {
 			continue
 		}
 		key := str(r["module"]) + "|" + str(r["interface"]) + "|" + str(r["protocol"]) + "|" + str(r["node_id"])
@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS business_node_samples(node TEXT,t INTEGER,count INTEG
 	signatures := map[string]string{}
 	for _, r := range rows {
 		key := str(r["id"])
-		signature := fmt.Sprint(r["last_packet"], "|", r["upload"], "|", r["download"], "|", r["state"], "|", r["active"], "|", r["domain"], "|", r["application"])
+		signature := fmt.Sprint(r["last_packet"], "|", r["upload"], "|", r["download"], "|", r["state"], "|", r["active"], "|", r["domain"], "|", r["application"], "|", r["routing_classification"], "|", r["outbound_tag"], "|", r["proxy_counted"])
 		signatures[key] = signature
 		if m.persisted[key] == signature {
 			continue
@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS business_node_samples(node TEXT,t INTEGER,count INTEG
 		if err != nil {
 			break
 		}
-		_, err = tx.Exec(`INSERT INTO business_samples VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(t,module,device,protocol,node) DO UPDATE SET count=MAX(count,excluded.count),upload=CASE WHEN upload IS NULL THEN excluded.upload WHEN excluded.upload IS NULL THEN upload ELSE MAX(upload,excluded.upload) END,download=CASE WHEN download IS NULL THEN excluded.download WHEN excluded.download IS NULL THEN download ELSE MAX(download,excluded.download) END`, g["_minute"], g["module"], g["device"], g["protocol"], g["node"], g["count"], g["upload"], g["download"])
+		_, err = tx.Exec(`INSERT INTO business_samples VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(t,module,device,protocol,node) DO UPDATE SET count=MAX(count,excluded.count),upload=CASE WHEN upload IS NULL THEN excluded.upload WHEN excluded.upload IS NULL THEN upload ELSE MAX(upload,excluded.upload) END,download=CASE WHEN download IS NULL THEN excluded.download WHEN excluded.download IS NULL THEN download ELSE MAX(download,excluded.download) END`, g["_minute"], businessSampleModule(str(g["module"])), g["device"], g["protocol"], g["node"], g["count"], g["upload"], g["download"])
 	}
 	if err == nil && minute != m.lastBusinessCleanup {
 		for _, module := range []string{"host", "xray", "warp", "wireguard"} {
@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS business_node_samples(node TEXT,t INTEGER,count INTEG
 			if _, err = tx.Exec("DELETE FROM business_flows WHERE module=? AND last<?", module, cutoff); err != nil {
 				break
 			}
-			if _, err = tx.Exec("DELETE FROM business_samples WHERE module=? AND t<?", module, cutoff); err != nil {
+			if _, err = tx.Exec("DELETE FROM business_samples WHERE module IN (?,?) AND t<?", module, businessSampleModule(module), cutoff); err != nil {
 				break
 			}
 			var bytes, count int64
@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS business_node_samples(node TEXT,t INTEGER,count INTEG
 				break
 			}
 			var samples int64
-			err = tx.QueryRow("SELECT COUNT(*) FROM business_samples WHERE module=?", module).Scan(&samples)
+			err = tx.QueryRow("SELECT COUNT(*) FROM business_samples WHERE module IN (?,?)", module, businessSampleModule(module)).Scan(&samples)
 			if err != nil {
 				break
 			}
@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS business_node_samples(node TEXT,t INTEGER,count INTEG
 			}
 			if excess > 0 {
 				drop := min(samples, excess/160+1)
-				_, err = tx.Exec("DELETE FROM business_samples WHERE rowid IN (SELECT rowid FROM business_samples WHERE module=? ORDER BY t LIMIT ?)", module, drop)
+				_, err = tx.Exec("DELETE FROM business_samples WHERE rowid IN (SELECT rowid FROM business_samples WHERE module IN (?,?) ORDER BY t LIMIT ?)", module, businessSampleModule(module), drop)
 				if err != nil {
 					break
 				}
@@ -283,7 +283,7 @@ func (m *ConnectionMonitor) businessHistory(q url.Values) M {
 		return M{"items": []M{}, "error": "时间范围无效"}
 	}
 	width := max(int(m.app.historyInterval(q.Get("module"), "connections")), int((end-start)/600))
-	where, args := "module=? AND t>=? AND t<=?", []any{q.Get("module"), start, end}
+	where, args := "module=? AND t>=? AND t<=?", []any{businessSampleModule(q.Get("module")), start, end}
 	for key, column := range map[string]string{"protocol": "protocol", "interface": "device", "node": "node"} {
 		if v := q.Get(key); v != "" && v != "all" {
 			where += " AND " + column + "=?"

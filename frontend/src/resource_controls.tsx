@@ -15,9 +15,10 @@ export function SortIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-export function usePagination<T>(rows: T[], resetKey = "") {
+export function usePagination<T>(rows: T[], resetKey = "", maxPageSize = 100) {
   const [page, setPage] = useState(1),
-    [pageSize, setSize] = useState(10);
+    [requestedSize, setSize] = useState(10);
+  const pageSize = Math.max(1, Math.min(requestedSize, maxPageSize));
   useEffect(() => setPage(1), [resetKey]);
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const current = Math.min(page, pageCount),
@@ -111,7 +112,7 @@ export function Pagination({
           value={value.pageSize}
           onChange={(e) => value.setPageSize(Number(e.target.value))}
         >
-          {[10, 20, 50, 100].map((n) => (
+          {[...new Set([value.pageSize, 10, 20, 50, 100])].sort((a,b)=>a-b).map((n) => (
             <option key={n} value={n}>
               {n} 项/页
             </option>
@@ -161,15 +162,17 @@ export function PaginatedCards({
   selected,
   resetKey = "",
   className = "cards two",
+  pageSizeLimit,
 }: {
   children: ReactNode;
   total?: number;
   selected?: number;
   resetKey?: string;
   className?: string;
+  pageSizeLimit?: number;
 }) {
   const items = Children.toArray(children),
-    value = usePagination(items, resetKey);
+    value = usePagination(items, resetKey, pageSizeLimit);
   return (
     <>
       <div className={className}>{value.items}</div>

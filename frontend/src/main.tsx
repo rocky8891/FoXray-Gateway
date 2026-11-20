@@ -1,4 +1,5 @@
 import { useOverviewRandomTheme } from "./overview_random_theme";
+import { HomeTools } from "./home_tools";
 import { HomeHeaderContext } from "./home_header";
 import { OverviewFooter } from "./overview_footer";
 import { labelIcon } from "./ui_icons";
@@ -135,8 +136,9 @@ function App() {
         1000,
     );
   }, [state?.manager_settings.status_refresh_seconds]);
+  const [monitorHeaderHidden, setMonitorHeaderHidden] = useState(() => sessionStorage.getItem("foxray.monitor.header-hidden") === "true");
   const hideHomeHeader =
-    page === "overview" &&
+    (page === "overview" || page === "monitoring" && monitorHeaderHidden) &&
     record(state?.manager_settings.presentation).home_header_auto_hide === true;
   const [headerExpanded, setHeaderExpanded] = useState(false);
   const [headerOrigin, setHeaderOrigin] = useState("calc(100vw - 30px) 150px");
@@ -179,7 +181,9 @@ function App() {
       window.removeEventListener("resize", update);
     };
   }, [headerCollapsed]);
-  const navigate = (next: Page) => {
+  const navigate = (next: Page, keepHeaderHidden = false) => {
+    setMonitorHeaderHidden(keepHeaderHidden);
+    sessionStorage.setItem("foxray.monitor.header-hidden", String(keepHeaderHidden));
     setOverviewEditor(undefined);
     setPage(next);
     localStorage.setItem("foxray.page", next);
@@ -318,6 +322,7 @@ function App() {
             randomTheme={randomTheme}
             state={state}
             act={act}
+            onMonitoring={() => navigate("monitoring", hideHomeHeader)}
             onLayout={(view) => {
               navigate("monitoring");
               setOverviewEditor(view);
@@ -520,6 +525,7 @@ function App() {
               }
             >
               <main
+                className={page === "monitoring" && hideHomeHeader ? "monitoring-shortcut-page" : undefined}
                 style={
                   {
                     "--overview-label-size": `${Number(record(record(state?.manager_settings.presentation).overview_text).label_size || 14)}px`,
@@ -534,7 +540,11 @@ function App() {
                       title={pageHeadings[page]?.[0] || "FoXray Gateway"}
                       description={pageHeadings[page]?.[1]}
                     />
-                    <div id="secondary-navigation" />
+                    <div id="secondary-navigation">
+                      {page === "monitoring" && hideHomeHeader && <HomeTools fullWidth={false} view="monitoring">
+                        <Button title="返回主页" aria-label="返回主页" onClick={() => navigate("overview")}>{labelIcon("主页", 18)}</Button>
+                      </HomeTools>}
+                    </div>
                   </section>
                 )}
                 {state?.read_only && (

@@ -1,5 +1,5 @@
 import { ResetFilters } from "./list_controls";
-import { ReadBadge, logReadKeys, useReadState } from "./read_state";
+import { MarkAllReadButton, ReadBadge, logReadKeys, switchReadKeys, useReadState } from "./read_state";
 import { hasChanges } from "./settings_save";
 import { PaginatedCards } from "./resource_controls";
 import { NodeManagementIcon } from "./requirement_icons";
@@ -484,7 +484,7 @@ export function Operations({
         title={title}
         description="查看详情后标为已读，与对应任务结果同步；阅读状态保存在当前浏览器，不同浏览器各自记录。日志仍按服务器保留周期清理。"
         actions={<>
-          <Button disabled={!rows.some(r => !isRead(logReadKeys(r)))} onClick={() => markRead(rows.flatMap(logReadKeys))}>全部标为已读</Button>
+          <MarkAllReadButton disabled={!rows.some(r => !isRead(logReadKeys(r)))} onClick={() => markRead(rows.flatMap(logReadKeys))} />
           <Button onClick={() => void refresh()}>刷新</Button>
         </>}
       />
@@ -580,6 +580,7 @@ export function Operations({
 }
 export function Switches() {
   const { isRead, markRead } = useReadState();
+  const [detail, setDetail] = useState<Dict | null>(null);
   const { data, error, refresh } = useResource<{ items: Dict[] }>(
     "/api/switches",
     5000,
@@ -589,7 +590,10 @@ export function Switches() {
       <PageHeader
         title="切换日志"
         description="记录最近 500 次出口切换，含自动／手动与失败原因；保存于服务器"
-        actions={<Button onClick={() => void refresh()}>刷新</Button>}
+        actions={<>
+          <MarkAllReadButton disabled={!(data?.items || []).some(r => !isRead(switchReadKeys(r)))} onClick={() => markRead((data?.items || []).flatMap(switchReadKeys))} />
+          <Button onClick={() => void refresh()}>刷新</Button>
+        </>}
       />
       <ErrorLine error={error} />
       <Table
@@ -606,22 +610,23 @@ export function Switches() {
           { key: "source", label: "原出口", render: (r) => text(r.source) },
           { key: "target", label: "目标出口", render: (r) => text(r.target) },
           {
-            key: "status",
-            label: "结果",
-            render: (r) => (r.status === "success" ? "成功" : "失败"),
-          },
-          {
             key: "duration",
             label: "耗时",
             render: (r) => text(r.duration) + " 秒",
           },
           { key: "error", label: "原因", render: (r) => text(r.error) },
-          { key: "read", label: "阅读状态", render: (r) => {
-            const keys = ["switch:" + String(r.time) + ":" + String(r.target)];
-            return <Button size="compact" iconOnly={false} title="标为已读" disabled={isRead(keys)} onClick={() => markRead(keys)}><ReadBadge read={isRead(keys)} /></Button>;
-          } },
+          { key: "read", label: "阅读状态", render: (r) => <ReadBadge read={isRead(switchReadKeys(r))} /> },
+          { key: "status", label: "结果", render: (r) => (r.status === "success" ? "成功" : "失败") },
+          { key: "details", label: "详情", render: (r) => <Button iconOnly title="查看日志" ariaLabel="查看日志" onClick={() => { setDetail(r); markRead(switchReadKeys(r)); }}>{labelIcon("查看日志", 18)}</Button> },
         ]}
       />
+      {detail && <Modal title="切换日志详情" copyText={JSON.stringify(detail, null, 2)} onClose={() => setDetail(null)}>
+        <p>{timestamp(detail.time)} · {detail.method === "auto" ? "自动" : "手动"} · {detail.status === "success" ? "成功" : "失败"}</p>
+        <p>原出口：{text(detail.source)}</p>
+        <p>目标出口：{text(detail.target)}</p>
+        <p>耗时：{text(detail.duration)} 秒</p>
+        <p>原因：{text(detail.error)}</p>
+      </Modal>}
     </Panel>
   );
 }
@@ -1643,7 +1648,7 @@ export function Diagnostics({ act }: { act: Act }) {
       <Panel>
         <PageHeader
           title="路径探测"
-          description="显示当前规则预计路径并从服务器执行 TCP／TLS 或 ICMP 测试；LAN 来源只做规则模拟"
+          description="区分配置预计路径与核心事件确认的实际节点；HTTPS测量到目标响应首字节，TCP建连耗时不作为目标访问延迟。LAN来源只做规则模拟，实际请求由网关发起。"
         />
         <div className="form-grid">
           <Field label="目标 IP 或域名">
@@ -1657,7 +1662,7 @@ export function Diagnostics({ act }: { act: Act }) {
               value={String(data.protocol)}
               onChange={(e) => set("protocol", e.target.value)}
             >
-              <option value="tls">TCP + TLS</option>
+              <option value="tls">HTTPS端到端（TLS＋首字节）</option>
               <option value="tcp">TCP</option>
               <option value="icmp">ICMP</option>
             </select>
@@ -1726,13 +1731,17 @@ export function DiagnosticLog({ act }: { act: Act }) {
       markRead(logReadKeys(diagnostic.result));
     }
   }, [diagnostic.result, markRead]);
+  const rows = (history.data?.items || []).filter(r => r.action === "diagnostic.result" || r.action === "diagnostic.finished");
   return (
     <>
       {" "}
       <Panel>
         <PageHeader
           title="诊断日志"
-          actions={<Button onClick={() => void history.refresh()}>刷新</Button>}
+          actions={<>
+            <MarkAllReadButton disabled={!rows.some(r => !isRead(logReadKeys(r)))} onClick={() => markRead(rows.flatMap(logReadKeys))} />
+            <Button onClick={() => void history.refresh()}>刷新</Button>
+          </>}
         />
         <DiagnosticProgress
           pending={diagnostic.pending}
@@ -1740,11 +1749,7 @@ export function DiagnosticLog({ act }: { act: Act }) {
         />
         <ErrorLine error={history.error} />
         <Table
-          rows={(history.data?.items || []).filter(
-            (r) =>
-              r.action === "diagnostic.result" ||
-              r.action === "diagnostic.finished",
-          )}
+          rows={rows}
           rowKey={(r) => r.id}
           columns={[
             { key: "time", label: "时间", render: (r) => timestamp(r.time) },
