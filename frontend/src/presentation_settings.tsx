@@ -461,12 +461,12 @@ function OverviewLayoutSettings({
       initialized.current = true;
     }
   }, [r.data]);
-  const p = {
+  const savedPresentation = {
       ...defaults,
       ...themedAppearance(state?.manager_settings.presentation),
       ...themedAppearance(r.data),
-      ...draft,
-    },
+    };
+  const p = { ...savedPresentation, ...draft },
     scoped = overviewPolicy(p, view),
     prefix =
       view === "services"
@@ -670,6 +670,7 @@ function OverviewLayoutSettings({
       </Button>
       <Button
         variant="primary"
+        highlighted={keys.some((key) => key in draft && hasChanges(draft[key], savedPresentation[key]))}
         disabled={sectionBusy || !!surfaceError}
         onClick={() => void scopeSave(keys)}
       >

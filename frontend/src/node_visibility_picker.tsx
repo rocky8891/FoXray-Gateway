@@ -60,6 +60,7 @@ export function NodeVisibilityPicker({
       {open && (
         <Modal
           title="选择显示节点"
+          className="node-visibility-modal"
           wide
           onClose={() => setOpen(false)}
           description="勾选即时更新配置草稿；搜索和排序不丢失选择。保存并应用后改变主页显示，不启停节点。"

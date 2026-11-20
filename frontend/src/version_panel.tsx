@@ -39,6 +39,10 @@ const names: Record<string, string> = {
   warp: "WARP",
   wireguard: "WireGuard 工具包",
 };
+// Release tags keep their original value for API calls; only the label is normalized.
+export function versionLabel(value: unknown, fallback = "待检查") {
+  return String(value || fallback).replace(/^v(?=\d)/i, "");
+}
 export function VersionPanel({
   service,
   act,
@@ -65,7 +69,7 @@ export function VersionPanel({
     service === "foxray" &&
     current &&
     storedInfo.current &&
-    current !== storedInfo.current
+    versionLabel(current) !== versionLabel(storedInfo.current)
       ? {
           ...storedInfo,
           current,
@@ -131,12 +135,12 @@ export function VersionPanel({
                 : undefined
             }
           >
-            {String(info.current || current || "待检查")}
+            {versionLabel(info.current || current)}
           </b>
         </span>
         <span>
           <span className="version-fact-label">最新版本</span>{" "}
-          <b>{String(info.latest || "待检查")}</b>
+          <b>{versionLabel(info.latest)}</b>
         </span>
         <span>
           <span className="version-fact-label">最近检查</span>{" "}
@@ -171,7 +175,7 @@ export function VersionPanel({
             label="检查更新"
             text={
               <>
-                <p>{summary}</p>
+                <p>{summary.replace(/\bv(?=\d)/gi, "")}</p>
                 <p>版本来源：{String(info.source || "等待版本源检查")}</p>
                 {Object.entries(info)
                   .filter(
@@ -286,13 +290,13 @@ export function VersionPanel({
       {notes && (
         <Modal
           title={names[service] + " 更新日志"}
-          copyText={`${String(info.current || current || "—")} → ${String(info.latest || "—")}\n\n${String(info.release_notes || "版本源未提供更新日志。")}`}
+          copyText={`${versionLabel(info.current || current, "—")} → ${versionLabel(info.latest, "—")}\n\n${String(info.release_notes || "版本源未提供更新日志。")}`}
           wide
           onClose={() => setNotes(false)}
         >
           <p className="small">
-            {String(info.current || current || "—")} →{" "}
-            {String(info.latest || "—")}
+            {versionLabel(info.current || current, "—")} →{" "}
+            {versionLabel(info.latest, "—")}
           </p>
           <pre className="release-notes">
             {String(info.release_notes || "版本源未提供更新日志。")}
@@ -305,8 +309,8 @@ export function VersionPanel({
           message={
             <>
               <p>
-                确认从 {String(info.current || current)} 更新到{" "}
-                {String(info.latest)}。
+                确认从 {versionLabel(info.current || current)} 更新到{" "}
+                {versionLabel(info.latest)}。
               </p>
               <p>
                 {service === "foxray"

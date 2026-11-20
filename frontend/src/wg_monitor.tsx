@@ -143,9 +143,10 @@ export function WireGuardSettings({ act }: { act: Act }) {
     </SettingsSaveProvider>
   );
 }
-let lastWireGuardTab = "interfaces";
 export function WireGuardHub({ act }: { act: Act }) {
-  const [tab, setTab] = useState(lastWireGuardTab);
+  const [tab, setTab] = useState(() =>
+    localStorage.getItem("foxray.wireguard.tab") === "settings" ? "settings" : "interfaces",
+  );
   return (
     <div className="module-page">
       <ModuleHeading
@@ -157,7 +158,7 @@ export function WireGuardHub({ act }: { act: Act }) {
         ]}
         value={tab}
         onChange={(value) => {
-          lastWireGuardTab = value;
+          localStorage.setItem("foxray.wireguard.tab", value);
           setTab(value);
         }}
       />

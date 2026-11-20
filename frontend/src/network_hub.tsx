@@ -67,6 +67,7 @@ export function NetworkHub({ act }: { act: Act }) {
           onTable={(table, family) => {
             setFilter({ table, family });
             setView("routes");
+            localStorage.setItem("foxray.network.tab", "routes");
           }}
         />
       )}

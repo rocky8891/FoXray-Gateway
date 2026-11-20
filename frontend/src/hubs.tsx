@@ -10,7 +10,7 @@ import { labelIcon } from "./ui_icons";
 import { useTimeRange } from "./time_range";
 import { WireGuardMonitor, WireGuardSettings } from "./wg_monitor";
 import { WarpSettings } from "./warp";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   History,
   DiagnosticLog,
@@ -27,6 +27,7 @@ import { HostHistoryPage } from "./host";
 import {
   GlobalMonitoringSettings,
   MonitoringSettings,
+  monitoringSettingsTabs,
 } from "./monitoring_settings";
 import { SecondaryNav, Panel, Empty } from "./ui";
 import { scopedState, record, type State } from "./api";
@@ -34,6 +35,9 @@ function useTab(key: string, initial: string, override?: string) {
   const [tab, setTab] = useState(
     () => override || localStorage.getItem(key) || initial,
   );
+  useEffect(() => {
+    if (override) localStorage.setItem(key, override);
+  }, [key, override]);
   return [
     tab,
     (value: string) => {
@@ -47,17 +51,45 @@ export function ModuleHeading({
   tabs,
   value,
   onChange,
+  dropdown,
 }: {
   title: string;
   description: string;
   tabs: string[][];
   value: string;
   onChange: (v: string) => void;
+  dropdown?: {
+    id: string;
+    value: string;
+    options: string[][];
+    onChange: (value: string) => void;
+  };
 }) {
   return (
     <SecondaryNav label={title}>
       <div className="module-tabs" role="tablist">
-        {tabs.map(([id, label]) => (
+        {tabs.map(([id, label]) => dropdown?.id === id ? (
+          <div className="module-tab-dropdown" data-active={value === id} key={id}>
+            <IconSelect
+              label={title + " · " + label + "切换"}
+              value={dropdown.value}
+              triggerIcon={labelIcon(label, 14)}
+              triggerText={value === id
+                ? label + " · " + (dropdown.options.find(([key]) => key === dropdown.value)?.[1] || "主页")
+                : label}
+              options={dropdown.options.map(([key, caption]) => ({
+                value: key,
+                label: caption,
+                icon: labelIcon(caption, 14),
+                tone: "green",
+              }))}
+              onChange={(next) => {
+                dropdown.onChange(next);
+                onChange(id);
+              }}
+            />
+          </div>
+        ) : (
           <button
             key={id}
             role="tab"
@@ -89,7 +121,12 @@ export function MonitoringHub({
       "host",
       initialOverviewView ? "settings" : undefined,
     ),
-    [requestedView, setView] = useState("traffic");
+    [requestedView, setView] = useTab("foxray.monitor.view", "traffic");
+  const [settingsModule, setSettingsModule] = useTab(
+    "foxray.monitor.settings.module", "overview", initialOverviewView ? "overview" : undefined,
+  );
+  const settingsOptions = monitoringSettingsTabs(state);
+  const settingsTarget = settingsOptions.some(([id]) => id === settingsModule) ? settingsModule : "overview";
   const range = useTimeRange();
   const tabs = [
     ["host", "服务器"],
@@ -155,6 +192,7 @@ export function MonitoringHub({
         tabs={tabs}
         value={active}
         onChange={setTab}
+        dropdown={{id: "settings", value: settingsTarget, options: settingsOptions, onChange: setSettingsModule}}
       />
       {active === "xray" || active === "warp" || active === "wireguard" ? (
         <>
@@ -202,6 +240,7 @@ export function MonitoringHub({
           state={state}
           act={act}
           initialOverviewView={initialOverviewView}
+          module={settingsTarget}
         />
       ) : record(record(state.monitoring_items)._modules).host === false ? (
         <Panel>
@@ -290,6 +329,9 @@ export function LogsHub({ state, act }: { state: State; act: Act }) {
 
 export function GlobalSettingsHub({ state, act }: { state: State; act: Act }) {
   const [tab, setTab] = useTab("foxray.global-settings.tab", "global");
+  const [settingsModule, setSettingsModule] = useTab("foxray.monitor.settings.module", "overview");
+  const settingsOptions = monitoringSettingsTabs(state);
+  const settingsTarget = settingsOptions.some(([id]) => id === settingsModule) ? settingsModule : "overview";
   const tabs = [
     ["monitoring", "监控"],
     ["logs", "日志"],
@@ -308,6 +350,7 @@ export function GlobalSettingsHub({ state, act }: { state: State; act: Act }) {
         tabs={tabs}
         value={active}
         onChange={setTab}
+        dropdown={{id: "monitoring", value: settingsTarget, options: settingsOptions, onChange: setSettingsModule}}
       />
       {active === "wireguard" ? (
         <WireGuardSettings act={act} />
@@ -316,7 +359,7 @@ export function GlobalSettingsHub({ state, act }: { state: State; act: Act }) {
       ) : active === "warp" ? (
         <WarpSettings act={act} />
       ) : active === "monitoring" ? (
-        <MonitoringSettings state={state} act={act} />
+        <MonitoringSettings state={state} act={act} module={settingsTarget} />
       ) : active === "preferences" ? (
         <GlobalMonitoringSettings act={act} />
       ) : active === "logs" ? (

@@ -5,9 +5,8 @@ import { PresentationSettings } from "./presentation_settings";
 import { DataPolicyCard } from "./data_policy";
 import { MonitorItemsSettings } from "./monitor_items";
 import { NumberInput } from "./ui";
-import { labelIcon } from "./ui_icons";
 import { SaveCard, SettingsSaveProvider } from "./settings_save";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { record, type Dict, type State } from "./api";
 import { HostSettings } from "./host";
 import { ErrorLine, Field, PageHeader, Panel, useResource } from "./ui";
@@ -201,42 +200,39 @@ export function DisplaySettings({ act }: { act: Act }) {
   );
 }
 
+export function monitoringSettingsTabs(state: State) {
+  return [
+    ["overview", "主页"],
+    ["server", "服务器"],
+    ...(state.components.xray ? [["xray", "Xray"]] : []),
+    ...(state.components.warp ? [["warp", "WARP"]] : []),
+    ...(state.components.wireguard ? [["wireguard", "WireGuard"]] : []),
+  ];
+}
+
 export function MonitoringSettings({
   state,
   act,
   initialOverviewView,
+  module = "overview",
 }: {
   state: State;
   act: Act;
   initialOverviewView?: OverviewView;
+  module?: string;
 }) {
-  const [overviewView, setOverviewView] = useState<OverviewView | undefined>(
-    initialOverviewView,
-  );
-  const [module, setModule] = useState("overview"),
-    tabs = [
-      ["overview", "主页"],
-      ["server", "服务器"],
-      ...(state.components.xray ? [["xray", "Xray"]] : []),
-      ...(state.components.warp ? [["warp", "WARP"]] : []),
-      ...(state.components.wireguard ? [["wireguard", "WireGuard"]] : []),
-    ];
+  const [overviewView, setOverviewView] = useState<OverviewView | undefined>(() => {
+    const saved = localStorage.getItem("foxray.monitor.settings.overview-view");
+    return initialOverviewView ||
+      (saved === "services" || saved === "dashboard" || saved === "nodes" ? saved : undefined);
+  });
+  useEffect(() => {
+    if (overviewView) localStorage.setItem("foxray.monitor.settings.overview-view", overviewView);
+  }, [overviewView]);
+  const tabs = monitoringSettingsTabs(state);
   const active = tabs.some(([id]) => id === module) ? module : "overview";
   return (
     <>
-      <div className="monitor-settings-tabs">
-        {tabs.map(([id, label]) => (
-          <button
-            key={id}
-            className={active === id ? "selected" : ""}
-            aria-pressed={active === id}
-            onClick={() => setModule(id)}
-          >
-            {labelIcon(label, 14)}
-            {label}
-          </button>
-        ))}
-      </div>
       <SettingsSaveProvider
         key={active}
         expected={active === "overview" ? 1 : 4}

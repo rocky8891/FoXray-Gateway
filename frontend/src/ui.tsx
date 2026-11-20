@@ -656,6 +656,7 @@ export function SettingInfo({
 
 export function Field({
   label,
+  titleExtra,
   children,
   hint,
   info,
@@ -663,6 +664,7 @@ export function Field({
   validateNumber = false,
 }: {
   label: string;
+  titleExtra?: ReactNode;
   children: ReactNode;
   hint?: string;
   info?: ReactNode;
@@ -782,6 +784,7 @@ export function Field({
             }
           />
         )}
+        {titleExtra}
         {visibleMessage && (
           <span className="field-error" id={errorId} role="alert">
             <AlertCircle size={12} />

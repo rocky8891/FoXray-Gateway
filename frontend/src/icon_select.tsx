@@ -23,6 +23,7 @@ export function IconSelect({
   triggerText,
   showIcon = true,
   triggerTitle,
+  triggerIcon,
 }: {
   label: string;
   value: string;
@@ -31,6 +32,7 @@ export function IconSelect({
   triggerText?: string;
   showIcon?: boolean;
   triggerTitle?: string;
+  triggerIcon?: ReactNode;
 }) {
   const [open, setOpen] = useState(false),
     [position, setPosition] = useState({
@@ -139,7 +141,7 @@ export function IconSelect({
       >
         {showIcon && (
           <span className={"icon-select-symbol metric-" + selected?.tone}>
-            {selected?.icon}
+            {triggerIcon || selected?.icon}
           </span>
         )}
         <span>{triggerText || selected?.label}</span>

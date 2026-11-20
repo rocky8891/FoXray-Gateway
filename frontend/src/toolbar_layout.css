@@ -43,8 +43,7 @@
 .custom-routing > .management-toolbar {
   justify-content: flex-start;
 }
-.version-check-policy :is(.button, input),
-.field-with-action > .button {
+.version-check-policy :is(.button, input) {
   --control-height: var(--button-height-compact);
   height: var(--button-height-compact);
   min-height: var(--button-height-compact);

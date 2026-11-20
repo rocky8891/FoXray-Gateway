@@ -397,7 +397,6 @@ export function WarpPage({ act }: { act: Act }) {
                 连接
               </Button>
               <Button
-                variant="danger"
                 disabled={busy || !current.connected}
                 onClick={() => setConfirm({ service_action: "disconnect" })}
               >
@@ -569,9 +568,8 @@ export function WarpPage({ act }: { act: Act }) {
                   ),
                 },
                 {
-                  key: "rank",
-                  label: "排名",
-                  heading: heading("rank", "排名"),
+                  key: "serial",
+                  label: "序号",
                   render: (_, i) => i + 1,
                 },
                 {

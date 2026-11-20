@@ -1,5 +1,6 @@
 import { hasChanges } from "./settings_save";
 import { useState } from "react";
+import { Pencil } from "lucide-react";
 import { type Dict } from "./api";
 import {
   Button,
@@ -27,6 +28,7 @@ export function ProbeIntervalField({
     [open, setOpen] = useState(false);
   const p = { ...r.data, ...draft },
     xray = module === "xray";
+  const moduleName = xray ? "Xray" : module === "warp" ? "WARP" : "WireGuard";
   const display = r.data
     ? xray
       ? `真连接 ${r.data.interval}秒 / ICMP ${r.data.icmp_interval}秒`
@@ -36,17 +38,20 @@ export function ProbeIntervalField({
     <>
       <Field
         label="主动探测间隔（秒）"
-        info="关联本服务的主动检测策略，独立于全局采集和历史写入间隔。修改间隔不会开启检测，也不会重启转发服务。"
+        info={`这是 ${moduleName} 检测策略中同一个间隔的快捷编辑入口，不会创建第二套检测任务。历史保留的“独立设置”、全局采集和历史写入间隔分别控制，不影响此项。修改间隔不会开启检测，也不会重启转发服务。`}
       >
         <div className="field-with-action">
           <input readOnly value={display} aria-label="当前检测间隔" />
           <Button
+            size="regular"
+            ariaLabel={moduleName + "修改检测间隔"}
             disabled={!r.data}
             onClick={() => {
               setDraft(null);
               setOpen(true);
             }}
           >
+            <Pencil size={18} />
             修改
           </Button>
         </div>
@@ -54,10 +59,8 @@ export function ProbeIntervalField({
       <ErrorLine error={r.error} />
       {open && (
         <Modal
-          title={
-            (xray ? "Xray" : module === "warp" ? "WARP" : "WireGuard") +
-            "检测间隔"
-          }
+          title={moduleName + "检测间隔"}
+          description={`与 ${moduleName} 设置中的检测策略共用同一配置；这里只保存检测间隔，保留检测开关、目标地址及其他参数。`}
           onClose={() => setOpen(false)}
         >
           <div className="form-grid">

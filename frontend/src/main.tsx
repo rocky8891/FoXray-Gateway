@@ -7,7 +7,7 @@ import { Tasks, type OperationNotice } from "./task_center";
 import { TrafficWindowContext } from "./traffic_window";
 import { RangeDefaultsContext } from "./time_range";
 import { rangeHours } from "./presentation_settings";
-import { UpdatesContext, UpdateBadge } from "./version_panel";
+import { UpdatesContext, UpdateBadge, versionLabel } from "./version_panel";
 import { WireGuardHub } from "./wg_monitor";
 import { MonitoringHub, XrayHub, LogsHub, GlobalSettingsHub } from "./hubs";
 import { OverviewPage } from "./host";
@@ -111,7 +111,7 @@ function App() {
         saved = "network";
       }
       if (saved) localStorage.setItem("foxray.page", saved);
-      return navigation.some(([id]) => id === saved)
+      return saved === "settings" || navigation.some(([id]) => id === saved)
         ? (saved as Page)
         : "overview";
     }),
@@ -177,7 +177,7 @@ function App() {
   const navigate = (next: Page) => {
     setOverviewEditor(undefined);
     setPage(next);
-    if (next !== "settings") localStorage.setItem("foxray.page", next);
+    localStorage.setItem("foxray.page", next);
     window.scrollTo({ top: 0 });
   };
   const randomRequest = useRef<unknown>(null),
@@ -407,8 +407,7 @@ function App() {
         className="home-header-shell"
         data-auto-hide={hideHomeHeader || undefined}
       >
-        <header ref={header}>
-          {hideHomeHeader && (
+        {hideHomeHeader && (
             <button
               type="button"
               className="home-header-handle"
@@ -419,6 +418,7 @@ function App() {
               }}
             />
           )}
+        <header ref={header}>
           <a
             className="brand"
             href="#"
@@ -563,7 +563,7 @@ function App() {
                   <DataFreshness statusRefresh={statusRefresh} />
                 )}
                 <footer>
-                  v{state?.version || "0.9.2"} · Go / React ·
+                  {versionLabel(state?.version || "0.9.2")} · Go / React ·
                   网络变更采用预览、确认与回退
                 </footer>
               </main>

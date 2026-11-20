@@ -27,10 +27,13 @@ const Registry = createContext<
 export function SettingsSaveProvider({
   children,
   expected = 0,
+  inline = false,
 }: {
-  children: ReactNode;
+  children: ReactNode | ((footer: ReactNode) => ReactNode);
   expected?: number;
+  inline?: boolean;
 }) {
+  const parentRegister = useContext(Registry);
   const entries = useRef(new Map<string, Entry>()),
     [count, setCount] = useState(0),
     [blockedCount, setBlockedCount] = useState(0),
@@ -38,6 +41,7 @@ export function SettingsSaveProvider({
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
   const register = useCallback((key: string, entry: Entry | null) => {
+    parentRegister?.(key, entry);
     if (entry) entries.current.set(key, entry);
     else entries.current.delete(key);
     setCount(entries.current.size);
@@ -47,21 +51,18 @@ export function SettingsSaveProvider({
     setBlockedCount(
       [...entries.current.values()].filter((item) => item.disabled).length,
     );
-  }, []);
-  return (
-    <Registry.Provider value={register}>
-      {children}
-      {count > 1 && (
-        <div className="save-all-footer">
+  }, [parentRegister]);
+  const footer = count > 1 && (
+        <div className={inline ? "save-card-footer save-group-footer" : "save-all-footer"}>
           <div>
-            <h2 className="metric-heading tone-green">
+            {!inline && <h2 className="metric-heading tone-green">
               <SlidersHorizontal size={18} />
               配置与同步
               <SettingInfo
                 label="配置与同步"
                 text="在此统一保存本页配置；恢复默认与放弃保存仅修改草稿。"
               />
-            </h2>
+            </h2>}
             {message && (
               <p className="small muted" role="status">
                 {message}
@@ -75,7 +76,7 @@ export function SettingsSaveProvider({
               setMessage("已恢复本页默认草稿；保存并应用后生效");
             }}
           >
-            全部恢复默认
+            {inline ? "恢复默认" : "全部恢复默认"}
           </Button>
           <Button
             disabled={busy}
@@ -118,10 +119,13 @@ export function SettingsSaveProvider({
               })();
             }}
           >
-            全部保存并应用
+            {inline ? "保存并应用" : "全部保存并应用"}
           </Button>
         </div>
-      )}
+      );
+  return (
+    <Registry.Provider value={register}>
+      {typeof children === "function" ? children(footer) : <>{children}{footer}</>}
     </Registry.Provider>
   );
 }
@@ -136,12 +140,14 @@ export function SaveCard({
   localActionsEnabled = false,
   saveLabel = "保存并应用",
   defaultsLabel = "恢复默认",
+  showActions = true,
 }: {
   title: string;
   duplicateTarget?: HTMLElement | null;
   localActionsEnabled?: boolean;
   saveLabel?: string;
   defaultsLabel?: string;
+  showActions?: boolean;
   save: () => Promise<boolean>;
   disabled?: boolean;
   dirty?: boolean;
@@ -210,8 +216,8 @@ export function SaveCard({
   );
   return (
     <>
-      {controls()}
-      {duplicateTarget && createPortal(controls(true), duplicateTarget)}
+      {showActions ? controls() : <div ref={element} hidden />}
+      {showActions && duplicateTarget && createPortal(controls(true), duplicateTarget)}
     </>
   );
 }

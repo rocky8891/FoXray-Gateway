@@ -18,13 +18,13 @@ import {
 import { LogRetentionSettings } from "./log_settings";
 import { NumberInput } from "./ui";
 import { labelIcon } from "./ui_icons";
-import { VersionPanel } from "./version_panel";
+import { VersionPanel, versionLabel } from "./version_panel";
 import { DisplaySettings } from "./monitoring_settings";
 import { useTimeRange, TimeRangeControl, type TimeRange } from "./time_range";
 import { TimeAxisTick, timeTicks, formatAxisTime } from "./chart_layout";
 import { ModuleSettings } from "./modules";
 import { RuleSetsEditor } from "./custom_rules";
-import { SaveCard } from "./settings_save";
+import { SaveCard, SettingsSaveProvider } from "./settings_save";
 import {
   AlignedAxisTick,
   CHART_AXIS_WIDTH,
@@ -713,7 +713,7 @@ export function ServiceCard({
         <dl className="service-values">
           <div>
             <dt>服务名称</dt>
-            <dd title={String(data.version || "")}>
+            <dd title={versionLabel(data.version, "")}>
               {service === "xray"
                 ? "foxray-engine.service"
                 : "warp-svc.service"}
@@ -2123,12 +2123,12 @@ function ManagerServicePanel({ state, act }: { state: State; act: Act }) {
 
 export function Settings({ state, act }: { state: State; act: Act }) {
   return (
-    <>
+    <SettingsSaveProvider expected={6}>
       <ManagerServicePanel state={state} act={act} />
       <PageWidthSettings act={act} />
       <DisplaySettings act={act} />
       <ModuleSettings state={state} act={act} />
-    </>
+    </SettingsSaveProvider>
   );
 }
 

@@ -33,7 +33,8 @@ export function ModuleSettings({ state }: { state: State; act: Act }) {
     { id: "komari", title: "Komari", icon: <Monitor size={20} /> },
   ];
   return (
-    <SettingsSaveProvider expected={4}>
+    <SettingsSaveProvider expected={4} inline>
+      {(footer) => (
       <Panel className="module-settings">
         <PageHeader
           title="功能模块"
@@ -66,12 +67,22 @@ export function ModuleSettings({ state }: { state: State; act: Act }) {
                     }
                   />
                 </h3>
-
+                <label className="check module-enable">
+                  <input
+                    type="checkbox"
+                    checked={desired[item.id] ?? enabled}
+                    onChange={(e) =>
+                      setDesired((v) => ({ ...v, [item.id]: e.target.checked }))
+                    }
+                  />
+                  启用模块
+                </label>
                 {item.id === "komari" && (
                   <details className="module-connection-options">
                     <summary>连接地址与检测</summary>
                     <Field
                       label="Komari URL"
+                      titleExtra={<small className="module-current-url">当前 URL：{state.components.komari_url || "未配置"}</small>}
                       hint="留空自动检测本机 25774 端口；不允许包含认证信息或 Token"
                     >
                       <input
@@ -83,9 +94,6 @@ export function ModuleSettings({ state }: { state: State; act: Act }) {
                         placeholder="http://192.168.1.8:25774/"
                       />
                     </Field>
-                    <p className="small muted">
-                      当前 URL：{state.components.komari_url || "未配置"}
-                    </p>
                     <Button
                       onClick={() => {
                         setError("");
@@ -116,17 +124,8 @@ export function ModuleSettings({ state }: { state: State; act: Act }) {
                     接受 Cloudflare WARP 服务条款（首次安装或注册时需要）
                   </label>
                 )}
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={desired[item.id] ?? enabled}
-                    onChange={(e) =>
-                      setDesired((v) => ({ ...v, [item.id]: e.target.checked }))
-                    }
-                  />
-                  启用模块
-                </label>
                 <SaveCard
+                  showActions={false}
  dirty={(desired[item.id] ?? enabled) !== enabled || (item.id === "komari" && url !== (state.components.komari_url || ""))}
                   title={item.title + " 功能"}
                   defaults={() => {
@@ -192,7 +191,9 @@ export function ModuleSettings({ state }: { state: State; act: Act }) {
             );
           })}
         </div>
+        {footer}
       </Panel>
+      )}
     </SettingsSaveProvider>
   );
 }
