@@ -1036,7 +1036,7 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
     </div>
   );
   return (
-    <div className="xray-settings-page">
+    <div className="xray-settings-page module-service-settings">
       <ServicePanel
         service="xray"
         data={services.data?.services.xray}
@@ -1519,12 +1519,9 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
             <h2 className="metric-heading tone-green">
               {labelIcon("配置与同步", 20)}
               配置与同步
+              <SettingInfo label="配置与同步" text="此处统一保存代理、节点选择、检测、评分、直连与 ICMP 配置；恢复默认和放弃保存仅修改草稿，保存并应用后生效。" />
             </h2>
-            <span>
-              {dirty
-                ? `涉及 ${changed} 个配置项；保存后统一应用。`
-                : "此处统一保存代理、节点选择、检测、评分、直连与 ICMP 配置。"}
-            </span>
+            {dirty && <span role="status">{`涉及 ${changed} 个配置项；保存后统一应用。`}</span>}
           </div>
           <div className="actions">
             <Button

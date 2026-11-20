@@ -64,6 +64,5 @@ export function useConnectionTableControls(rows: Dict[], resetKey: string) {
       </ListFilter>
     </span> };
   };
-  const addressWidth = (key: string) => `${Math.min(440, Math.max(240, ...rows.map(row => String(row[key] || "").length * 8 + 32)))}px`;
-  return { rows: filtered, toolbar, columns: (columns: Column<Dict>[]) => columns.map(column), addressWidth, paginationKey: JSON.stringify({resetKey,query,filters,sort}) };
+  return { rows: filtered, toolbar, columns: (columns: Column<Dict>[]) => columns.map(column), paginationKey: JSON.stringify({resetKey,query,filters,sort}) };
 }

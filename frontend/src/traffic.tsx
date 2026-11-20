@@ -665,6 +665,7 @@ export function TrafficPage({
             />
             <ErrorLine error={history.error} />
             <Table
+              columnSizingKey={"traffic-" + module}
               rows={rows}
               total={all.length}
               columns={columns}

@@ -34,6 +34,7 @@ export function WireGuardSettings({ act }: { act: Act }) {
   const p: Dict = draft || r.data || defaults;
   const set = (k: string, v: unknown) => setDraft({ ...p, [k]: v });
   return (
+    <div className="module-service-settings wireguard-service-settings">
     <SettingsSaveProvider expected={2}>
       <WireGuardServicePanel act={act} />
       <Panel className="compact-settings-card">
@@ -51,7 +52,7 @@ export function WireGuardSettings({ act }: { act: Act }) {
             />
             启用 WireGuard ICMP 探测
           </label>
-          <div className="form-grid">
+          <div className="form-grid wg-probe-intervals">
             {[
               ["interval", "探测间隔（秒）", 10, 3600],
               ["count", "每轮包数", 1, 10],
@@ -68,6 +69,8 @@ export function WireGuardSettings({ act }: { act: Act }) {
                 />
               </Field>
             ))}
+          </div>
+          <div className="form-grid wg-probe-targets">
             {list(wg.data?.items).map((v) => {
               const name = String(v.name),
                 candidates = Array.isArray(v.probe_candidates)
@@ -79,7 +82,8 @@ export function WireGuardSettings({ act }: { act: Act }) {
                     ? !!record(p.auto_targets)[name]
                     : !saved;
               return (
-                <Field key={name} label={name + " 对端隧道 IP"}>
+                <div key={name} className="field wg-probe-target">
+                  <span className="field-title">{name} 对端隧道 IP</span>
                   <label className="check">
                     <input
                       type="checkbox"
@@ -92,11 +96,9 @@ export function WireGuardSettings({ act }: { act: Act }) {
                       }
                     />
                     自动识别
-                    {auto && !candidates.length
-                      ? "（未发现明确的对端主机路由，请手动填写）"
-                      : ""}
                   </label>
                   <input
+                    aria-label={name + " 对端隧道 IP"}
                     list={"wg-targets-" + name}
                     value={auto ? candidates[0] || "" : saved}
                     placeholder="选择候选或手动输入对端隧道 IP"
@@ -114,12 +116,13 @@ export function WireGuardSettings({ act }: { act: Act }) {
                       })
                     }
                   />
+                  {auto && !candidates.length && <small>未发现明确的对端主机路由，请手动填写</small>}
                   <datalist id={"wg-targets-" + name}>
                     {candidates.map((ip) => (
                       <option key={ip} value={ip} />
                     ))}
                   </datalist>
-                </Field>
+                </div>
               );
             })}
           </div>
@@ -141,6 +144,7 @@ export function WireGuardSettings({ act }: { act: Act }) {
       </Panel>
       <HistoryIntervalSettings module="wireguard" act={act} />
     </SettingsSaveProvider>
+    </div>
   );
 }
 export function WireGuardHub({ act }: { act: Act }) {

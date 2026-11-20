@@ -21,6 +21,7 @@ func defaultMonitorItems() M {
 		}
 		if module == "host" {
 			item["root"] = true
+			item["layout"] = "single"
 		}
 		result[module] = item
 	}

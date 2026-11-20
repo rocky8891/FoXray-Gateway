@@ -800,6 +800,7 @@ export function WarpSettings({ act }: { act: Act }) {
   );
   const scout = useResource<Dict>("/api/warp/scout", 15000);
   return (
+    <div className="module-service-settings warp-service-settings">
     <SettingsSaveProvider expected={3}>
       <ServicePanel
         service="warp"
@@ -812,6 +813,7 @@ export function WarpSettings({ act }: { act: Act }) {
       <WarpPolicy data={scout.data} act={act} refresh={scout.refresh} />
       <HistoryIntervalSettings module="warp" act={act} />
     </SettingsSaveProvider>
+    </div>
   );
 }
 function WarpPolicy({

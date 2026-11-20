@@ -1116,7 +1116,7 @@ export const HostHistoryPage = memo(function HostHistoryPage({
       <div
         className={
           "charts-grid host-history-charts host-layout-" +
-          (enabledItems.layout === "single" ? "single" : "double")
+          (enabledItems.layout === "double" ? "double" : "single")
         }
         style={Object.fromEntries(
           (

@@ -1,4 +1,5 @@
 import { ActionMenu, type MenuAction } from "./action_menu";
+import { useTableColumnSizing } from "./table_column_sizing";
 import { CopyButton, Pagination, usePagination } from "./resource_controls";
 import { labelIcon } from "./ui_icons";
 import {
@@ -895,6 +896,7 @@ export function RowActions({
 }
 export type Column<T> = {
   width?: string;
+  maxWidth?: number;
   key: string;
   label: string;
   heading?: ReactNode;
@@ -913,6 +915,7 @@ export function Table<T>({
   footerActions,
   pageSizeLimit,
   paginationResetKey,
+  columnSizingKey,
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -924,6 +927,7 @@ export function Table<T>({
   footerActions?: ReactNode;
   pageSizeLimit?: number;
   paginationResetKey?: string;
+  columnSizingKey?: string;
 }) {
   const edgeWidth = (c: Column<T>) =>
     c.label === "选择" || ["selected", "select"].includes(c.key)
@@ -942,6 +946,7 @@ export function Table<T>({
   const shown = paginate ? pagination.items : rows;
   const offset = paginate ? pagination.start : 0;
   const tableRef = useRef<HTMLTableElement>(null);
+  const sizing = useTableColumnSizing(tableRef, columns, rows, pagination.start + ":" + pagination.pageSize, columnSizingKey);
   const [firstWidth, setFirstWidth] = useState(64);
   useLayoutEffect(() => {
     const table = tableRef.current;
@@ -967,19 +972,24 @@ export function Table<T>({
   }, [rows, columns]);
   return rows.length || keepHeaders ? (
     <>
+      {sizing.enabled && <div className="adaptive-table-tools">
+        <span className="small">拖动表头分隔线调整列宽，双击恢复该列自动宽度</span>
+        <Button disabled={!sizing.manual} onClick={sizing.reset}>自动列宽</Button>
+      </div>}
       <div className="table-wrap">
         <table
           className={
             columns.some((c) => c.label === "节点" || c.label === "节点 / 订阅")
-              ? "content-width-table balanced-columns has-node-column"
-              : "content-width-table balanced-columns"
+              ? "content-width-table balanced-columns has-node-column" + (sizing.enabled ? " adaptive-columns" : "")
+              : "content-width-table balanced-columns" + (sizing.enabled ? " adaptive-columns" : "")
           }
           ref={tableRef}
           style={
             {
               "--first-column-width": firstWidth + "px",
-              "--table-min-width": minTableWidth + "px",
-              minWidth: minTableWidth,
+              "--table-min-width": (sizing.enabled ? sizing.total : minTableWidth) + "px",
+              minWidth: sizing.enabled ? sizing.total : minTableWidth,
+              ...(sizing.enabled ? { "--adaptive-table-width": sizing.total + "px" } : {}),
             } as React.CSSProperties
           }
         >
@@ -987,7 +997,7 @@ export function Table<T>({
             {columns.map((c) => (
               <col
                 key={c.key}
-                style={c.width ? { width: c.width } : edgeWidth(c) ? { width: edgeWidth(c) } : undefined}
+                style={sizing.enabled ? {width:sizing.width(c)} : c.width ? { width: c.width } : edgeWidth(c) ? { width: edgeWidth(c) } : undefined}
               />
             ))}
           </colgroup>
@@ -1001,6 +1011,7 @@ export function Table<T>({
                   data-label={c.label}
                   aria-sort={c.sortDirection}
                 >
+                  {sizing.enabled ? <><span className="adaptive-column-heading">{c.heading || c.label}</span>{sizing.handle(c)}</> : <>
                   {columnIndex === 0 ? (
                     <span className="first-cell-content">
                       {c.heading || c.label}
@@ -1008,6 +1019,7 @@ export function Table<T>({
                   ) : (
                     c.heading || c.label
                   )}
+                  </>}
                 </th>
               ))}
             </tr>
@@ -1031,6 +1043,9 @@ export function Table<T>({
                       data-column={c.key}
                       data-label={c.label}
                     >
+                      {sizing.enabled ? <div className="adaptive-cell-content" title={typeof row === "object" && row !== null ? undefined : String(row)}>
+                        {c.label === "操作" || c.key === "actions" ? rowActions(c.render(row,index),"第"+(index+1)+"行") : c.render(row,index)}
+                      </div> : <>
                       {columnIndex === 0 ? (
                         <span className="first-cell-content">
                           {c.label === "操作" || c.key === "actions"
@@ -1048,6 +1063,7 @@ export function Table<T>({
                       ) : (
                         c.render(row, index)
                       )}
+                      </>}
                     </td>
                   ))}
                 </tr>

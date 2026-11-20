@@ -362,6 +362,7 @@ export function ConnectionsPage({
           <Panel className="connections-table-panel">
             <PageHeader title="连接详情" icon={<List size={20} />} description="列头可排序或筛选，数值按实际字节、速率或秒数比较；搜索和列筛选作用于当前已加载连接，不改变上方历史曲线。" actions={detailsTable.toolbar} />
             <Table
+              columnSizingKey={"connections-" + module}
               rows={detailsTable.rows}
               paginationResetKey={detailsTable.paginationKey + "|" + [query,protocol,iface,node,status].join("|")}
               total={list(r.data?.items).length}
@@ -375,25 +376,21 @@ export function ConnectionsPage({
                 {
                   key: "source",
                   label: "源",
-                  width: detailsTable.addressWidth("source"),
                   render: (v) => <span className="connection-address" title={String(v.source)}>{String(v.source)}</span>,
                 },
                 {
                   key: "destination",
                   label: "目标",
-                  width: detailsTable.addressWidth("destination"),
                   render: (v) => <span className="connection-address" title={String(v.destination)}>{String(v.destination)}</span>,
                 },
                 {
                   key: "protocol",
                   label: "协议",
-                  width: "100px",
                   render: (v) => String(v.protocol).toUpperCase(),
                 },
                 {
                   key: "domain",
                   label: "域名",
-                  width: "320px",
                   render: (v) => (
                     <span className="connection-domain" title={[String(v.domain || "未观测"), String(v.domain_note || "")].filter(Boolean).join("\n")}>
                       {String(v.domain || "未观测")}
@@ -403,7 +400,6 @@ export function ConnectionsPage({
                 {
                   key: "state",
                   label: "状态",
-                  width: "144px",
                   render: (v) =>
                     ["近期有流量", "Active"].includes(String(v.state)) ? (
                       <span className="connection-active-status">
@@ -413,11 +409,10 @@ export function ConnectionsPage({
                       String(v.state)
                     ),
                 },
-                ...(module === "xray" && scope !== "transport" ? [{key:"routing",label:"出站",width:"160px",render:(v: Dict)=><span title={String(v.routing_note || "旧记录未采集出站归属")}>{v.routing_classification === "proxy" ? "代理" : "未确认（不计入代理数）"}</span>}] : []),
+                ...(module === "xray" && scope !== "transport" ? [{key:"routing",label:"出站",render:(v: Dict)=><span title={String(v.routing_note || "旧记录未采集出站归属")}>{v.routing_classification === "proxy" ? "代理" : "未确认（不计入代理数）"}</span>}] : []),
                 {
                   key: "interface",
                   label: "接口",
-                  width: "144px",
                   render: (v) => (
                     <>
                       <span>

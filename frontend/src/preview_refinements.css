@@ -1,4 +1,22 @@
 .page-width-settings>.settings-section { padding:14px 16px; }
+/* Service settings share spacing without changing the dashboard or other forms. */
+.module-service-settings { display:grid; grid-template-columns:minmax(0,1fr); gap:var(--group-gap); min-width:0; }
+.module-service-settings > .panel,.module-service-settings .xray-config-form > .panel { margin-block:0; min-width:0; }
+.module-service-settings .xray-config-form { display:grid; grid-template-columns:minmax(0,1fr); gap:var(--group-gap); min-width:0; }
+.module-service-settings .settings-section:not(.form-grid):not(details) { display:grid; gap:16px; }
+.module-service-settings .settings-section > :is(.settings-section-title,.field,.check,.checks,.form-grid) { margin-block:0; }
+.module-service-settings .form-grid { gap:16px 24px; align-items:start; }
+.module-service-settings .form-grid > .field { margin:0; }
+.module-service-settings .settings-section > .check { min-height:24px; }
+.module-service-settings .field > .check { margin:0; min-height:24px; }
+.module-service-settings .field :is(input:not([type=checkbox]):not([type=radio]),select,textarea,.icon-select-trigger) { max-width:100%; box-sizing:border-box; }
+.module-service-settings .wg-probe-targets { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.module-service-settings .wg-probe-targets:empty { display:none; }
+.wg-probe-target > .field-title { padding-inline:12px; }
+@media(max-width:599px) {
+ .module-service-settings .form-grid,.module-service-settings .wg-probe-targets { grid-template-columns:minmax(0,1fr); }
+ .module-service-settings .xray-capture-options { grid-template-columns:minmax(0,1fr); padding-block:8px; }
+}
 .xray-proxy-panel > .xray-runtime-summary {
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -44,7 +62,8 @@
 .latency-controls { margin-bottom:var(--group-gap) !important; }
 
 /* Content defines popup width, not a blanket minimum. */
-.connections-detail-tools { display:flex; align-items:center; gap:8px; width:min(560px,100%); }
+.connections-detail-tools { display:flex; align-items:center; gap:8px; width:min(458px,100%); min-width:0; }
+.connections-table-panel > .page-heading > .actions { flex:1; min-width:0; justify-content:flex-end; }
 .connections-detail-tools>.search { flex:1; min-width:180px; }
 .connections-table-panel .table-wrap { overflow-x:auto; overflow-y:hidden; max-width:100%; }
 .connections-table-panel .table-wrap table.balanced-columns { min-width:var(--table-min-width) !important; }

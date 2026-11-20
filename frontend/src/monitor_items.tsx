@@ -78,7 +78,7 @@ export function MonitorItemsSettings({
     ...Object.fromEntries(options.map(([key]) => [key, true])),
     ...(module === "host" && layoutEditor
       ? {
-          layout: "double",
+          layout: "single",
           runtime_order: ["load", "cpu", "memory", "root"],
           order: options.filter(([key]) => key !== "root").map(([key]) => key),
         }
@@ -105,7 +105,7 @@ export function MonitorItemsSettings({
               <p>
                 {layoutEditor &&
                   layoutEditorHelp(
-                    String(values.layout || "double"),
+                    String(values.layout || "single"),
                     false,
                     true,
                   )}
@@ -150,7 +150,7 @@ export function MonitorItemsSettings({
               >
                 <select
                   aria-label="服务器历史图布局"
-                  value={String(values.layout || "double")}
+                  value={String(values.layout || "single")}
                   onChange={(e) =>
                     setDraft({ ...values, layout: e.target.value })
                   }
@@ -177,7 +177,7 @@ export function MonitorItemsSettings({
               />
             </SettingsSection>
             <LayoutEditor
-              layout={String(values.layout || "double")}
+              layout={String(values.layout || "single")}
               value={order.filter((id) => values[id] !== false)}
               options={options.filter(([key]) => key !== "root")}
               renderCard={(id, label) => (
