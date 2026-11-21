@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import type { Column } from "./ui";
 import "./table_column_sizing.css";
+import { fitColumnWidths } from "./table_width_fit";
 
 type Size = { min: number; max: number; auto: number };
 type Widths = Record<string, number>;
@@ -27,6 +28,7 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
   const enabled = !!storageKey, key = "foxray.column-widths.v1." + storageKey;
   const [saved, setSaved] = useState(() => ({ key, widths: load(key) }));
   const [sizes, setSizes] = useState<Record<string, Size>>({});
+  const [available, setAvailable] = useState(0);
   const drag = useRef<{ key: string; x: number; width: number; pointer: number } | null>(null);
   const manual = saved.key === key ? saved.widths : {};
   useEffect(() => { if (enabled) setSaved({ key, widths: load(key) }); drag.current = null; }, [key, enabled]);
@@ -42,6 +44,12 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
     if (!enabled || !table.current) return;
     let disposed = false;
     const measure = () => {
+      const wrap = table.current?.parentElement;
+      if (wrap) {
+        const css = getComputedStyle(wrap);
+        const width = Math.floor(wrap.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight));
+        setAvailable(old => old === width ? old : width);
+      }
       const next: Record<string, Size> = {};
       table.current?.querySelectorAll<HTMLElement>("thead th[data-column]").forEach((th, index) => {
         const column = columns[index], heading = th.querySelector<HTMLElement>(".adaptive-column-heading");
@@ -68,7 +76,8 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
     return () => { disposed = true; observer.disconnect(); };
   }, [enabled, columns, rows, pageKey, key, table]);
   const size = (column: Column<T>): Size => sizes[column.key] || { min: 64, max: column.maxWidth || 480, auto: 140 };
-  const width = (column: Column<T>) => clamp(manual[column.key] ?? size(column).auto, size(column));
+  const fitted = fitColumnWidths(columns.map(c => ({key:c.key,...size(c),manual:manual[c.key]})), available);
+  const width = (column: Column<T>) => fitted[column.key];
   const setWidth = (column: Column<T>, value?: number) => setSaved(old => {
     const widths = { ...(old.key === key ? old.widths : {}) };
     if (value == null) delete widths[column.key]; else widths[column.key] = clamp(value, size(column));

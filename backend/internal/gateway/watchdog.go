@@ -34,7 +34,14 @@ func (n *Network) specPath(p *NetworkPlan) string {
 	return filepath.Join(n.app.base, "private", "network-plans", p.ID+".json")
 }
 func (n *Network) writeSpec(p *NetworkPlan, done int) error {
-	return writeJSON(n.specPath(p), rollbackSpec{ID: p.ID, Kind: p.Kind, Summary: p.Summary, Created: p.Created, Expires: p.Expires, Status: p.Status, Undo: p.undo[:min(done, len(p.undo))], File: p.restoreFile, Persist: p.persist})
+	end := min(done, len(p.undo))
+	if len(p.undoEnds) == len(p.steps) && len(p.undoEnds) > 0 {
+		end = 0
+		if done > 0 {
+			end = p.undoEnds[min(done, len(p.undoEnds))-1]
+		}
+	}
+	return writeJSON(n.specPath(p), rollbackSpec{ID: p.ID, Kind: p.Kind, Summary: p.Summary, Created: p.Created, Expires: p.Expires, Status: p.Status, Undo: p.undo[:end], File: p.restoreFile, Persist: p.persist})
 }
 func (n *Network) arm(p *NetworkPlan) error {
 	p.Expires = now() + 120

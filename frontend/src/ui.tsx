@@ -22,6 +22,7 @@ import {
   type ReactNode,
   type FormEvent,
   type InputHTMLAttributes,
+  type HTMLAttributes,
 } from "react";
 import { X, AlertCircle, CircleDot, Info as InfoIcon } from "lucide-react";
 import { api, errorMessage, type Dict } from "./api";
@@ -416,11 +417,9 @@ export function SettingsSection({
 export function Panel({
   children,
   className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return <section className={"panel " + className}>{children}</section>;
+  ...attributes
+}: { children: ReactNode } & HTMLAttributes<HTMLElement>) {
+  return <section className={"panel " + className} {...attributes}>{children}</section>;
 }
 export function Empty({ children = "暂无记录" }: { children?: ReactNode }) {
   return <div className="empty">{children}</div>;
@@ -916,6 +915,7 @@ export function Table<T>({
   pageSizeLimit,
   paginationResetKey,
   columnSizingKey,
+  toolbar,
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -928,6 +928,7 @@ export function Table<T>({
   pageSizeLimit?: number;
   paginationResetKey?: string;
   columnSizingKey?: string;
+  toolbar?: ReactNode;
 }) {
   const edgeWidth = (c: Column<T>) =>
     c.label === "选择" || ["selected", "select"].includes(c.key)
@@ -970,11 +971,14 @@ export function Table<T>({
       .forEach((cell) => observer.observe(cell));
     return () => observer.disconnect();
   }, [rows, columns]);
-  return rows.length || keepHeaders ? (
+  return rows.length || keepHeaders || sizing.enabled ? (
     <>
       {sizing.enabled && <div className="adaptive-table-tools">
-        <span className="small">拖动表头分隔线调整列宽，双击恢复该列自动宽度</span>
-        <Button disabled={!sizing.manual} onClick={sizing.reset}>自动列宽</Button>
+        <div className="adaptive-table-width-control">
+          <Button disabled={!sizing.manual} onClick={sizing.reset}><svg viewBox="0 0 1024 1024" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M422.4 486.4H288l57.6-57.6c12.8-12.8 12.8-25.6 0-38.4-12.8-6.4-25.6-6.4-38.4 0L224 480V128h-64v768h64V544l83.2 89.6c12.8 6.4 25.6 6.4 38.4 0 12.8-12.8 12.8-25.6 0-38.4l-57.6-57.6h134.4c12.8 0 25.6-12.8 25.6-25.6s-12.8-25.6-25.6-25.6zM480 192h64v640h-64zM800 128v352l-83.2-89.6c-12.8-6.4-25.6-6.4-38.4 0-12.8 12.8-12.8 25.6 0 38.4l57.6 57.6H601.6c-12.8 0-25.6 12.8-25.6 25.6s12.8 25.6 25.6 25.6h134.4l-57.6 57.6c-12.8 12.8-12.8 25.6 0 38.4 6.4 12.8 25.6 12.8 32 0l83.2-89.6V896h64V128h-57.6z" /></svg>自动列宽</Button>
+          <SettingInfo label="自动列宽" text="默认按当前页内容自动计算列宽，空间不足时横向滚动，空间有余时按比例扩大自动列并补满区域（不超过最大列宽）。拖动表头分隔线可手动调整，双击恢复该列自动宽度；点击自动列宽恢复整表。最小宽度容纳完整表头，默认最大480px，手动宽度在当前浏览器中保存。" />
+        </div>
+        {toolbar && <div className="adaptive-table-actions">{toolbar}</div>}
       </div>}
       <div className="table-wrap">
         <table

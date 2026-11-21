@@ -360,9 +360,10 @@ export function ConnectionsPage({
         ),
         details: (
           <Panel className="connections-table-panel">
-            <PageHeader title="连接详情" icon={<List size={20} />} description="列头可排序或筛选，数值按实际字节、速率或秒数比较；搜索和列筛选作用于当前已加载连接，不改变上方历史曲线。" actions={detailsTable.toolbar} />
+            <PageHeader title="连接详情" icon={<List size={20} />} description="列头可排序或筛选，数值按实际字节、速率或秒数比较；搜索和列筛选作用于当前已加载连接，不改变上方历史曲线。" />
             <Table
               columnSizingKey={"connections-" + module}
+              toolbar={detailsTable.toolbar}
               rows={detailsTable.rows}
               paginationResetKey={detailsTable.paginationKey + "|" + [query,protocol,iface,node,status].join("|")}
               total={list(r.data?.items).length}

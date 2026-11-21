@@ -1,3 +1,5 @@
+import { routeTableId, routeTableLabel } from "./network_display";
+import "./network_interaction.css";
 import { NetworkBatchDialog } from "./network_batch_dialog";
 import { AdaptiveSearch } from "./adaptive_search";
 import { Layers, ShieldCheck, ListChecks, Globe } from "lucide-react";
@@ -25,7 +27,7 @@ import type { Act } from "./nodes";
 type Kind = "routes" | "rules";
 const enabled = (r: Dict) => r.enabled !== false;
 const fieldValue = (r: Dict, key: string) =>
-  key === "from"
+  key === "table" ? routeTableId(r.table) : key === "from"
     ? r.from || r.src || "all"
     : key === "to"
       ? r.to || r.dst || "all"
@@ -72,7 +74,7 @@ export function RoutingPage({
           ? {
               ...r,
               dst: r.dst || "default",
-              table: r.table || 254,
+              table: r.table ?? 254,
               metric: r.metric ?? 0,
               type: r.type || "unicast",
             }
@@ -89,8 +91,7 @@ export function RoutingPage({
                 String(m.dev || "") === String(r.dev || "") &&
                 String(m.gateway || "") === String(r.gateway || "") &&
                 Number(m.metric || 0) === Number(r.metric || 0) &&
-                String(m.table || 254) ===
-                  String(r.table === "main" ? 254 : r.table || 254)
+                routeTableId(m.table) === routeTableId(r.table)
               : Number(m.priority) === Number(r.priority)),
         );
         if (match) {
@@ -114,18 +115,15 @@ export function RoutingPage({
     ...new Set(
       all
         .filter((r) => String(r.family || 4) === family)
-        .map((r) => String(r.table || 254)),
+        .map((r) => routeTableId(r.table)),
     ),
   ].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  const rows = all
-    .filter(
-      (r) =>
-        String(r.family || 4) === family &&
-        (owner === "all" || !!r.managed === (owner === "managed")) &&
-        (status === "all" || enabled(r) === (status === "enabled")) &&
-        (table === "all" || String(r.table || 254) === table) &&
-        JSON.stringify(r).toLowerCase().includes(query.toLowerCase()),
-    )
+  const scopeRows = all.filter(r => String(r.family || 4) === family &&
+    (table === "all" || routeTableId(r.table) === routeTableId(table)) &&
+    [JSON.stringify(r),routeTableLabel(r.table)].join(" ").toLowerCase().includes(query.toLowerCase()));
+  const ready = !!resource.data && !resource.error && resource.data.complete !== false;
+  const rows = scopeRows.filter(r => (owner === "all" || !!r.managed === (owner === "managed")) &&
+    (status === "all" || enabled(r) === (status === "enabled")))
     .sort((a, b) => {
       const x = fieldValue(a, sort.key),
         y = fieldValue(b, sort.key);
@@ -142,6 +140,12 @@ export function RoutingPage({
   const selection = useRowSelection(rows, (r) =>
     String(r.id || JSON.stringify(r)),
   );
+  const changeFamily = (next: string) => { setFamily(next); setTable("all"); selection.setSelected(new Set()); };
+  const chooseStat = (nextOwner: string, nextStatus: string) => {
+    const same = owner === nextOwner && status === nextStatus;
+    setOwner(same ? "all" : nextOwner); setStatus(same ? "all" : nextStatus);
+    selection.setSelected(new Set());
+  };
   const begin = (operation: string, item: Dict) => {
     setOp(operation);
     setForm({ ...item });
@@ -169,8 +173,7 @@ export function RoutingPage({
         <select
           value={family}
           onChange={(e) => {
-            setFamily(e.target.value);
-            setTable("all");
+            changeFamily(e.target.value);
           }}
         >
           <option value="4">IPv4</option>
@@ -192,7 +195,7 @@ export function RoutingPage({
         <select value={table} onChange={(e) => setTable(e.target.value)}>
           <option value="all">全部路由表</option>
           {tables.map((t) => (
-            <option key={t}>{t}</option>
+            <option key={t} value={t}>{routeTableLabel(t)}</option>
           ))}
         </select>
       </Field>
@@ -261,21 +264,10 @@ export function RoutingPage({
             : null}
       </span>
     ),
-    render: (r) =>
-      key === "table" && onTable ? (
-        <button
-          className="table-link"
-          onClick={() =>
-            onTable(String(r.table || 254), String(r.family || family))
-          }
-        >
-          {text(r.table || "main (254)")}
-        </button>
-      ) : (
-        <span className="ellipsis" title={text(fieldValue(r, key))}>
-          {text(fieldValue(r, key))}
-        </span>
-      ),
+    render: (r) => key === "table" ? (
+      onTable ? <button className="table-link" title={"查看路由表 " + routeTableLabel(r.table)} onClick={() => onTable(routeTableId(r.table), String(r.family || family))}>{routeTableLabel(r.table)}</button>
+      : <span>{routeTableLabel(r.table)}</span>
+    ) : <span className="ellipsis" title={text(fieldValue(r,key))}>{text(fieldValue(r,key))}</span>,
   });
   const columns: Column<Dict>[] = [
     selection.column,
@@ -409,7 +401,7 @@ export function RoutingPage({
     <>
       <Panel className="routing-panel management-panel">
         <PageHeader
-          title={route && table !== "all" ? "路由表 · " + table : title}
+          title={route && table !== "all" ? "路由表 · " + routeTableLabel(table) : title}
           description={
             <>
               {route
@@ -425,29 +417,13 @@ export function RoutingPage({
             </>
           }
         />
-        <div className="firewall-overview">
-          <div>
-            <Layers size={21} />
-            <span>系统与管理条目</span>
-            <strong className="accent">{all.length}</strong>
-          </div>
-          <div>
-            <ShieldCheck size={21} className="metric-blue" />
-            <span>FoXray 管理</span>
-            <strong className="metric-blue">{managed.length}</strong>
-          </div>
-          <div>
-            <ListChecks size={21} className="metric-orange" />
-            <span>已启用管理条目</span>
-            <strong className="metric-orange">
-              {managed.filter(enabled).length}
-            </strong>
-          </div>
-          <div>
-            <Globe size={21} className="metric-purple" />
-            <span>地址族</span>
-            <strong className="metric-purple">IPv{family}</strong>
-          </div>
+        <div className="network-stat-grid" aria-label={title+"统计与地址族"}>
+          {[
+            {id:"external",label:"系统／外部条目",count:scopeRows.filter(r=>!r.managed).length,owner:"external",status:"all",hint:"只读 · 点击筛选",icon:<Layers size={19}/>},
+            {id:"managed",label:"FoXray 管理",count:scopeRows.filter(r=>r.managed).length,owner:"managed",status:"all",hint:"点击筛选管理条目",icon:<ShieldCheck size={19}/>},
+            {id:"enabled",label:"已启用管理条目",count:scopeRows.filter(r=>r.managed&&enabled(r)).length,owner:"managed",status:"enabled",hint:"按管理开关统计",icon:<ListChecks size={19}/>},
+          ].map(stat=><button type="button" key={stat.id} className={"network-stat-card "+stat.id} disabled={!ready} aria-label={"筛选"+title+"的"+stat.label} aria-pressed={owner===stat.owner&&status===stat.status} onClick={()=>chooseStat(stat.owner,stat.status)}>{stat.icon}<strong>{ready?stat.count:"—"}</strong><span>{stat.label}</span><small>{stat.hint} · IPv{family}</small></button>)}
+          <div className="network-stat-card network-family-card"><Globe size={19}/><strong>IPv{family}</strong><span>地址族</span><div className="network-family-switch" role="group" aria-label={title+"地址族切换"}>{["4","6"].map(value=><button type="button" key={value} aria-pressed={family===value} onClick={()=>changeFamily(value)}>IPv{value}</button>)}</div></div>
         </div>
 
         <CompactFilters
@@ -555,7 +531,7 @@ export function RoutingPage({
         <Table
           keepHeaders
           rows={rows}
-          total={all.length}
+          total={scopeRows.length}
           selectedCount={selection.chosen.length}
           columns={columns}
           rowKey={(r) => String(r.id || JSON.stringify(r))}

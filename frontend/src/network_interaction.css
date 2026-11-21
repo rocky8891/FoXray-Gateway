@@ -1,0 +1,23 @@
+.network-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0 20px}
+.network-stat-card{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;min-width:0;min-height:126px;padding:16px;border:1px solid transparent;border-radius:var(--radius);background:color-mix(in srgb,var(--button),transparent 55%);color:var(--text);text-align:left;font:inherit}
+button.network-stat-card{cursor:pointer}.network-stat-card:disabled{cursor:default;opacity:.65}
+button.network-stat-card:hover{border-color:var(--line);background:color-mix(in srgb,var(--button),transparent 40%)}.network-stat-card[data-filter-active=true],button.network-stat-card[aria-pressed=true]{border-color:var(--accent);background:var(--accent-bg)}
+.network-stat-card>svg{position:absolute;top:16px;right:16px;color:var(--muted)}.network-stat-card>strong{font-size:26px;line-height:32px;color:var(--accent)}
+.network-stat-card.managed>strong{color:var(--metric-blue)}.network-stat-card.enabled>strong{color:var(--metric-orange)}.network-family-card>strong{color:var(--metric-purple)}
+.network-stat-card>span{font-size:13px;line-height:20px}.network-stat-card>small{font-size:11px;line-height:18px;color:var(--muted)}
+.network-stat-card:not([data-filter-active=true]):not([aria-pressed=true])>strong{color:var(--text)}
+.network-stat-card[data-filter-active=true]>strong,.network-stat-card[aria-pressed=true]>strong{color:var(--accent)}
+.network-family-switch{display:flex;gap:4px;margin-top:2px}.network-family-switch>button{padding:4px 10px;border:1px solid var(--line);border-radius:var(--radius);background:transparent;color:var(--muted);cursor:pointer;font:inherit;font-size:12px}
+.network-family-switch>button[aria-pressed=true]{border-color:var(--accent);background:var(--accent-bg);color:var(--accent)}
+.network-pending-banner{position:sticky;top:calc(var(--header-height,80px) + 8px);z-index:90;margin:12px 0;border:1px solid var(--metric-orange);border-radius:var(--radius);background:var(--card);box-shadow:var(--shadow)}
+.network-pending-item{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:14px 16px}.network-pending-item+.network-pending-item{border-top:1px solid var(--line)}
+.network-pending-description{flex:1;min-width:220px;display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px}.network-pending-description>strong{display:flex;align-items:center;gap:8px;color:var(--metric-orange);font-size:14px;line-height:22px}.network-pending-description p{margin:0;font-size:13px;line-height:22px;overflow-wrap:anywhere}.network-pending-description small{display:block;color:var(--muted);font-size:12px;line-height:20px;margin:0}.network-pending-description small:not([role=timer]){flex-basis:100%}.network-pending-item .actions{flex:none}
+.network-pending-banner>.error-line{margin:0 16px 12px}
+.management-toolbar>.management-query-tools{flex-grow:1;max-width:none}
+.management-query-tools>.search,.management-query-tools>.adaptive-search:not(.is-collapsed),.monitor-search-row>.search,.filter-bar>.search{flex:1;max-width:none;width:100%;min-width:0}
+.adaptive-table-tools>.adaptive-table-actions{flex:1;min-width:0}.adaptive-table-actions>:is(.connections-detail-tools,.statistics-detail-tools){width:100%;max-width:none;flex:1}
+.adaptive-table-actions .adaptive-search:not(.is-collapsed){flex:1;width:100%;max-width:none}
+.adaptive-search:not(.is-collapsed)>.adaptive-search-field.search{flex:1;width:100%;max-width:none}
+.setting-info{align-self:flex-start!important;vertical-align:top;margin-block-start:0!important}
+.firewall-target-inline{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px}.firewall-target-inline>strong{font-size:14px;line-height:22px}.firewall-policy-grid .firewall-target-inline>code{font-size:13px;line-height:22px}
+@media(max-width:799px){.network-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.network-stat-card{min-height:116px;padding:14px}.network-pending-item .actions{flex-wrap:wrap}.network-pending-description{min-width:0;flex-basis:100%}}

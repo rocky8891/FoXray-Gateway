@@ -1,4 +1,5 @@
 import { AdoptIcon } from "./action_icons";
+import { FirewallIcon, UnknownRulesIcon } from "./firewall_icons";
 import { DoneIcon, LoadMoreIcon, PreviewIcon } from "./action_icons";
 import {
   DetailsIcon,
@@ -126,7 +127,9 @@ const definitions: [RegExp, LucideIcon][] = [
   [/^服务管理$|FoXray 服务管理/, ServiceManagementIcon as LucideIcon],
   [/节点管理|节点一览/, NodeManagementIcon as LucideIcon],
   [/^网络$|^网络管理$/, NetworkGlobeIcon as LucideIcon],
-  [/^IP\s?规则/, IPRulesIcon as LucideIcon],
+  [/^IP(?:\s?规则|地址|\s|$)/, IPRulesIcon as LucideIcon],
+  [/未知规则/, UnknownRulesIcon as LucideIcon],
+  [/防火墙/, FirewallIcon as LucideIcon],
   [/高级规则/, AdvancedRulesIcon as LucideIcon],
   [/^服务器/, ServerIcon as LucideIcon],
   [/代理模式/, ProxyModeIcon as LucideIcon],

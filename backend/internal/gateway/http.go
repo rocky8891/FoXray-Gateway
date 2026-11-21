@@ -207,7 +207,7 @@ func (a *App) getAPI(w http.ResponseWriter, r *http.Request) {
 	case path == "/api/diagnostics/history":
 		writeResponse(w, 200, a.diagnosticHistory(q.Get("before")))
 	case path == "/api/network/plans":
-		writeResponse(w, 200, M{"plans": a.network.Plans()})
+		writeResponse(w, 200, M{"plans": a.network.Plans(), "server_time": now()})
 	case path == "/api/time":
 		endpoint := q.Get("server")
 		if endpoint == "" {

@@ -18,22 +18,26 @@ type Step struct {
 	Input string   `json:"input,omitempty"`
 }
 type NetworkPlan struct {
-	ID           string                `json:"id"`
-	Kind         string                `json:"kind"`
-	Summary      string                `json:"summary"`
-	Status       string                `json:"status"`
-	Created      float64               `json:"created"`
-	Expires      float64               `json:"expires"`
-	Warnings     []string              `json:"warnings"`
-	Preview      []string              `json:"preview"`
-	ZoneChanges  []ZoneInterfaceChange `json:"zone_changes,omitempty"`
-	steps, undo  []Step
-	applyFiles   func() error
-	undoFiles    func() error
-	persist      M
-	restoreFile  *FileRestore
-	precondition func() error
-	revision     string
+	ID            string                `json:"id"`
+	Kind          string                `json:"kind"`
+	Summary       string                `json:"summary"`
+	Status        string                `json:"status"`
+	Created       float64               `json:"created"`
+	Expires       float64               `json:"expires"`
+	Warnings      []string              `json:"warnings"`
+	Preview       []string              `json:"preview"`
+	ZoneChanges   []ZoneInterfaceChange `json:"zone_changes,omitempty"`
+	Details       M                     `json:"details,omitempty"`
+	Rollback      []string              `json:"rollback,omitempty"`
+	steps, undo   []Step
+	undoEnds      []int
+	applyFiles    func() error
+	undoFiles     func() error
+	persist       M
+	restoreFile   *FileRestore
+	precondition  func() error
+	postcondition func() error
+	revision      string
 }
 type Network struct {
 	app     *App
@@ -95,7 +99,7 @@ func (n *Network) ApplyProgress(ctx context.Context, identity string, progress f
 	deadline := time.UnixMilli(int64((p.Expires - 5) * 1000))
 	ctx, cancelBudget := context.WithDeadline(ctx, deadline)
 	defer cancelBudget()
-	defer func() { p.applyFiles = nil; p.undoFiles = nil; p.precondition = nil }()
+	defer func() { p.applyFiles = nil; p.undoFiles = nil; p.precondition = nil; p.postcondition = nil }()
 	if p.applyFiles != nil {
 		if e := p.applyFiles(); e != nil {
 			n.rollback(p)
@@ -130,6 +134,12 @@ func (n *Network) ApplyProgress(ctx context.Context, identity string, progress f
 	if ctx.Err() != nil {
 		n.rollback(p)
 		return errors.New("已取消并回退本次变更")
+	}
+	if p.postcondition != nil {
+		if e := p.postcondition(); e != nil {
+			n.rollback(p)
+			return e
+		}
 	}
 	p.Status = "awaiting_confirmation"
 	if e := n.writeSpec(p, done); e != nil {
@@ -271,6 +281,9 @@ func (n *Network) Preview(data M) (*NetworkPlan, error) {
 		if s.Input != "" {
 			p.Preview = append(p.Preview, s.Input)
 		}
+	}
+	for i := len(p.undo) - 1; i >= 0; i-- {
+		p.Rollback = append(p.Rollback, printableCommand(p.undo[i].Args))
 	}
 	n.mu.Lock()
 	if sourceRevision != fingerprint(n.managed) {

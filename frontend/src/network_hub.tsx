@@ -1,3 +1,6 @@
+import { ActionMenu } from "./action_menu";
+import { interfaceLinkState, interfaceLinkLabels, interfaceOwner, interfaceOwnerLabels, interfaceEditReason } from "./interface_display";
+import "./interface_refinements.css";
 import { NetworkBatchDialog } from "./network_batch_dialog";
 import { AdaptiveSearch } from "./adaptive_search";
 import { ResetFilters } from "./list_controls";
@@ -7,11 +10,12 @@ import { CompactFilters, ListFilter, SortHeading } from "./list_controls";
 import { DNSPage } from "./dns";
 import { ModuleHeading } from "./hubs";
 import { useState } from "react";
-import { AlertTriangle, RefreshCw, Search } from "lucide-react";
+import { AlertTriangle, RefreshCw, Search, Network, Activity, Power, Layers } from "lucide-react";
 import { api, errorMessage, list, text, type Dict, type Plan } from "./api";
 import {
   Button,
   Field,
+  SettingInfo,
   NumberInput,
   ErrorLine,
   JsonDetails,
@@ -73,35 +77,6 @@ export function NetworkHub({ act }: { act: Act }) {
       )}
     </>
   );
-}
-function linkLabel(row: Dict) {
-  const raw = String(row.operstate || ""),
-    flags = Array.isArray(row.flags) ? row.flags.map(String) : [];
-  if (!row.admin_up) return "DOWN · 接口未启用";
-  if (raw === "UP") return "UP · 链路就绪";
-  const virtual = [
-    "loopback",
-    "tun",
-    "tap",
-    "wireguard",
-    "dummy",
-    "gre",
-    "gretap",
-    "ipip",
-    "sit",
-    "vti",
-    "vxlan",
-  ].includes(String(row.type));
-  if (
-    raw === "UNKNOWN" &&
-    (flags.includes("LOWER_UP") || flags.includes("RUNNING"))
-  ) {
-    return virtual ? "UP · 虚拟链路就绪" : "UP · 驱动链路就绪";
-  }
-  if (raw === "UNKNOWN" && virtual) return "虚拟接口已启用";
-  if (raw === "UNKNOWN") return "驱动未上报链路状态";
-  if (raw === "DOWN") return "DOWN · 暂无载波";
-  return raw;
 }
 function InterfaceAddressFields({
   value,
@@ -257,6 +232,9 @@ function Interfaces({ act }: { act: Act }) {
             .join(", ") || "—"
         : key === "mac"
           ? text(r.address)
+          : key === "type" ? String(r.type||"未上报")
+          : key === "link" ? interfaceLinkLabels[interfaceLinkState(r)]
+          : key === "owner" ? interfaceOwnerLabels[interfaceOwner(r)]
           : key === "state"
             ? r.admin_up
               ? "已启用"
@@ -265,12 +243,15 @@ function Interfaces({ act }: { act: Act }) {
               ? Number(r.mtu || 0)
               : text(r[key]);
   const allRows = list(resource.data?.items);
-  const rows = allRows
+  const searchedRows=allRows.filter(r=>[JSON.stringify(r),interfaceOwnerLabels[interfaceOwner(r)],interfaceLinkLabels[interfaceLinkState(r)]].join(" ").toLowerCase().includes(query.toLowerCase()));
+  const ready=!!resource.data&&!resource.error&&resource.data.complete!==false;
+  const types=[...new Set(searchedRows.map(r=>String(r.type||"未上报")))].sort();
+  const rows = searchedRows
     .filter(
       (r) =>
         Object.entries(columnFilters).every(
           ([key, v]) => !v || String(columnValue(r, key)) === v,
-        ) && JSON.stringify(r).toLowerCase().includes(query.toLowerCase()),
+        ),
     )
     .sort((a, b) => {
       const x = columnValue(a, sort.key),
@@ -322,24 +303,27 @@ function Interfaces({ act }: { act: Act }) {
     null,
   );
   const selection = useRowSelection(rows, (r) => String(r.ifindex));
+  const chooseFilter=(key:string,value:string)=>{setColumnFilters(old=>({...old,[key]:old[key]===value?"":value}));selection.setSelected(new Set())};
   const columns: Column<Dict>[] = [
     selection.column,
     { key: "serial", label: "序号", render: (_, i) => i + 1 },
     {
       key: "name",
       label: "接口",
+      width:"250px",
+      className:"interface-name-column",
       render: (r) => (
-        <strong className="ellipsis" title={text(r.ifname)}>
-          {text(r.ifname)}
-        </strong>
+        <><strong className="ellipsis" title={text(r.ifname)}>{text(r.ifname)}</strong><div className="interface-badges"><span>{interfaceOwnerLabels[interfaceOwner(r)]}</span>{list(r.gateways).length>0&&<span className="default-route" title="系统main表中有默认路由使用此接口，不代表某次连接实际经过它">默认路由</span>}{!!r.protected&&!r.managed_by_vpn&&<span title={interfaceEditReason(r)}>受保护</span>}</div></>
       ),
     },
     {
       key: "ip",
       label: "IP／前缀",
+      width:"190px",
+      className:"interface-ip-column",
       render: (r) =>
         list(r.addr_info).map((ip, i) => (
-          <span className="interface-address" key={i}>
+          <span className="interface-address" title={text(ip.local)+"/"+text(ip.prefixlen)} key={i}>
             {text(ip.local)}/{text(ip.prefixlen)}
           </span>
         )),
@@ -347,6 +331,8 @@ function Interfaces({ act }: { act: Act }) {
     {
       key: "mac",
       label: "MAC",
+      width:"170px",
+      className:"interface-mac-column",
       render: (r) => (
         <span className="ellipsis" title={text(r.address)}>
           {text(r.address)}
@@ -355,34 +341,19 @@ function Interfaces({ act }: { act: Act }) {
     },
     { key: "type", label: "类型", render: (r) => text(r.type) },
     { key: "mtu", label: "MTU", render: (r) => text(r.mtu) },
-    {
-      key: "state",
-      label: "状态",
-      render: (r) => (
-        <>
-          <span className={r.admin_up ? "accent" : "muted"}>
-            {r.admin_up ? "已启用" : "已停用"}
-          </span>
-          <small
-            title={
-              "内核 operstate=" +
-              text(r.operstate) +
-              "；本地链路就绪不等于 VPN 对端已连接"
-            }
-          >
-            {linkLabel(r)}
-          </small>
-        </>
-      ),
-    },
+    {key:"state",label:"管理状态",render:r=><span className={r.admin_up?"accent":"muted"}>{r.admin_up?"已启用":"已停用"}</span>},
+    {key:"link",label:"链路状态",render:r=><><span className={interfaceLinkState(r)==="ready"?"accent":"muted"} title={"内核operstate="+String(r.operstate||"未上报")+"；链路就绪不等于对端或业务连通"}>{interfaceLinkLabels[interfaceLinkState(r)]}</span>{interfaceLinkState(r)==="down"&&<small>不等于业务故障</small>}{interfaceLinkState(r)==="unknown"&&<small>需实测对端连通</small>}</>},
     {
       key: "action",
       label: "操作",
+      width:"220px",
+      className:"interface-actions-column",
       render: (r) => (
-        <div className="actions">
+        <div className="interface-row-actions">
           <Button onClick={() => setDetails(r)}>详情</Button>
           <Button
             disabled={!!r.managed_by_vpn || r.ifname === "lo"}
+            title={interfaceEditReason(r)}
             onClick={() => {
               const addresses = list(r.addr_info).filter(
                   (ip) => ip.scope === "global" && !ip.dynamic && !ip.temporary,
@@ -407,32 +378,10 @@ function Interfaces({ act }: { act: Act }) {
           >
             编辑IP
           </Button>
-          <Button
-            disabled={!!r.managed_by_vpn || r.ifname === "lo"}
-            title={
-              r.managed_by_vpn ? "请在对应 VPN／代理模块管理" : "仅修改即时状态"
-            }
-            variant={r.admin_up ? "danger" : "secondary"}
-            onClick={() => {
-              setTarget(r);
-              setAck(false);
-              setFailure("");
-            }}
-          >
-            {r.admin_up ? "停用" : "启用"}
-          </Button>
-          <Button
-            variant="danger"
-            disabled={!r.can_delete}
-            title="仅删除 FoXray 创建、已停用且无地址及引用的虚拟接口"
-            onClick={() => {
-              setTarget({ ...r, delete_request: true });
-              setAck(false);
-              setFailure("");
-            }}
-          >
-            删除
-          </Button>
+          <ActionMenu label={text(r.ifname)} triggerLabel="更多" items={[
+            {label:r.admin_up?"停用":"启用",disabled:!!r.managed_by_vpn||r.ifname==="lo",title:interfaceEditReason(r),onClick:()=>{setTarget(r);setAck(false);setFailure("")}},
+            {label:"删除",disabled:!r.can_delete,title:"仅删除FoXray创建、已停用且无地址及引用的虚拟接口",onClick:()=>{setTarget({...r,delete_request:true});setAck(false);setFailure("")}},
+          ]}/>
         </div>
       ),
     },
@@ -472,6 +421,12 @@ function Interfaces({ act }: { act: Act }) {
             </>
           }
         />
+        <div className="network-stat-grid interface-stat-grid" aria-label="接口统计与筛选">
+          <button type="button" className="network-stat-card" disabled={!ready} aria-label="显示全部接口" onClick={()=>{setColumnFilters({});selection.setSelected(new Set())}}><Network size={19}/><strong>{ready?searchedRows.length:"—"}</strong><span>接口总数</span><small>当前搜索范围 · 点击清除列筛选</small></button>
+          <div className="network-stat-card" data-filter-active={!!columnFilters.state}><Power size={19}/><strong>{ready?searchedRows.filter(r=>r.admin_up).length:"—"} / {ready?searchedRows.filter(r=>!r.admin_up).length:"—"}</strong><span>管理状态 · 启用／停用</span><div className="interface-stat-switch">{["已启用","已停用"].map(value=><button type="button" key={value} disabled={!ready} aria-label={"筛选"+value+"接口"} aria-pressed={columnFilters.state===value} onClick={()=>chooseFilter("state",value)}>{value}</button>)}</div></div>
+          <div className="network-stat-card" data-filter-active={!!columnFilters.link}><Activity size={19}/><strong>{ready?searchedRows.filter(r=>interfaceLinkState(r)==="ready").length:"—"}</strong><span>链路就绪</span><div className="interface-stat-switch">{["ready","down","unknown"].map(key=><button type="button" key={key} disabled={!ready} aria-label={"筛选"+interfaceLinkLabels[key as keyof typeof interfaceLinkLabels]+"接口"} aria-pressed={columnFilters.link===interfaceLinkLabels[key as keyof typeof interfaceLinkLabels]} onClick={()=>chooseFilter("link",interfaceLinkLabels[key as keyof typeof interfaceLinkLabels])}>{({ready:"就绪",down:"未就绪",unknown:"未确认"} as Record<string,string>)[key]} {ready?searchedRows.filter(r=>interfaceLinkState(r)===key).length:"—"}</button>)}</div></div>
+          <div className="network-stat-card interface-kind-card" data-filter-active={!!(columnFilters.type||columnFilters.owner)}><Layers size={19}/><span className="interface-kind-title">类型与来源<SettingInfo label="类型与来源" text="按内核接口类型与后端明确管理归属筛选。来源为系统接口不等于只读；模块维护接口在对应模块操作，其他修改仍需预览和确认。"/></span><Field label="类型"><select aria-label="接口类型筛选" value={columnFilters.type||""} onChange={e=>{setColumnFilters(old=>({...old,type:e.target.value}));selection.setSelected(new Set())}}><option value="">全部类型</option>{types.map(type=><option key={type} value={type}>{type}（{searchedRows.filter(r=>String(r.type||"未上报")===type).length}）</option>)}</select></Field><Field label="来源"><select aria-label="接口来源筛选" value={columnFilters.owner||""} onChange={e=>{setColumnFilters(old=>({...old,owner:e.target.value}));selection.setSelected(new Set())}}><option value="">全部来源</option>{Object.values(interfaceOwnerLabels).map(label=><option key={label} value={label}>{label}（{searchedRows.filter(r=>interfaceOwnerLabels[interfaceOwner(r)]===label).length}）</option>)}</select></Field></div>
+        </div>
         <CompactFilters
           before={
             <>
@@ -558,7 +513,7 @@ function Interfaces({ act }: { act: Act }) {
           <AdaptiveSearch>
             <Search size={18} />
             <input
-              placeholder="查询接口、IP、MAC、类型"
+              placeholder="查询接口、IP、MAC、类型或来源"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -566,6 +521,7 @@ function Interfaces({ act }: { act: Act }) {
         </CompactFilters>
 
         <ErrorLine error={resource.error || failure} />
+        {resource.data?.complete===false&&<p className="hint">接口快照未完整读取，统计暂不可用，请刷新核对。</p>}
         <Table
           keepHeaders
           rows={rows}

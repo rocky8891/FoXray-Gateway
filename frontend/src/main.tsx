@@ -53,6 +53,7 @@ import "./menu_colors.css";
 import "./warp_detection_control.css";
 import "./popup_system.css";
 import "./preview_refinements.css";
+import "./network_interaction.css";
 const navigation: [Page, string][] = [
   ["overview", "主页"],
   ["monitoring", "监控"],
@@ -189,6 +190,16 @@ function App() {
     localStorage.setItem("foxray.page", next);
     window.scrollTo({ top: 0 });
   };
+  useEffect(()=>{
+    const openMonitor=(event:Event)=>{
+      const module=String((event as CustomEvent).detail?.module || "");
+      if(!["host","xray","warp","wireguard"].includes(module))return;
+      localStorage.setItem("foxray.monitor.module.v322",module);
+      navigate("monitoring",hideHomeHeader);
+    };
+    window.addEventListener("foxray:open-monitor",openMonitor);
+    return ()=>window.removeEventListener("foxray:open-monitor",openMonitor);
+  },[hideHomeHeader]);
   const randomRequest = useRef<unknown>(null),
     cancelRandom = useRef<() => Promise<void>>(() => Promise.resolve());
   const act: Act = useCallback(
@@ -553,6 +564,7 @@ function App() {
                     可预览配置和临时密钥，不会修改接口、路由或服务
                   </div>
                 )}
+                {state && ["network","routes","rules","firewall"].includes(page) && <NetworkPending act={act} inline readOnly={state.read_only}/>}
                 {!state ? (
                   <Panel>
                     <div className="loading">
@@ -582,7 +594,7 @@ function App() {
           </LiveRefreshContext.Provider>
         </RangeDefaultsContext.Provider>
       </TrafficWindowContext.Provider>
-      {state && !state.read_only && <NetworkPending act={act} />}
+      {state && !state.read_only && !["network","routes","rules","firewall"].includes(page) && <NetworkPending act={act} />}
     </UpdatesContext.Provider>
     </HomeHeaderContext.Provider>
   );

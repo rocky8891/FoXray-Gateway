@@ -234,11 +234,13 @@ export function ActionMenu({
   primary,
   items,
   triggerLabel = "操作",
+  showLabel = false,
 }: {
   label: string;
   primary?: MenuAction;
   items: MenuAction[];
   triggerLabel?: string;
+  showLabel?: boolean;
 }) {
   const actions = primary ? [primary, ...items] : items;
   const [open, setOpen] = useState(false),
@@ -268,11 +270,11 @@ export function ActionMenu({
         type="button"
         className={
           "button secondary " +
-          (triggerLabel === "批量操作"
+          (triggerLabel === "批量操作" || showLabel
             ? "batch-actions-trigger"
             : "more-actions-trigger")
         }
-        data-control-icon={triggerLabel === "批量操作" ? undefined : "true"}
+        data-control-icon={triggerLabel === "批量操作" || showLabel ? undefined : "true"}
         title={triggerLabel}
         aria-label={
           label + (triggerLabel === "更多" ? "更多操作" : triggerLabel)
@@ -288,9 +290,9 @@ export function ActionMenu({
           }
         }}
       >
-        {triggerLabel === "批量操作" ? (
+        {triggerLabel === "批量操作" || showLabel ? (
           <>
-            <span>批量操作</span>
+            <span>{triggerLabel}</span>
             <ChevronRight size={16} className="batch-chevron" />
           </>
         ) : (

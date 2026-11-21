@@ -1,4 +1,7 @@
 import { AdaptiveSearch } from "./adaptive_search";
+import { ZoneSourceEditor,ZonePolicyEditor,RichRuleEditor,FirewallChangeDetails,FirewallRuleSummary } from "./firewall_editors";
+import { FirewallWorkspace } from "./firewall_workspace";
+import { firewallViewState } from "./firewall_view_state";
 import { MultiSelect } from "./multi_select";
 import { ResetFilters } from "./list_controls";
 import { ExportButton } from "./resource_controls";
@@ -7,14 +10,9 @@ import { CompactFilters, ListFilter } from "./list_controls";
 import { SortHeading } from "./list_controls";
 import { NumberInput } from "./ui";
 import { labelIcon } from "./ui_icons";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   Plus,
-  RefreshCw,
-  ShieldCheck,
-  MapPin,
-  ListChecks,
-  ShieldEllipsis,
   Settings2,
   Trash2,
   Power,
@@ -30,13 +28,11 @@ import {
   type Plan,
 } from "./api";
 import {
+  SecondaryNav,
   Button,
   ErrorLine,
   Field,
-  JsonDetails,
   Modal,
-  PageHeader,
-  SecondaryNav,
   Panel,
   Table,
   useResource,
@@ -44,12 +40,14 @@ import {
 } from "./ui";
 import type { Act } from "./nodes";
 const categories = [
+  ["all", "全部规则"],
   ["ip", "IP 规则"],
   ["port", "端口规则"],
   ["service-rule", "服务放行"],
   ["masquerade", "SNAT"],
   ["forward", "端口转发"],
-  ["advanced", "高级规则（只读）"],
+  ["rich", "高级规则"],
+  ["advanced", "未知规则（只读）"],
 ];
 const strategies: Record<string, string> = {
   accept: "允许",
@@ -61,11 +59,13 @@ export function FirewallPage({ act }: { act: Act }) {
     () => localStorage.getItem("foxray.firewall.driver") || "firewalld",
   );
   const [zone, setZone] = useState("public"),
-    [category, setCategory] = useState("ip"),
+    [category, setCategory] = useState("all"),
     [query, setQuery] = useState(""),
     [protocol, setProtocol] = useState("all"),
     [status, setStatus] = useState("all"),
-    [owner, setOwner] = useState("all");
+    [owner, setOwner] = useState("all"),
+    [ruleAction, setRuleAction] = useState("all"),
+    [configScope,setConfigScope]=useState("all");
   const resource = useResource<Dict>(
     "/api/network/firewall?driver=" +
       driver +
@@ -73,6 +73,8 @@ export function FirewallPage({ act }: { act: Act }) {
       encodeURIComponent(zone),
     15000,
   );
+  const [lastRead, setLastRead] = useState(0), [refreshing, setRefreshing] = useState(false);
+  useEffect(()=>{if(resource.data)setLastRead(Date.now())},[resource.data]);
   const [selected, setSelected] = useState<Set<string>>(new Set()),
     [form, setForm] = useState<Dict | null>(null),
     [operation, setOperation] = useState("add"),
@@ -81,26 +83,25 @@ export function FirewallPage({ act }: { act: Act }) {
     [detail, setDetail] = useState<unknown>(null),
     [ack, setAck] = useState(false),
     [sort, setSort] = useState({ key: "port", direction: 1 });
-  const state = record(resource.data?.firewalld),
-    all = list(resource.data?.entries),
-    zones = Array.isArray(resource.data?.zones)
-      ? (resource.data.zones as string[])
-      : [zone],
-    running = state.state === "active",
-    native = driver !== "firewalld",
-    writable = driver !== "ufw" && resource.data?.installed !== false,
-    types = list(resource.data?.types);
+  const view = firewallViewState(resource.data, driver, zone, resource.error || "");
+  const all = (view.current && !resource.error ? list(resource.data?.entries) : []).filter(r=>configScope==="runtime" ? !!(r.runtime||r.partial_runtime) : configScope==="permanent" ? !!(r.permanent||r.partial_permanent) : configScope==="difference" ? !!(r.drift||r.partial_runtime||r.partial_permanent||!!r.runtime!==!!r.permanent) : true),
+    zones = Array.isArray(resource.data?.zones) ? resource.data.zones.map(String) : [zone],
+    running = view.native ? view.canManage : view.running,
+    native = view.native,
+    writable = view.canManage;
+  const ruleAnchor = useRef<HTMLDivElement>(null);
   const rows = useMemo(
     () =>
       all
         .filter(
           (r) =>
-            (category === "advanced"
+            (category === "all" || (category === "advanced"
               ? r.editable === false
-              : r.kind === category && r.editable !== false) &&
+              : category === "rich" ? (r.kind === "rich" || r.storage === "rich-rule") && r.editable !== false : r.kind === category && r.editable !== false)) &&
             (protocol === "all" || r.protocol === protocol) &&
             (status === "all" || !!r.enabled === (status === "enabled")) &&
             (owner === "all" || !!r.managed === (owner === "managed")) &&
+            (ruleAction === "all" || (ruleAction === "blocked" ? ["drop","reject"].includes(String(r.action).toLowerCase()) : String(r.action).toLowerCase() === ruleAction)) &&
             JSON.stringify(r).toLowerCase().includes(query.toLowerCase()),
         )
         .sort((a, b) => {
@@ -113,7 +114,7 @@ export function FirewallPage({ act }: { act: Act }) {
             );
           return text(x).localeCompare(text(y), "zh-CN") * sort.direction;
         }),
-    [all, category, protocol, status, owner, query, sort],
+    [all, category, protocol, status, owner, ruleAction, query, sort],
   );
   const selectable = rows.filter(
     (r) => r.managed || (!native && r.editable !== false),
@@ -143,7 +144,16 @@ export function FirewallPage({ act }: { act: Act }) {
   }, [form?.kind]);
   const update = (key: string, value: unknown) =>
     setForm((old) => ({ ...old, [key]: value }));
+  const zonePolicy = record(resource.data?.zone_policy);
+  const targetDraftChanged = form?.kind === "zone-policy" && (
+    String(form.target) !== String(record(zonePolicy.permanent).target) ||
+    (form.target_apply === "immediate" && String(form.target) !== String(record(zonePolicy.runtime).target))
+  );
   const preview = async (op: string, item: Dict, items?: Dict[]) => {
+    if (item.kind === "service" ? !view.canServiceControl : !writable) {
+      setFailure("当前状态未满足变更条件，请刷新并确认服务和规则读取状态");
+      return;
+    }
     try {
       const next = await api<Plan>("/api/network/plan", {
         kind: "firewall",
@@ -166,7 +176,8 @@ export function FirewallPage({ act }: { act: Act }) {
     setFailure("");
   };
   const defaultRule = () => ({
-    kind: category,
+    kind: category === "all" ? "port" : category,
+    ...(category === "rich" ? {rich_match:"port",family:"ipv4",storage:"rich-rule"} : {}),
     driver,
     zone: native ? "host" : zone,
     protocol: "tcp",
@@ -178,7 +189,7 @@ export function FirewallPage({ act }: { act: Act }) {
     enabled: true,
     target_ip: "",
     target_port: "",
-    family: "",
+    family: category === "rich" ? "ipv4" : "",
     priority: 0,
     logging: false,
     log_rate: "5/m",
@@ -201,11 +212,12 @@ export function FirewallPage({ act }: { act: Act }) {
       <Button variant="ghost" title="查看规则详情" onClick={() => setDetail(r)}>
         详情
       </Button>
-      {r.managed && writable ? (
+      {r.managed ? (
         <>
           <Button
             variant="ghost"
             title="编辑"
+            disabled={!writable}
             onClick={() => start("replace", r)}
           >
             <Settings2 size={14} />
@@ -213,6 +225,7 @@ export function FirewallPage({ act }: { act: Act }) {
           <Button
             variant="ghost"
             title={r.enabled ? "停用" : "启用"}
+            disabled={!writable}
             onClick={() => toggle(r)}
           >
             <Power size={14} />
@@ -220,6 +233,7 @@ export function FirewallPage({ act }: { act: Act }) {
           <Button
             variant="danger"
             title="删除"
+            disabled={!writable}
             onClick={() => void preview("delete", r)}
           >
             <Trash2 size={14} />
@@ -227,7 +241,7 @@ export function FirewallPage({ act }: { act: Act }) {
         </>
       ) : (
         <Button
-          disabled={native || r.editable === false}
+          disabled={!writable || native || r.editable === false}
           onClick={() => void preview("adopt", r)}
         >
           纳管
@@ -236,6 +250,7 @@ export function FirewallPage({ act }: { act: Act }) {
     </div>
   );
   const filterControls = {
+    action: <Field label="规则动作"><select aria-label="防火墙动作筛选" value={ruleAction} onChange={e=>setRuleAction(e.target.value)}><option value="all">全部动作</option><option value="accept">允许</option><option value="drop">丢弃</option><option value="reject">拒绝</option><option value="blocked">阻断（丢弃／拒绝）</option></select></Field>,
     protocol: (
       <Field label="协议">
         <select
@@ -320,6 +335,10 @@ export function FirewallPage({ act }: { act: Act }) {
     },
     { key: "serial", label: "序号", render: (_, i) => i + 1 },
   ];
+  if (category === "all") columns.push(
+    {key:"name",label:"名称／类型",heading:heading("kind","名称／类型"),render:r=><><strong>{text(r.service || r.port || r.source || (r.kind === "masquerade" ? "地址转换" : "规则"))}</strong><small>{r.editable===false ? "未知规则（只读）" : r.storage==="rich-rule"||r.kind==="rich" ? "高级规则" : categories.find(([id])=>id===r.kind)?.[1] || String(r.kind || "系统规则")}</small></>},
+    {key:"protocol",label:"协议／端口",heading:heading("protocol","协议／端口"),render:r=>r.kind==="service-rule" ? "服务定义" : [r.protocol ? String(r.protocol).toUpperCase() : "全部",r.port].filter(Boolean).join(" / ")},
+  );
   if (category === "service-rule")
     columns.push({
       key: "service",
@@ -327,7 +346,7 @@ export function FirewallPage({ act }: { act: Act }) {
       heading: heading("service", "服务"),
       render: (r) => <strong>{text(r.service)}</strong>,
     });
-  if (category === "port" || category === "forward")
+  if (category === "port" || category === "forward" || category==="rich")
     columns.push(
       {
         key: "port",
@@ -388,14 +407,14 @@ export function FirewallPage({ act }: { act: Act }) {
       label: "策略",
       heading: heading("action", "策略"),
       render: (r) => (
-        <span className={r.action === "accept" ? "accent" : "poor"}>
+        <span className={r.action === "accept" ? "accent" : ["drop","reject"].includes(String(r.action)) ? "poor" : "muted"}>
           {r.editable === false
             ? "高级策略"
-            : strategies[String(r.action)] || text(r.action)}
+            : strategies[String(r.action)] || ({masquerade:"地址伪装",snat:"源地址转换"} as Record<string,string>)[String(r.action)] || text(r.action)}
         </span>
       ),
     });
-  if (!native && category !== "service-rule")
+  if (!native && category !== "service-rule" && category !== "all" && category!=="advanced")
     columns.push({
       key: "priority",
       label: "优先级",
@@ -449,182 +468,42 @@ export function FirewallPage({ act }: { act: Act }) {
   );
   return (
     <>
-      <Panel className="firewall-main-panel management-panel">
-        <PageHeader
-          title="防火墙"
-          description={
-            <>
-              {"端口访问控制、IP 策略与端口转发 · 变更预览、独立回退与操作日志"}
-              <p>
-                {
-                  "外部规则须先明确纳入管理，才可编辑或删除。每批最多50条，未确认的变更自动回退。"
-                }
-              </p>
-            </>
-          }
-          actions={
-            <>
-              <Button onClick={() => void resource.refresh()}>
-                <RefreshCw size={15} />
-                刷新
-              </Button>
-              <Button
-                disabled={native}
-                onClick={() =>
-                  start(running ? "stop" : "start", { kind: "service", driver })
-                }
-              >
-                {running ? "关闭防火墙" : "开启防火墙"}
-              </Button>
-              <Button
-                disabled={native}
-                onClick={() =>
-                  start(state.autostart ? "disable" : "enable", {
-                    kind: "service",
-                    driver,
-                  })
-                }
-              >
-                {state.autostart ? "关闭自启" : "开启自启"}
-              </Button>
-            </>
-          }
-        />
-        <div className="toolbar firewall-driver-picker">
-          <Field
-            label="主机防火墙类型"
-            info={
-              <>
-                <p>
-                  选择规则管理工具，不自动启停或迁移系统防火墙。iptables／nftables
-                  已安装不代表多个防火墙正在独立运行。
-                </p>
-                {!!resource.data?.note && <p>{text(resource.data.note)}</p>}
-              </>
-            }
-          >
-            <select
-              value={driver}
-              onChange={(e) => {
-                setDriver(e.target.value);
-                setCategory("port");
-                localStorage.setItem("foxray.firewall.driver", e.target.value);
-                setSelected(new Set());
-                setZone(e.target.value === "firewalld" ? "public" : "host");
-              }}
-            >
-              {(types.length ? types : [{ id: driver, installed: true }]).map(
-                (t) => (
-                  <option
-                    key={String(t.id)}
-                    value={String(t.id)}
-                    disabled={!t.installed}
+        <SecondaryNav label="防火墙规则分类">
+            <div className="module-tabs firewall-secondary-tabs" role="tablist" aria-label="防火墙规则分类">
+              {categories
+                .filter(([id]) => !native || !["service-rule","rich"].includes(id))
+                .map(([id, label]) => (
+                  <button
+                    key={id}
+                    role="tab"
+                    aria-selected={category === id}
+                    onClick={() => {
+                      setCategory(id);
+                      setSelected(new Set());
+                      setProtocol("all");setRuleAction("all");
+                    }}
                   >
-                    {String(t.id)} · {t.installed ? "已安装" : "未安装"}
-                    {t.id === "ufw" ? "（规则只读）" : ""}
-                  </option>
-                ),
-              )}
-            </select>
-          </Field>
-          <Field
-            label="防火墙区域"
-            info={
-              <>
-                <p>
-                  已允许的系统服务：
-                  {Array.isArray(resource.data?.allowed_services)
-                    ? resource.data.allowed_services.join("、")
-                    : "—"}
-                </p>
-                <p>
-                  区域地址伪装：
-                  {resource.data?.masquerade ? "已开启" : "已关闭"}
-                </p>
-              </>
-            }
-          >
-            <select
-              value={zone}
-              onChange={(e) => {
-                setZone(e.target.value);
-                setSelected(new Set());
-              }}
-            >
-              {(zones.length ? zones : [zone]).map((v) => (
-                <option key={v}>{v}</option>
-              ))}
-            </select>
-          </Field>
-          {!native && (
-            <div className="zone-summary">
-              {" "}
-              <Button
-                onClick={() =>
-                  start("add", {
-                    kind: "zone-interface",
-                    zone,
-                    interfaces: [],
-                    driver,
-                  })
-                }
-              >
-                管理接口
-              </Button>
-              <dl className="zone-status-cards" aria-label="区域状态">
-                <div>
-                  <dt>区域目标</dt>
-                  <dd>{text(record(resource.data?.zone_info).target)}</dd>
-                </div>
-                <div>
-                  <dt>绑定接口</dt>
-                  <dd>
-                    {text(record(resource.data?.zone_info).interfaces || "无")}
-                  </dd>
-                </div>
-                <div>
-                  <dt>绑定来源</dt>
-                  <dd>
-                    {text(record(resource.data?.zone_info).sources || "无")}
-                  </dd>
-                </div>
-              </dl>{" "}
+                    {labelIcon(label, 14)}
+                    {label}
+                  </button>
+                ))}
             </div>
-          )}
-        </div>
-        <div className="firewall-overview">
-          <div>
-            <ShieldCheck size={21} />
-            <span>{native ? "管理工具" : "运行状态"}</span>
-            <strong className={running ? "accent" : "fair"}>
-              {native
-                ? resource.data?.installed
-                  ? "已安装"
-                  : "未安装"
-                : running
-                  ? "运行中"
-                  : "已停止／不可用"}
-            </strong>
-          </div>
-          <div>
-            <MapPin size={21} className="metric-blue" />
-            <span>当前区域</span>
-            <strong className="metric-blue">{zone}</strong>
-          </div>
-          <div>
-            <ListChecks size={21} className="metric-orange" />
-            <span>当前区域规则</span>
-            <strong className="metric-orange">{all.length}</strong>
-          </div>
-          <div>
-            <ShieldEllipsis size={21} className="metric-purple" />
-            <span>受管理规则</span>
-            <strong className="metric-purple">
-              {all.filter((r) => r.managed).length}
-            </strong>
-          </div>
-        </div>
-
+        </SecondaryNav>
+        <FirewallWorkspace data={resource.data ? {...resource.data,entries:all} : null} error={resource.error || ""} driver={driver} zone={zone} lastRead={lastRead} refreshing={refreshing}
+          refresh={()=>{setRefreshing(true);void resource.refresh().finally(()=>setRefreshing(false))}}
+          changeDriver={value=>{setDriver(value);setCategory("all");localStorage.setItem("foxray.firewall.driver",value);setZone(value==="firewalld"?"public":"host");setSelected(new Set());setQuery("");setProtocol("all");setStatus("all");setOwner("all");setRuleAction("all");setConfigScope("all");setForm(null);setPlan(null);setFailure("")}}
+          changeZone={value=>{setZone(value);setSelected(new Set());setQuery("");setProtocol("all");setStatus("all");setOwner("all");setRuleAction("all");setConfigScope("all");setForm(null);setPlan(null);setFailure("")}}
+          manageInterfaces={()=>start("add",{kind:"zone-interface",zone,interfaces:[],driver})}
+          serviceAction={action=>start(action,{kind:"service",driver})}
+          selectedFilter={category === "all" ? ruleAction === "blocked" ? "blocked" : owner === "managed" ? "managed" : owner === "external" ? "external" : "all" : ""}
+          filterRules={filter=>{setCategory("all");setOwner(filter==="managed"?"managed":filter==="external"?"external":"all");setRuleAction(filter==="blocked"?"blocked":"all");setQuery("");setProtocol("all");setStatus("all");setSelected(new Set());ruleAnchor.current?.scrollIntoView({behavior:"smooth",block:"start"})}}
+          viewRules={kind=>{setCategory(kind);setOwner("all");setRuleAction("all");setQuery("");setProtocol("all");setStatus("all");setSelected(new Set());ruleAnchor.current?.scrollIntoView({behavior:"smooth",block:"start"})}}
+          addService={()=>start("add",{...defaultRule(),kind:"service-rule",service:""})}
+          configScope={configScope} changeScope={value=>{setConfigScope(value);setSelected(new Set());setQuery("")}}
+          manageSources={()=>start("add",{kind:"zone-source",driver,zone,source:"",binding_action:"bind"})}
+          editPolicy={()=>{const policy=record(resource.data?.zone_policy),runtime=record(policy.runtime),permanent=record(policy.permanent);start("add",{kind:"zone-policy",driver,zone,target:String(permanent.target||runtime.target||"default"),target_apply:"permanent",target_ack:false,reload_ack:false,masquerade:runtime.masquerade===true,icmp_blocks:Array.isArray(runtime.icmp_blocks)?runtime.icmp_blocks:[],icmp_inversion:runtime.icmp_inversion===true})}}
+        />
+      <Panel className="firewall-main-panel management-panel">
         <ErrorLine error={resource.error || failure} />
         {!!resource.data?.ruleset_raw && (
           <details className="advanced-form">
@@ -637,29 +516,7 @@ export function FirewallPage({ act }: { act: Act }) {
         {!!resource.data?.error && (
           <p className="hint">{text(resource.data.error)}</p>
         )}
-        <div className="page-heading firewall-category-heading">
-          <SecondaryNav label="防火墙">
-            <div className="subtabs" role="tablist">
-              {categories
-                .filter(([id]) => !native || id !== "service-rule")
-                .map(([id, label]) => (
-                  <button
-                    key={id}
-                    role="tab"
-                    aria-selected={category === id}
-                    onClick={() => {
-                      setCategory(id);
-                      setSelected(new Set());
-                      setProtocol("all");
-                    }}
-                  >
-                    {labelIcon(label, 14)}
-                    {label}
-                  </button>
-                ))}
-            </div>
-          </SecondaryNav>
-        </div>
+        <div className="firewall-rules-heading" ref={ruleAnchor}><h3>{native ? "系统规则" : "区域规则"} <span>{native ? driver : zone}</span></h3><span className="muted">{native ? "当前工具规则快照" : ({all:"运行时与永久配置 · 合并展示",runtime:"运行时配置",permanent:"永久配置",difference:"存在差异的配置"} as Record<string,string>)[configScope]}</span></div>
         <CompactFilters
           before={
             <>
@@ -677,7 +534,7 @@ export function FirewallPage({ act }: { act: Act }) {
                   query !== "" ||
                   protocol !== "all" ||
                   status !== "all" ||
-                  owner !== "all"
+                  owner !== "all" || ruleAction !== "all"
                 }
                 selectedCount={chosen.length}
                 summary={[
@@ -685,6 +542,7 @@ export function FirewallPage({ act }: { act: Act }) {
                   protocol !== "all" && `协议：${protocol}`,
                   status !== "all" && `状态：${status}`,
                   owner !== "all" && `归属：${owner}`,
+                  ruleAction !== "all" && `动作：${ruleAction}`,
                   `${rows.length} 项`,
                 ]
                   .filter(Boolean)
@@ -694,7 +552,7 @@ export function FirewallPage({ act }: { act: Act }) {
                   setQuery("");
                   setProtocol("all");
                   setStatus("all");
-                  setOwner("all");
+                  setOwner("all");setRuleAction("all");
                 }}
               />
               <ExportButton
@@ -771,7 +629,7 @@ export function FirewallPage({ act }: { act: Act }) {
             </>
           }
           label="防火墙筛选"
-          active={protocol !== "all" || status !== "all" || owner !== "all"}
+          active={protocol !== "all" || status !== "all" || owner !== "all" || ruleAction !== "all"}
         >
           <AdaptiveSearch>
             <Search size={15} />
@@ -789,7 +647,7 @@ export function FirewallPage({ act }: { act: Act }) {
           selectedCount={chosen.length}
           keepHeaders
           columns={columns.map((c) =>
-            ["protocol", "state", "owner"].includes(c.key)
+            ["protocol", "state", "owner", "action"].includes(c.key)
               ? {
                   ...c,
                   heading: (
@@ -811,18 +669,20 @@ export function FirewallPage({ act }: { act: Act }) {
                             protocol: protocol !== "all",
                             state: status !== "all",
                             owner: owner !== "all",
-                          }[c.key as "protocol" | "state" | "owner"]
+                            action: ruleAction !== "all",
+                          }[c.key as "protocol" | "state" | "owner" | "action"]
                         }
                       >
                         {
                           filterControls[
-                            c.key as "protocol" | "state" | "owner"
+                            c.key as "protocol" | "state" | "owner" | "action"
                           ]
                         }
                         <Button
                           onClick={() => {
                             if (c.key === "protocol") setProtocol("all");
                             else if (c.key === "state") setStatus("all");
+                            else if (c.key === "action") setRuleAction("all");
                             else setOwner("all");
                           }}
                         >
@@ -838,7 +698,7 @@ export function FirewallPage({ act }: { act: Act }) {
         />
       </Panel>
       {form && (
-        <Modal
+        <Modal className="firewall-dialog"
           description={
             <>
               <p>
@@ -848,7 +708,7 @@ export function FirewallPage({ act }: { act: Act }) {
             </>
           }
           title={
-            form.kind === "zone-interface"
+            form.kind === "zone-source" ? "管理来源地址归属" : form.kind === "zone-policy" ? "编辑区域策略" : form.kind === "rich" ? (operation==="add"?"添加高级规则":"编辑高级规则") : form.kind === "zone-interface"
               ? "调整接口所属区域"
               : form.kind === "service"
                 ? "防火墙服务操作"
@@ -859,7 +719,7 @@ export function FirewallPage({ act }: { act: Act }) {
           onClose={() => setForm(null)}
           wide
         >
-          {form.kind === "zone-interface" ? (
+          {form.kind === "zone-source" ? <ZoneSourceEditor value={form} onChange={update} zones={zones} sources={String(record(resource.data?.zone_info).sources||" ").trim().split(/\s+/).filter(Boolean)}/> : form.kind === "zone-policy" ? <ZonePolicyEditor value={form} onChange={update} policy={record(resource.data?.zone_policy)}/> : form.kind==="rich" ? <RichRuleEditor value={form} onChange={update} services={Array.isArray(resource.data?.available_services)?resource.data.available_services.map(String):[]}/> : form.kind === "zone-interface" ? (
             <div className="form-grid">
               <Field label="目标区域">
                 <select
@@ -890,8 +750,8 @@ export function FirewallPage({ act }: { act: Act }) {
             </div>
           ) : form.kind === "service" ? (
             <p>
-              将执行 firewalld 的 {operation}{" "}
-              操作。请确认管理端口已经放行；没有确认时会恢复原服务状态。
+                将{({start:"启动防火墙服务",stop:"停止防火墙服务",enable:"开启开机启动",disable:"关闭开机启动"} as Record<string,string>)[operation] || "调整防火墙服务"}。
+                请核对管理连接的影响，确认后生成变更预览；未完成网络确认时将按预览方案回退。
             </p>
           ) : (
             <FirewallForm
@@ -918,13 +778,9 @@ export function FirewallPage({ act }: { act: Act }) {
             <Button
               variant="primary"
               disabled={
-                (form.kind === "zone-interface" &&
-                  (!Array.isArray(form.interfaces) ||
-                    !form.interfaces.length)) ||
-                (["service", "zone-interface", "masquerade"].includes(
-                  String(form.kind),
-                ) &&
-                  !ack)
+                (form.kind === "zone-interface" && (!Array.isArray(form.interfaces) || !form.interfaces.length)) ||
+                (["service", "zone-interface", "zone-source", "zone-policy", "masquerade", "rich"].includes(String(form.kind)) && !ack) ||
+                (targetDraftChanged && (form.target_ack !== true || (form.target_apply === "immediate" && form.reload_ack !== true)))
               }
               onClick={() => void preview(operation, form)}
             >
@@ -934,8 +790,10 @@ export function FirewallPage({ act }: { act: Act }) {
         </Modal>
       )}
       {plan && (
-        <Modal title="防火墙变更预览" onClose={() => setPlan(null)} wide>
+        <Modal className="firewall-dialog" title="防火墙变更预览" onClose={() => setPlan(null)} wide>
           <h3>{plan.summary}</h3>
+          {plan.preview_only===true&&<p className="hint">只读预览：可以核对命令与回退方案，未应用变更。</p>}
+          <FirewallChangeDetails plan={plan}/>
           {plan.warnings.map((v, i) => (
             <p className="hint" key={i}>
               {v}
@@ -981,6 +839,7 @@ export function FirewallPage({ act }: { act: Act }) {
             <Button onClick={() => setPlan(null)}>取消</Button>
             <Button
               variant="primary"
+              disabled={plan.preview_only===true}
               onClick={() => {
                 const id = plan.id;
                 setPlan(null);
@@ -993,13 +852,13 @@ export function FirewallPage({ act }: { act: Act }) {
         </Modal>
       )}
       {detail != null && (
-        <Modal
+        <Modal className="firewall-dialog"
           title="防火墙规则详情"
           copyText={JSON.stringify(detail, null, 2)}
           onClose={() => setDetail(null)}
           wide
         >
-          <JsonDetails data={detail} />
+          <FirewallRuleSummary value={record(detail)} />
         </Modal>
       )}
     </>

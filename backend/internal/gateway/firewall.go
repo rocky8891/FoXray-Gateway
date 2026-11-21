@@ -45,7 +45,7 @@ func portRange(value any) (string, error) {
 }
 func normalizeFirewall(item M) (M, error) {
 	r := M{}
-	for _, key := range []string{"id", "driver", "name", "kind", "zone", "port", "protocol", "source", "action", "target_ip", "target_port", "enabled", "family", "storage", "priority", "logging", "log_rate", "service", "to_source", "out_interface"} {
+	for _, key := range []string{"id", "driver", "name", "kind", "zone", "port", "protocol", "source", "action", "target_ip", "target_port", "enabled", "family", "storage", "priority", "logging", "log_rate", "service", "to_source", "out_interface", "rich_match"} {
 		if value, ok := item[key]; ok {
 			r[key] = value
 		}
@@ -147,6 +147,41 @@ func normalizeFirewall(item M) (M, error) {
 		return nil, errors.New("规则策略无效")
 	}
 	r["action"] = action
+	if kind == "rich" {
+		if firewallDriver(r) != "firewalld" {
+			return nil, errors.New("高级规则仅支持firewalld视图")
+		}
+		r["storage"] = "rich-rule"
+		match := str(r["rich_match"])
+		if match != "port" && match != "service" && match != "all" {
+			return nil, errors.New("高级规则匹配类型无效")
+		}
+		if str(r["family"]) == "" {
+			return nil, errors.New("高级规则须明确IPv4或IPv6地址族")
+		}
+		if match == "service" && !firewallZoneName.MatchString(str(r["service"])) {
+			return nil, errors.New("服务名称无效")
+		}
+		if match != "service" {
+			delete(r, "service")
+		}
+		if match != "port" {
+			delete(r, "port")
+			delete(r, "protocol")
+		}
+		if match == "port" {
+			proto := str(r["protocol"])
+			if proto != "tcp" && proto != "udp" && proto != "tcpudp" {
+				return nil, errors.New("协议须为TCP、UDP或TCP+UDP")
+			}
+			port, e := portRange(r["port"])
+			if e != nil {
+				return nil, e
+			}
+			r["port"] = port
+		}
+		return r, nil
+	}
 	if kind == "ip" {
 		if str(r["source"]) == "" {
 			return nil, errors.New("IP 规则须填写来源 IP 或网段")
@@ -217,6 +252,12 @@ func firewallSpecs(item M) [][2]string {
 	if kind == "ip" {
 		return [][2]string{{"rich-rule", prefix + logging + " " + str(item["action"])}}
 	}
+	if kind == "rich" && str(item["rich_match"]) == "all" {
+		return [][2]string{{"rich-rule", prefix + logging + " " + str(item["action"])}}
+	}
+	if kind == "rich" && str(item["rich_match"]) == "service" {
+		return [][2]string{{"rich-rule", prefix + " service name=\"" + str(item["service"]) + "\"" + logging + " " + str(item["action"])}}
+	}
 	protocols := []string{str(item["protocol"])}
 	if protocols[0] == "tcpudp" {
 		protocols = []string{"tcp", "udp"}
@@ -226,7 +267,7 @@ func firewallSpecs(item M) [][2]string {
 		port := str(item["port"])
 		if kind == "port" && source == "" && str(item["action"]) == "accept" && str(item["storage"]) != "rich-rule" && str(item["family"]) == "" && num(item["priority"]) == 0 && !yes(item["logging"]) {
 			out = append(out, [2]string{"port", port + "/" + proto})
-		} else if kind == "port" {
+		} else if kind == "port" || kind == "rich" {
 			out = append(out, [2]string{"rich-rule", prefix + " port port=\"" + port + "\" protocol=\"" + proto + "\"" + logging + " " + str(item["action"])})
 		} else {
 			value := "port=" + port + ":proto=" + proto + ":toport=" + str(item["target_port"])
@@ -289,6 +330,15 @@ func (n *Network) planFirewall(p *NetworkPlan, d M) error {
 	raw := obj(d["item"])
 	if str(raw["kind"]) == "zone-interface" {
 		return n.planZoneInterface(p, d)
+	}
+	if str(raw["kind"]) == "zone-source" || str(raw["kind"]) == "zone-policy" {
+		if str(n.app.service("firewalld")["state"]) != "active" {
+			return errors.New("firewalld未运行，不能变更区域配置")
+		}
+		if str(raw["kind"]) == "zone-source" {
+			return n.planZoneSource(p, d)
+		}
+		return n.planZonePolicy(p, d)
 	}
 	op := str(d["operation"])
 	if str(raw["kind"]) == "service" {

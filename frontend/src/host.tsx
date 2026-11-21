@@ -1377,7 +1377,7 @@ export function HostSettings({ act, embedded = false }: { act: Act; embedded?: b
                   ["default_memory", "默认内存", MEMORY_OPTIONS],
                 ] as [string, string, string[][]][]
               ).map(([key, label, options]) => (
-                <Field key={key} label={label}>
+                <Field key={key} label={label} info={key === "default_load" ? "平均负载表示系统运行和等待任务的压力，不等同于CPU使用率。这里选择详细监控页默认查看的1、5或15分钟负载；主页圆盘固定显示1分钟负载，进度按CPU核数归一化，达到或超过核数时为满环。" : undefined}>
                   <select
                     value={String(form[key] || options[0]?.[0] || "/")}
                     onChange={(e) => set(key, e.target.value)}

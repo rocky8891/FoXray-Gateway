@@ -1,3 +1,5 @@
+import { metricValueReserve } from "./metric_text_reserve";
+import "./interface_refinements.css";
 import { ConnectedTime } from "./connected_time";
 import { ServerIcon, TrueLatencyIcon } from "./requirement_icons";
 import { circleLayout } from "./circle_layout";
@@ -8,7 +10,7 @@ import {
   SERVICE_CIRCLE_STYLES,
 } from "./overview_policy";
 import { ConnectionIcon } from "./monitor_icons";
-import { useRef, useLayoutEffect, type ReactNode } from "react";
+import { useRef, useLayoutEffect, type ReactNode, type MouseEvent, type KeyboardEvent } from "react";
 import {
   Activity,
   Cpu,
@@ -19,7 +21,7 @@ import {
 } from "lucide-react";
 import { list, record, type Dict, type State } from "./api";
 import { formatRate } from "./host";
-import { ErrorLine, Panel, SettingInfo, useResource } from "./ui";
+import { ErrorLine, Panel, useResource } from "./ui";
 import { ProductIcon } from "./product_icons";
 const pct = (v: unknown) => (v == null ? "—" : Number(v).toFixed(1) + "%");
 const delay = (v: unknown) =>
@@ -35,7 +37,6 @@ function SummaryHeader({
   status,
   tone = "muted",
   identity,
-  help,
   controls,
   titleExtra,
 }: {
@@ -44,7 +45,6 @@ function SummaryHeader({
   status: string;
   tone?: string;
   identity?: ReactNode;
-  help?: string;
   controls?: ReactNode;
   titleExtra?: ReactNode;
 }) {
@@ -138,7 +138,7 @@ function SummaryHeader({
         if (value)
           valueSize = Math.min(
             valueSize,
-            area / Math.max(1, textSize(value.textContent || "", value, 1)),
+            Math.max(Math.min(requestedValue,12),area / Math.max(1, textSize(metricValueReserve(element.dataset.summaryMetric||""), value, 1))),
           );
         element.style.setProperty("--circle-label-size", `${labelSize}px`);
         element.style.setProperty("--circle-value-size", `${valueSize}px`);
@@ -218,7 +218,7 @@ function SummaryHeader({
             if (value)
               valueSize = Math.min(
                 valueSize,
-                area / Math.max(1, textSize(value.textContent || "", value, 1)),
+                Math.max(Math.min(requestedValue,12),area / Math.max(1, textSize(metricValueReserve(metric.dataset.summaryMetric||""), value, 1))),
               );
             if (label)
               labelSize = Math.min(
@@ -372,7 +372,12 @@ function SummaryHeader({
     if (identity && titleExtra) observer.observe(identity);
     const surface = card.querySelector(".service-overview-surface");
     if (surface) observer.observe(surface);
-    const classes = new MutationObserver(measure);
+    const classes = new MutationObserver(records => {
+      if(records.some(record=>{
+        const element=record.target instanceof Element?record.target:record.target.parentElement;
+        return !element?.closest(".summary-metric>strong");
+      }))measure();
+    });
     classes.observe(card, {
       attributes: true,
       attributeFilter: ["class"],
@@ -399,7 +404,6 @@ function SummaryHeader({
         <h2 aria-label={title}>
           {icon}
           {title}
-          {help && <SettingInfo label={title} text={help} />}
           {titleExtra && (
             <span className="service-title-extra">{titleExtra}</span>
           )}
@@ -434,7 +438,6 @@ function SummaryMetric({
   value,
   percent,
   metricKey,
-  help,
   slot,
 }: {
   slot?: number;
@@ -444,7 +447,6 @@ function SummaryMetric({
   value: ReactNode;
   percent?: number | null;
   metricKey?: string;
-  help?: string;
 }) {
   return (
     <div
@@ -476,9 +478,8 @@ function SummaryMetric({
       <span className="summary-metric-label">
         <Icon size={16} className={"metric-" + tone} />
         {label}
-        {help && <SettingInfo label={label} text={help} />}
       </span>
-      <strong className={"metric-" + tone}>{value}</strong>
+      <strong className={"metric-" + tone} title={typeof value==="string"||typeof value==="number"?String(value):undefined}>{value}</strong>
     </div>
   );
 }
@@ -544,6 +545,26 @@ export function ServiceOverviewCards({
   state: State;
   cards: string[];
 }) {
+  const monitorLink = (module: string, label: string) => {
+    const enabled = module === "host" || !!state.components[module as keyof typeof state.components];
+    const open=()=>{if(enabled)window.dispatchEvent(new CustomEvent("foxray:open-monitor",{detail:{module}}))};
+    return {
+      role: enabled ? "link" : undefined,
+      tabIndex: enabled ? 0 : undefined,
+      "aria-label": enabled ? "打开"+label+"监控" : undefined,
+      "data-monitor-link": enabled ? module : undefined,
+      onClick:(event:MouseEvent<HTMLElement>)=>{
+        if(event.defaultPrevented || event.button!==0 || window.getSelection()?.toString())return;
+        const target=event.target as Element;
+        const control=target.closest('a,button,input,select,textarea,summary,[role="button"],[role="link"],[role="combobox"],[contenteditable="true"]');
+        if(control && control!==event.currentTarget)return;
+        open();
+      },
+      onKeyDown:(event:KeyboardEvent<HTMLElement>)=>{
+        if(event.target===event.currentTarget && event.key==="Enter"){event.preventDefault();open()}
+      },
+    };
+  };
   const system = useResource<Dict>("/api/system", 2000),
     traffic = useResource<Dict>("/api/traffic", 2000),
     warp = useResource<Dict>("/api/warp", 15000),
@@ -605,6 +626,7 @@ export function ServiceOverviewCards({
     <>
       {cards.includes("service-host") && (
         <Panel
+          {...monitorLink("host","服务器")}
           className={
             "overview-summary-card service-host service-overview-card summary-v417" +
             cardStyle("host")
@@ -644,7 +666,6 @@ export function ServiceOverviewCards({
                         Math.max(1, Number(host.cores || 1))) *
                       100
                 }
-                help="数值为1分钟平均负载；圆环按CPU核数归一化，达到或超过核数时进度为满环。"
                 label="平均负载"
                 icon={Activity}
                 tone="purple"
@@ -737,6 +758,7 @@ export function ServiceOverviewCards({
             : [];
           return (
             <Panel
+              {...monitorLink(module,title)}
               key={module}
               className={
                 "overview-summary-card service-overview-card summary-v417 service-" +
@@ -797,6 +819,7 @@ export function ServiceOverviewCards({
         })}
       {cards.includes("service-wireguard") && (
         <Panel
+          {...monitorLink("wireguard","WireGuard")}
           className={
             "overview-summary-card service-overview-card summary-v417 service-wireguard" +
             cardStyle("wireguard") +
@@ -832,7 +855,6 @@ export function ServiceOverviewCards({
                 : "muted"
             }
             identity={`总数 / 已连接：${allInterfaces.length} / ${activeInterfaceCount} · 显示 ${interfaces.length}个`}
-            help="按接口运行状态显示已连接，不代表每个Peer均可达。默认显示两个接口，可在主页布局选择1～4个并指定名称；模块监控关闭后数值暂停，接口状态仍独立展示。"
           />
           <div className="service-overview-surface service-tunnel-list">
             {interfaces.length ? (

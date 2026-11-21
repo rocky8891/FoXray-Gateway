@@ -1,4 +1,9 @@
-.adaptive-table-tools { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex-wrap:wrap; margin:8px 0; }
+.adaptive-table-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:8px 0 12px; }
+.adaptive-table-width-control { display:flex; align-items:center; gap:8px; flex:none; }
+.adaptive-table-width-control > .setting-info { align-self:center; margin:0; }
+.adaptive-table-actions { display:flex; justify-content:flex-end; flex:1; min-width:0; }
+.adaptive-table-actions > :is(.connections-detail-tools,.statistics-detail-tools) { width:min(458px,100%); }
+@media(max-width:599px) { .adaptive-table-actions { flex-basis:100%; } }
 .adaptive-table-tools .small { color:var(--muted); }
 .table-wrap table.balanced-columns.adaptive-columns { table-layout:fixed!important; width:var(--adaptive-table-width)!important; min-width:var(--adaptive-table-width)!important; max-width:none!important; }
 .table-wrap table.adaptive-columns th { position:relative; padding-right:22px!important; }

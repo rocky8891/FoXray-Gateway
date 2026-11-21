@@ -1,0 +1,17 @@
+.interface-stat-grid .network-stat-card{min-height:140px}
+.interface-stat-switch{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}.interface-stat-switch>button{font:inherit;font-size:11px;line-height:18px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--radius);color:var(--muted);background:transparent;cursor:pointer}.interface-stat-switch>button[aria-pressed=true]{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
+.interface-kind-card{justify-content:center;gap:8px}.interface-kind-card>.field{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px;width:100%;margin:0}.interface-kind-card .field-title{padding:0!important;font-size:11px;white-space:nowrap}.interface-kind-card select{height:32px;min-height:32px;font-size:12px;padding-block:0;width:100%}
+.interface-badges{display:flex;flex-wrap:nowrap;gap:4px;margin-top:6px}.interface-badges>span{font-size:10px;line-height:17px;padding:0 5px;border:1px solid var(--line);border-radius:var(--radius-xs);color:var(--muted)}.interface-badges>.default-route{color:var(--accent)}
+.interface-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:nowrap}.interface-management :is(th,td).interface-actions-column{width:220px;min-width:220px}
+.overview-page .summary-metric>strong{font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.overview-page .summary-v417[data-adaptive-circles=true][class] .summary-metric>strong{max-width:80%!important;overflow:hidden;text-overflow:ellipsis}
+.firewall-secondary-tabs{flex-wrap:wrap}
+@media(max-width:799px){.interface-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.interface-stat-grid .network-stat-card{padding:12px}.interface-stat-switch>button{padding:3px 6px}}
+
+.interface-kind-title{display:inline-flex;align-items:flex-start;gap:6px}
+.interface-management :is(th,td).interface-name-column{width:250px;min-width:250px}
+.interface-badges>span{white-space:nowrap;flex:none}
+
+.interface-management :is(th,td).interface-ip-column{width:190px;min-width:190px}
+.interface-management :is(th,td).interface-mac-column{width:170px;min-width:170px}
+.interface-management .interface-address{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:block}

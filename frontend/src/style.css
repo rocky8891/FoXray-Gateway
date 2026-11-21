@@ -32,11 +32,11 @@ body {
   min-height: 100vh;
   background-color: var(--bg);
   background-image:
-    linear-gradient(100deg, #243e455e, #4d425d55), url("/background.webp");
-  background-attachment: fixed, fixed;
-  background-position: center, center;
-  background-size: cover, cover;
-  background-repeat: no-repeat, no-repeat;
+    url("/background-20261121-v2.webp");
+  background-attachment: fixed;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 html[data-theme="light"] {
   color-scheme: light;
@@ -1343,8 +1343,7 @@ footer {
 
 html[data-theme="dark"] body {
   background-image:
-    linear-gradient(105deg, rgba(25, 43, 49, 0.79), rgba(39, 32, 51, 0.82)),
-    url(/background.webp);
+    url(/background-20261121-v2.webp);
 }
 html[data-theme="light"] body {
   background-image:
@@ -1353,7 +1352,7 @@ html[data-theme="light"] body {
       rgba(234, 250, 252, 0.65),
       rgba(245, 239, 253, 0.67)
     ),
-    url(/background.webp);
+    url(/background-20261121-v2.webp);
 }
 
 header nav {

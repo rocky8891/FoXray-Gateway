@@ -1179,7 +1179,7 @@ function OverviewLayoutSettings({
               )}
             >
               <div className="form-grid">
-                <Field label="显示接口数量">
+                <Field label="显示接口数量" info="主页按接口运行状态显示已连接，不代表每个Peer均可达。默认显示两个接口，可选择1～4个并指定名称；模块监控关闭后数值暂停，接口状态仍独立展示。">
                   <select
                     aria-label="WireGuard显示接口数量"
                     value={Number(p.services_wireguard_count || 2)}

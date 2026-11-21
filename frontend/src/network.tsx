@@ -1,3 +1,4 @@
+import { remainingPlanSeconds } from "./network_display";
 import { AdaptiveSearch } from "./adaptive_search";
 import { ResetFilters } from "./list_controls";
 import { ExportButton, useRowSelection } from "./resource_controls";
@@ -1459,47 +1460,22 @@ function PeerEditor({
     </div>
   );
 }
-export function NetworkPending({ act }: { act: Act }) {
-  const { data, refresh } = useResource<{ plans: Plan[] }>(
-    "/api/network/plans",
-    2000,
-  );
-  const [, tick] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
-  const pending =
-    data?.plans.filter((p) => p.status === "awaiting_confirmation") || [];
-  return pending.length ? (
-    <div className="network-pending">
-      {pending.map((p) => (
-        <div key={p.id}>
-          <strong>
-            <AlertTriangle size={17} /> 网络变更待确认 · 剩余{" "}
-            {Math.max(0, Math.ceil(p.expires - Date.now() / 1000))} 秒
-          </strong>
-          <p>{p.summary}</p>
-          <div className="actions">
-            <Button
-              variant="primary"
-              onClick={() =>
-                void act("/api/network/confirm", { id: p.id }).then(refresh)
-              }
-            >
-              网络正常，确认保留
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() =>
-                void act("/api/network/rollback", { id: p.id }).then(refresh)
-              }
-            >
-              立即回退
-            </Button>
-          </div>
-        </div>
-      ))}
-    </div>
-  ) : null;
+export function NetworkPending({ act, inline = false, readOnly = false }: { act: Act; inline?: boolean; readOnly?: boolean }) {
+  const { data, error: resourceError, refresh } = useResource<{ plans: Plan[]; server_time?: number }>("/api/network/plans", 2000);
+  const [, tick] = useState(0), [offset, setOffset] = useState(0), [busy,setBusy] = useState(""), [failure,setFailure]=useState("");
+  useEffect(() => { const t=setInterval(()=>tick(n=>n+1),1000); return ()=>clearInterval(t); }, []);
+  useEffect(() => { if (typeof data?.server_time === "number" && Number.isFinite(data.server_time)) setOffset(Date.now()/1000-data.server_time); },[data]);
+  const pending = data?.plans.filter(p=>p.status === "awaiting_confirmation") || [];
+  const run = async (p:Plan, operation:string) => {
+    if (readOnly || busy) return;
+    setBusy(p.id+operation); setFailure("");
+    try { const ok = await act("/api/network/"+operation,{id:p.id}); if(!ok) setFailure("操作未完成，请核对状态后重试；变更仍按服务端期限自动回退。"); await refresh(); }
+    catch(e) {setFailure(errorMessage(e));} finally {setBusy("");}
+  };
+  return pending.length ? <section className={inline?"network-pending-banner":"network-pending"} aria-label="网络变更待确认" role="region">
+    {pending.map(p=>{const remaining=remainingPlanSeconds(p.expires,Date.now()/1000-offset);return <div className="network-pending-item" key={p.id}>
+      <div className="network-pending-description"><strong><AlertTriangle size={17}/>有 {pending.length} 项网络变更待确认</strong><p>{p.summary}</p><small role="timer" aria-live="off">{remaining>0?remaining+"秒后自动回退":"确认期限已到，正在核对自动回退状态"}</small>{readOnly&&<small>只读预览：请在正式服务确认或回退。</small>}</div>
+      <div className="actions"><Button variant="primary" disabled={readOnly||!!busy||remaining===0||!!resourceError} onClick={()=>void run(p,"confirm")}>{busy===p.id+"confirm"?"正在确认…":"确认保留"}</Button><Button variant="danger" disabled={readOnly||!!busy} onClick={()=>void run(p,"rollback")}>{busy===p.id+"rollback"?"正在回退…":"立即回退"}</Button></div>
+    </div>})}<ErrorLine error={failure||resourceError||""}/>
+  </section> : null;
 }

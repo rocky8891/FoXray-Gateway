@@ -161,7 +161,7 @@ func (n *Network) planDNS(p *NetworkPlan, data M) error {
 		}
 		p.applyFiles = func() error { return os.WriteFile(target, payload, 0644) }
 		p.Preview = append(p.Preview, "WARP独立DNS → "+strings.Join(servers, ", "))
-		p.Summary = "更新WARP独立DNS"
+		p.Summary = "更新WARP独立DNS → " + strings.Join(servers, "、")
 		p.Warnings = append(p.Warnings, "仅更新WARP隔离解析文件，保留原文件inode供运行中的绑定挂载读取；未确认将恢复原内容。")
 		return nil
 	}
@@ -209,7 +209,7 @@ func (n *Network) planDNS(p *NetworkPlan, data M) error {
 		}
 		return nil
 	}
-	p.Summary = fmt.Sprintf("更新 %s DNS", iface)
+	p.Summary = fmt.Sprintf("更新 %s DNS → %s", iface, strings.Join(servers, "、"))
 	p.Warnings = append(p.Warnings, "只修改所选配置与活动设备DNS字段，不执行连接up/down或设备reapply。", "未在120秒内确认将恢复配置字段与原生效DNS地址；DHCP DNS的后续变动仍由NetworkManager管理。")
 	return nil
 }

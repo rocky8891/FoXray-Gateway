@@ -29,6 +29,9 @@ func (n *Network) batchPreview(data M) (*NetworkPlan, error) {
 	seen := map[string]bool{}
 	for _, value := range items {
 		item := obj(value)
+		if kind == "firewall" && str(item["kind"]) == "zone-policy" {
+			return nil, errors.New("区域策略须单独预览和确认，不支持批量变更")
+		}
 		identity := str(item["id"])
 		if kind == "interfaces" {
 			identity = str(item["name"])
@@ -68,6 +71,9 @@ func (n *Network) batchPreview(data M) (*NetworkPlan, error) {
 	p.Warnings = uniq(p.Warnings)
 	if len(changes) > 0 {
 		p.persist = M{"changes": changes}
+	}
+	for i := len(p.undo) - 1; i >= 0; i-- {
+		p.Rollback = append(p.Rollback, printableCommand(p.undo[i].Args))
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()

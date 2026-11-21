@@ -135,6 +135,8 @@ export interface Operation {
   details: Dict;
 }
 export interface Plan {
+  details?: Dict;
+  rollback?: string[];
   zone_changes?: {
     interface: string;
     target_zone: string;

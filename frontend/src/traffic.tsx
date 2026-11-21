@@ -1,4 +1,5 @@
 import { ResetFilters } from "./list_controls";
+import { AdaptiveSearch } from "./adaptive_search";
 import { SortIcon as ArrowUpDown } from "./resource_controls";
 import { SortHeading } from "./list_controls";
 import { NodeManagementIcon, TrafficRangeIcon } from "./requirement_icons";
@@ -22,6 +23,7 @@ import {
   SlidersHorizontal,
   Table2,
   Sigma,
+  Search,
 } from "lucide-react";
 
 import { list, text, timestamp, type Dict, type State } from "./api";
@@ -80,6 +82,7 @@ export function TrafficPage({
   viewControl?: React.ReactNode;
 }) {
   const [historySettings, setHistorySettings] = useState(false);
+  const [statisticsQuery, setStatisticsQuery] = useState("");
   const [aggregation, setAggregation] = useState("auto");
   const chartWindow = useTrafficWindow();
   const module =
@@ -666,7 +669,8 @@ export function TrafficPage({
             <ErrorLine error={history.error} />
             <Table
               columnSizingKey={"traffic-" + module}
-              rows={rows}
+              toolbar={<div className="statistics-detail-tools"><AdaptiveSearch><Search size={18} /><input aria-label="搜索流量统计" placeholder={isWireGuard ? "搜索接口、类型或状态" : "搜索节点、类型或状态"} value={statisticsQuery} onChange={e=>setStatisticsQuery(e.target.value)} /></AdaptiveSearch><ResetFilters active={!!statisticsQuery} summary="流量统计搜索" onClick={()=>setStatisticsQuery("")} /></div>}
+              rows={rows.filter(row => statisticsQuery.trim().toLowerCase().split(/\s+/).every(term => [row.name,row.source,row.status].join(" ").toLowerCase().includes(term)))}
               total={all.length}
               columns={columns}
               rowKey={(r) => String(r.id)}
