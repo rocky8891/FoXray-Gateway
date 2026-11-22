@@ -74,6 +74,7 @@ export function FirewallPage({ act }: { act: Act }) {
       encodeURIComponent(zone),
     15000,
   );
+  const serviceResource=useResource<Dict>("/api/network/firewall/service?driver="+encodeURIComponent(driver),5000);
   const [lastRead, setLastRead] = useState(0), [refreshing, setRefreshing] = useState(false);
   useEffect(()=>{if(resource.data)setLastRead(Date.now())},[resource.data]);
   const [selected, setSelected] = useState<Set<string>>(new Set()),
@@ -490,8 +491,8 @@ export function FirewallPage({ act }: { act: Act }) {
                 ))}
             </div>
         </SecondaryNav>
-        <FirewallWorkspace data={resource.data ? {...resource.data,entries:all} : null} error={resource.error || ""} driver={driver} zone={zone} lastRead={lastRead} refreshing={refreshing}
-          refresh={()=>{setRefreshing(true);void resource.refresh().finally(()=>setRefreshing(false))}}
+        <FirewallWorkspace serviceData={serviceResource.data} serviceError={serviceResource.error || ""} rulesLoading={resource.loading} data={resource.data ? {...resource.data,entries:all} : null} error={resource.error || ""} driver={driver} zone={zone} lastRead={lastRead} refreshing={refreshing}
+          refresh={()=>{setRefreshing(true);void Promise.all([resource.refresh(),serviceResource.refresh()]).finally(()=>setRefreshing(false))}}
           changeDriver={value=>{setDriver(value);setCategory("all");localStorage.setItem("foxray.firewall.driver",value);setZone(value==="firewalld"?"public":"host");setSelected(new Set());setQuery("");setProtocol("all");setStatus("all");setOwner("all");setRuleAction("all");setConfigScope("all");setForm(null);setPlan(null);setFailure("")}}
           changeZone={value=>{setZone(value);setSelected(new Set());setQuery("");setProtocol("all");setStatus("all");setOwner("all");setRuleAction("all");setConfigScope("all");setForm(null);setPlan(null);setFailure("")}}
           manageInterfaces={()=>start("add",{kind:"zone-interface",zone,interfaces:[],driver})}

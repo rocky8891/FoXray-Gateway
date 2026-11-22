@@ -47,7 +47,13 @@ func (n *Network) FirewallView(driver, zone string) M {
 		return M{"error": "防火墙类型无效", "types": types}
 	}
 	if driver == "firewalld" {
-		r := n.FirewallSnapshot(zone)
+		var state M
+		for _, v := range types {
+			if v["id"] == driver {
+				state = obj(v["service"])
+			}
+		}
+		r := n.firewallSnapshotWithState(zone, state)
 		r["driver"], r["types"], r["installed"] = driver, types, installed
 		return r
 	}
@@ -348,4 +354,28 @@ func (n *Network) planNativeFirewall(p *NetworkPlan, d M) error {
 	p.Summary = driver + " " + op + " · " + str(item["kind"]) + " · " + firstNonempty(str(item["port"]), str(item["source"]))
 	p.Warnings = append(p.Warnings, "仅操作 FoXray 自有表／链，声明随管理服务启动恢复；不清空系统规则。其他防火墙的拒绝规则仍可能阻止此处放行的流量")
 	return nil
+}
+
+// Lightweight service state, independent of zone/rule inventory.
+func (n *Network) FirewallServiceState(driver string) M {
+	if driver == "" {
+		driver = "firewalld"
+	}
+	result := M{"driver": driver, "installed": false, "checked_at": now()}
+	for _, name := range firewallDrivers {
+		if name == driver {
+			command := map[string]string{"firewalld": "firewall-cmd", "nftables": "nft"}[driver]
+			if command == "" {
+				command = driver
+			}
+			_, err := exec.LookPath(command)
+			result["installed"] = err == nil
+			if driver == "firewalld" || driver == "ufw" {
+				result["firewalld"] = n.app.service(driver)
+			}
+			return result
+		}
+	}
+	result["error"] = "防火墙类型无效"
+	return result
 }

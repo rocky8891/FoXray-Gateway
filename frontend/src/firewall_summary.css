@@ -99,3 +99,10 @@
 .firewall-main-panel .firewall-rules-heading>h3>span{margin-left:0}
 .firewall-main-panel .firewall-rules-heading>h3>.firewall-heading-icon{color:var(--metric-green);margin:0;vertical-align:middle}
 .firewall-workspace .field-title>.firewall-heading-icon,.firewall-workspace .firewall-detail-heading>h3>.firewall-heading-icon{align-self:center;color:var(--metric-green)}
+
+/* Shared typography: scope titles match section titles; policy labels match stat captions. */
+.firewall-workspace .firewall-scope-bar .field>.field-title{font-size:14px;font-weight:600;color:var(--text)}
+.firewall-workspace .firewall-policy-grid>div>span{font-size:12px;line-height:18px;font-weight:650;color:var(--text)}
+.firewall-workspace .firewall-policy-grid strong,.firewall-workspace .firewall-policy-grid code,.firewall-workspace .firewall-policy-grid small,.firewall-workspace .firewall-rule-jump{font-family:inherit;font-size:13px;line-height:22px;font-weight:400;color:var(--accent);text-decoration:none}
+.firewall-workspace .firewall-rule-jump:disabled{color:var(--muted)}
+.firewall-workspace .firewall-address-chip{color:var(--accent)}

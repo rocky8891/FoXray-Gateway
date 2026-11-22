@@ -27,7 +27,7 @@ func main() {
 	}
 	defer app.Close()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		allowed := r.Method == "GET" && r.URL.Path == "/api/network/firewall"
+		allowed := r.Method == "GET" && (r.URL.Path == "/api/network/firewall" || r.URL.Path == "/api/network/firewall/service")
 		if r.Method == "POST" && r.URL.Path == "/api/network/plan" {
 			raw, err := io.ReadAll(io.LimitReader(r.Body, 1048577))
 			input := gateway.M{}

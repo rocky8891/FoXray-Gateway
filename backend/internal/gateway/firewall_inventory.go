@@ -104,7 +104,9 @@ func parseFirewallEntry(zone, storage, raw string) M {
 	return normalized
 }
 func (n *Network) FirewallSnapshot(zone string) M {
-	state := n.app.service("firewalld")
+	return n.firewallSnapshotWithState(zone, n.app.service("firewalld"))
+}
+func (n *Network) firewallSnapshotWithState(zone string, state M) M {
 	result := M{"plans": n.Plans(), "firewalld": state, "complete": false, "entries": []M{}, "zones": []string{}, "managed": []any{}}
 	n.mu.Lock()
 	managed := clone(arr(n.managed["firewall"]))
@@ -143,6 +145,36 @@ func (n *Network) FirewallSnapshot(zone string) M {
 	var wg sync.WaitGroup
 	gate := make(chan struct{}, 4)
 	complete := true
+	runtimeDetails, permanentDetails, icmpTypes := "", "", ""
+	policyReadOK := true
+
+	for _, query := range []string{"runtime-details", "permanent-details", "icmp-types"} {
+		wg.Add(1)
+		go func(query string) {
+			defer wg.Done()
+			gate <- struct{}{}
+			defer func() { <-gate }()
+			args := []string{"firewall-cmd", "--get-icmptypes"}
+			if query != "icmp-types" {
+				args = append(zoneArgs(zone, query == "permanent-details"), "--list-all")
+			}
+			raw, err := n.app.command(6, "", args...)
+			mutex.Lock()
+			defer mutex.Unlock()
+			if err != nil {
+				policyReadOK = false
+				return
+			}
+			switch query {
+			case "runtime-details":
+				runtimeDetails = raw
+			case "permanent-details":
+				permanentDetails = raw
+			default:
+				icmpTypes = raw
+			}
+		}(query)
+	}
 	for _, permanent := range []bool{false, true} {
 		for _, kind := range []string{"port", "rich-rule", "forward-port", "service", "masquerade"} {
 			wg.Add(1)
@@ -235,19 +267,22 @@ func (n *Network) FirewallSnapshot(zone string) M {
 		return str(rows[i]["port"])+str(rows[i]["source"]) < str(rows[j]["port"])+str(rows[j]["source"])
 	})
 	result["entries"], result["complete"] = rows, complete
-	masq, _ := n.queryFirewall(zone, [2]string{"masquerade", ""}, false)
-	result["masquerade"] = masq
-	services, _ := n.app.command(5, "", "firewall-cmd", "--zone="+zone, "--list-services")
-	result["allowed_services"] = strings.Fields(services)
-	details, _ := n.app.command(5, "", "firewall-cmd", "--zone="+zone, "--list-all")
-	zoneInfo := M{}
-	for _, line := range textLines(details) {
-		parts := strings.SplitN(strings.TrimSpace(line), ":", 2)
-		if len(parts) == 2 {
-			zoneInfo[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-		}
-	}
+	zoneInfo := parseZoneDetails(runtimeDetails)
 	result["zone_info"] = zoneInfo
+	result["allowed_services"] = strings.Fields(str(zoneInfo["services"]))
+	if str(zoneInfo["masquerade"]) == "yes" || str(zoneInfo["masquerade"]) == "no" {
+		result["masquerade"] = str(zoneInfo["masquerade"]) == "yes"
+	}
+	live, e1 := parseZonePolicy(runtimeDetails)
+	saved, e2 := parseZonePolicy(permanentDetails)
+	policy := M{"complete": false, "runtime": M{}, "permanent": M{}, "icmp_types": []string{}}
+	if policyReadOK && e1 == nil && e2 == nil {
+		policy["runtime"], policy["permanent"], policy["icmp_types"], policy["complete"] = live, saved, strings.Fields(icmpTypes), true
+		policy["different"] = fingerprint(live) != fingerprint(saved)
+	} else {
+		policy["error"] = "区域运行时、永久策略或ICMP类型未完整读取"
+	}
+	result["zone_policy"] = policy
 	installedServices := []string{}
 	paths, _ := filepath.Glob("/usr/lib/firewalld/services/*.xml")
 	custom, _ := filepath.Glob("/etc/firewalld/services/*.xml")
@@ -255,6 +290,5 @@ func (n *Network) FirewallSnapshot(zone string) M {
 		installedServices = append(installedServices, strings.TrimSuffix(filepath.Base(path), ".xml"))
 	}
 	result["available_services"] = uniq(installedServices)
-	result["zone_policy"] = n.zonePolicySnapshot(zone)
 	return result
 }

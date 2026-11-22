@@ -32,11 +32,14 @@ func parseZoneDetails(raw string) M {
 	return out
 }
 func (n *Network) readZonePolicy(zone string, permanent bool) (firewallZonePolicy, error) {
-	result := firewallZonePolicy{ICMPBlocks: []string{}}
 	raw, err := n.app.command(6, "", append(zoneArgs(zone, permanent), "--list-all")...)
 	if err != nil {
-		return result, errors.New("无法读取区域策略")
+		return firewallZonePolicy{}, errors.New("无法读取区域策略")
 	}
+	return parseZonePolicy(raw)
+}
+func parseZonePolicy(raw string) (firewallZonePolicy, error) {
+	result := firewallZonePolicy{ICMPBlocks: []string{}}
 	data := parseZoneDetails(raw)
 	for _, key := range []string{"target", "masquerade", "icmp-blocks", "icmp-block-inversion"} {
 		if _, ok := data[key]; !ok {

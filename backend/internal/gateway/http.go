@@ -274,6 +274,8 @@ func (a *App) getAPI(w http.ResponseWriter, r *http.Request) {
 		writeResponse(w, 200, a.traffic.historyPolicySnapshot(q.Get("module")))
 	case path == "/api/traffic/history":
 		writeHistoryResponse(w, r, a.traffic.historyContext(r.Context(), q))
+	case path == "/api/network/firewall/service":
+		writeResponse(w, 200, a.network.FirewallServiceState(q.Get("driver")))
 	case path == "/api/network/firewall":
 		writeResponse(w, 200, a.network.FirewallView(q.Get("driver"), q.Get("zone")))
 	case path == "/api/network/interfaces":

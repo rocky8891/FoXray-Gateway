@@ -6,7 +6,8 @@ import { list, record, type Dict } from "./api";
 import { firewallBindings, firewallTargetLabel, firewallViewState } from "./firewall_view_state";
 import "./firewall_summary.css";
 
-export function FirewallWorkspace({ data, error, driver, zone, refresh, changeDriver, changeZone, manageInterfaces, serviceAction, lastRead, refreshing, selectedFilter, filterRules, viewRules, addService,manageSources,editPolicy,configScope,changeScope }: {
+export function FirewallWorkspace({ serviceData,serviceError,rulesLoading,data, error, driver, zone, refresh, changeDriver, changeZone, manageInterfaces, serviceAction, lastRead, refreshing, selectedFilter, filterRules, viewRules, addService,manageSources,editPolicy,configScope,changeScope }: {
+  serviceData:Dict|null;serviceError:string;rulesLoading:boolean;
   data: Dict | null; error: string; driver: string; zone: string;
   refresh: () => void; changeDriver: (value: string) => void; changeZone: (value: string) => void;
   manageInterfaces: () => void; serviceAction: (action: string) => void;
@@ -15,6 +16,7 @@ export function FirewallWorkspace({ data, error, driver, zone, refresh, changeDr
   manageSources:()=>void;editPolicy:()=>void;configScope:string;changeScope:(value:string)=>void;
 }) {
   const view = firewallViewState(data, driver, zone, error), info = view.current && !error ? record(data?.zone_info) : {};
+  const serviceView=firewallViewState(serviceData ? {...serviceData,zone} : data,driver,zone,serviceError || (serviceData ? "" : error));
   const permanentTarget=String(record(record(data?.zone_policy).permanent).target||"");
   const types = list(data?.types), zones = Array.isArray(data?.zones) ? data.zones.map(String) : [];
   const interfaces = firewallBindings(info.interfaces), sources = firewallBindings(info.sources), target = String(info.target || "");
@@ -27,10 +29,10 @@ export function FirewallWorkspace({ data, error, driver, zone, refresh, changeDr
   return <section className="firewall-workspace" aria-label="防火墙状态与管理范围">
     <div className="firewall-service-bar">
       <div className="firewall-service-identity"><div>
-        <div className="firewall-service-title"><h2><FirewallIcon size={20}/><span>{view.native?"防火墙工具":"服务管理"}</span></h2><SettingInfo label="防火墙" text="选择管理工具和查看区域，再管理规则。查看范围不改变网络配置；接口归属、服务启停和规则修改均需先生成变更预览。" /><span className={"firewall-status " + view.tone}><i />{view.label}</span></div>
-        <div className="firewall-service-meta"><span>管理工具：{driver}</span><span>{view.native ? "不提供独立服务状态" : view.autostart == null ? "开机启动：未确认" : "开机启动：" + (view.autostart ? "已开启" : "已关闭")}</span><span className={view.complete ? "muted" : "fair"}>{view.inventoryLabel}</span>{lastRead>0 && view.current && <span>{error ? "上次读取：" : "最近读取："}{new Date(lastRead).toLocaleTimeString('zh-CN',{hour12:false})}</span>}</div>
+        <div className="firewall-service-title"><h2><FirewallIcon size={20}/><span>{view.native?"防火墙工具":"服务管理"}</span></h2><SettingInfo label="防火墙" text="选择管理工具和查看区域，再管理规则。查看范围不改变网络配置；接口归属、服务启停和规则修改均需先生成变更预览。" /><span className={"firewall-status " + serviceView.tone}><i />{serviceView.label}</span></div>
+        <div className="firewall-service-meta"><span>管理工具：{driver}</span><span>{view.native ? "不提供独立服务状态" : serviceView.autostart == null ? "开机启动：未确认" : "开机启动：" + (serviceView.autostart ? "已开启" : "已关闭")}</span><span className={view.complete ? "muted" : "fair"}>{rulesLoading&&!data ? "规则读取中" : view.inventoryLabel}</span>{lastRead>0 && view.current && <span>{error ? "上次读取：" : "最近读取："}{new Date(lastRead).toLocaleTimeString('zh-CN',{hour12:false})}</span>}</div>
       </div></div>
-      <div className="firewall-service-buttons"><Button disabled={refreshing} onClick={refresh}><RefreshCw size={15} />{refreshing ? "刷新中" : "刷新"}</Button>{!view.native && <><Button disabled={!view.canServiceControl} onClick={()=>serviceAction(view.running ? "stop" : "start")}>{view.running ? "停止服务" : "启动服务"}</Button><Button disabled={!view.canServiceControl||view.autostart==null} onClick={()=>serviceAction(view.autostart ? "disable" : "enable")}>{view.autostart ? "关闭自启" : "开启自启"}</Button></>}</div>
+      <div className="firewall-service-buttons"><Button disabled={refreshing} onClick={refresh}><RefreshCw size={15} />{refreshing ? "刷新中" : "刷新"}</Button>{!view.native && <><Button disabled={!serviceView.canServiceControl} onClick={()=>serviceAction(serviceView.running ? "stop" : "start")}>{serviceView.running ? "停止服务" : "启动服务"}</Button><Button disabled={!serviceView.canServiceControl||serviceView.autostart==null} onClick={()=>serviceAction(serviceView.autostart ? "disable" : "enable")}>{serviceView.autostart ? "关闭自启" : "开启自启"}</Button></>}</div>
     </div>
 
     <div className="firewall-scope-bar">
