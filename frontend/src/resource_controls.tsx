@@ -1,4 +1,4 @@
-import { Children, useEffect, useState, type ReactNode } from "react";
+import { Children, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Copy, Download } from "lucide-react";
 
 export function SortIcon({ size = 16 }: { size?: number }) {
@@ -55,6 +55,27 @@ export function Pagination({
   summary?: ReactNode;
   actions?: ReactNode;
 }) {
+  const pageSizeSelect = useRef<HTMLSelectElement>(null);
+  useLayoutEffect(() => {
+    const el=pageSizeSelect.current;
+    if(!el)return;
+    let disposed=false;
+    const measure=()=>{
+      if(disposed)return;
+      const css=getComputedStyle(el),ctx=document.createElement("canvas").getContext("2d");
+      if(!ctx)return;
+      ctx.font=`${css.fontStyle} ${css.fontWeight} ${css.fontSize} ${css.fontFamily}`;
+      const labels=[...el.options].map(option=>option.textContent||"");
+      if(value.autoPageSize!=null)for(let n=1;n<=100;n++)labels.push(`自动（${n} 项/页）`);
+      const textWidth=Math.max(...labels.map(label=>ctx.measureText(label).width));
+      const width=Math.ceil(textWidth+parseFloat(css.paddingLeft)+parseFloat(css.paddingRight)+parseFloat(css.borderLeftWidth)+parseFloat(css.borderRightWidth));
+      el.style.setProperty("--page-size-width",width+"px");
+    };
+    measure();document.fonts.ready.then(measure);
+    const observer=new ResizeObserver(measure);observer.observe(el);
+    window.addEventListener("resize",measure);
+    return ()=>{disposed=true;observer.disconnect();window.removeEventListener("resize",measure)};
+  },[value.autoPageSize,value.pageSize]);
   const [jump, setJump] = useState("");
   const { page, pageCount, count, start, end } = value;
   const pages = [
@@ -110,6 +131,8 @@ export function Pagination({
           <ChevronRight size={16} />
         </button>
         <select
+          ref={pageSizeSelect}
+          className={"pagination-page-size" + (value.autoPageSize != null ? " has-auto" : "")}
           aria-label="每页条数"
           value={value.automatic ? "auto" : value.pageSize}
           onChange={(e) => value.setPageSize(e.target.value === "auto" ? null : Number(e.target.value))}

@@ -1,3 +1,4 @@
+import { ProductIcon } from "./product_icons";
 import { XrayObservationPolicy, DEFAULT_DIRECT_DNS, DEFAULT_PROXY_DNS } from "./xray_observation_policy";
 import { ResetFilters } from "./list_controls";
 import { MarkAllReadButton, ReadBadge, logReadKeys, switchReadKeys, useReadState } from "./read_state";
@@ -875,6 +876,7 @@ export function ServicePanel({
     <Panel className={"component-service-panel " + service + "-service-panel"}>
       <PageHeader
         title="服务管理"
+        icon={<ProductIcon product={service} size={20}/>}
         description={
           service === "xray"
             ? "启动／停止／重启分别执行 systemctl start／stop／restart foxray-engine.service，影响核心连接；启用／停用分别执行 systemctl enable／disable foxray-engine.service，仅修改开机自启。代理接管单独控制。"

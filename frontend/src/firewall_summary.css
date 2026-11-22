@@ -1,7 +1,6 @@
 .firewall-workspace{margin:0 0 20px;min-width:0}
 .firewall-service-bar{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 20px}
 .firewall-service-identity{display:flex;align-items:center;gap:12px;min-width:0}
-.firewall-service-symbol{width:42px;height:42px;flex:none;display:grid;place-items:center;color:var(--accent);border-radius:var(--radius);background:color-mix(in srgb,var(--accent) 10%,transparent)}
 .firewall-service-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.firewall-service-title>strong{font-size:18px;line-height:26px}
 .firewall-service-title>h2{margin:0;font-size:20px;line-height:28px;font-weight:650}.firewall-service-title>.setting-info{align-self:flex-start}
 .firewall-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:22px}.firewall-status>i{width:7px;height:7px;border-radius:var(--radius-pill);background:currentColor}
@@ -90,3 +89,13 @@
 .firewall-stat-button[data-stat="managed"]>strong{color:var(--metric-blue)}
 .firewall-stat-button[data-stat="external"]>strong{color:var(--metric-purple)}
 .firewall-stat-button[data-stat="blocked"]>strong{color:var(--metric-orange)}
+
+.firewall-workspace .firewall-heading-icon,.firewall-main-panel .firewall-heading-icon{flex:none;color:var(--metric-green)}
+.firewall-workspace .firewall-detail-heading>h3>.firewall-heading-icon{color:var(--metric-green)}
+
+.firewall-service-title>h2{display:inline-flex;align-items:center;gap:8px}
+.firewall-service-title>h2>svg{flex:none;color:var(--metric-green)}
+.firewall-main-panel .firewall-rules-heading>h3{display:inline-flex;align-items:center;gap:8px}
+.firewall-main-panel .firewall-rules-heading>h3>span{margin-left:0}
+.firewall-main-panel .firewall-rules-heading>h3>.firewall-heading-icon{color:var(--metric-green);margin:0;vertical-align:middle}
+.firewall-workspace .field-title>.firewall-heading-icon,.firewall-workspace .firewall-detail-heading>h3>.firewall-heading-icon{align-self:center;color:var(--metric-green)}

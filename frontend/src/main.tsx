@@ -298,6 +298,7 @@ function App() {
         if (randomRequest.current === patch) randomRequest.current = null;
       }
     },
+    state?.read_only === true,
   );
   cancelRandom.current = randomTheme.cancel;
   const available = navigation.filter(

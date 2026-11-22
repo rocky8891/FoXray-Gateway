@@ -1033,9 +1033,11 @@ export function sortOverviewNodes(nodes: Node[], sort: NodeTableSort | null) {
 }
 function RandomThemeButton({
   failed,
+  localOnly,
   onClick,
 }: {
   failed: boolean;
+  localOnly?: boolean;
   onClick: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -1068,7 +1070,7 @@ function RandomThemeButton({
         <div id={id} role="tooltip" className="overview-random-help">
           <strong>随机主题</strong>
           <span>
-            {failed
+            {localOnly ? "只读预览：随机效果仅在当前页面试用，不自动保存；可恢复原布局，刷新后恢复正式设置。" : failed
               ? "保存失败，已保留恢复操作；可恢复随机前布局，或再次随机重新计时。"
               : "随机切换卡片排列和各模块样式。1分钟无新随机操作将自动保存当前主页布局，恢复按钮随之消失；连续点击随机会重新计时。恢复可撤销本轮随机。"}
           </span>
@@ -1321,13 +1323,14 @@ export function Home({
               <ThemePaletteIcon size={18} />
             </Button>
           )}
-          {servicesView && act && !state.read_only && randomTheme && (
+          {servicesView && act && randomTheme && (
             <div
               className="overview-random-theme-tools"
               data-random-deadline={randomTheme.deadline || undefined}
             >
               <RandomThemeButton
                 failed={randomTheme.failed}
+                localOnly={randomTheme.localOnly}
                 onClick={() => {
                   randomTheme.shuffle(presentation);
                   setEditing(false);

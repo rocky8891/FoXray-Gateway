@@ -1503,4 +1503,7 @@ html:has(main>.overview-page) .overview-node-table>.table-wrap {overflow-y:auto}
   .table-wrap table.balanced-columns:has(th.node-column-name) :is(th,td).node-column-name {white-space:normal!important;text-align:left}
 }
 
-.table-wrap td small.wg-protection-label{display:inline-flex;align-items:center;gap:5px}.wg-protection-label>.setting-info{align-self:flex-start}
+.table-wrap td small.wg-protection-label{display:flex;align-items:center;gap:5px;width:max-content;max-width:100%;margin-top:4px}.wg-protection-label>.setting-info{align-self:flex-start}
+
+/* Keep the native dropdown arrow clear of the complete pagination caption. */
+.resource-pagination select.pagination-page-size {width:var(--page-size-width,max-content)!important;min-width:0;padding-inline:10px 32px!important;background-position:right 10px center}

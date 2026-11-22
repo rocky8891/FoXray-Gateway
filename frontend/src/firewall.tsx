@@ -1,3 +1,4 @@
+import { ZoneRulesIcon } from "./workspace_icons";
 import { AdaptiveSearch } from "./adaptive_search";
 import { ZoneSourceEditor,ZonePolicyEditor,RichRuleEditor,FirewallChangeDetails,FirewallRuleSummary } from "./firewall_editors";
 import { FirewallWorkspace } from "./firewall_workspace";
@@ -516,7 +517,7 @@ export function FirewallPage({ act }: { act: Act }) {
         {!!resource.data?.error && (
           <p className="hint">{text(resource.data.error)}</p>
         )}
-        <div className="firewall-rules-heading" ref={ruleAnchor}><h3>{native ? "系统规则" : "区域规则"} <span>{native ? driver : zone}</span></h3><span className="muted">{native ? "当前工具规则快照" : ({all:"运行时与永久配置 · 合并展示",runtime:"运行时配置",permanent:"永久配置",difference:"存在差异的配置"} as Record<string,string>)[configScope]}</span></div>
+        <div className="firewall-rules-heading" ref={ruleAnchor}><h3><ZoneRulesIcon size={20} className="firewall-heading-icon"/>{native ? "系统规则" : "区域规则"} <span>{native ? driver : zone}</span></h3><span className="muted">{native ? "当前工具规则快照" : ({all:"运行时与永久配置 · 合并展示",runtime:"运行时配置",permanent:"永久配置",difference:"存在差异的配置"} as Record<string,string>)[configScope]}</span></div>
         <CompactFilters
           before={
             <>

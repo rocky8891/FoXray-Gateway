@@ -656,6 +656,7 @@ export function SettingInfo({
 
 export function Field({
   label,
+  icon,
   titleExtra,
   children,
   hint,
@@ -664,6 +665,7 @@ export function Field({
   validateNumber = false,
 }: {
   label: string;
+  icon?: ReactNode;
   titleExtra?: ReactNode;
   children: ReactNode;
   hint?: string;
@@ -771,6 +773,7 @@ export function Field({
       }}
     >
       <span className="field-title">
+        {icon}
         {label}
         {(info || hint) && (
           <SettingInfo

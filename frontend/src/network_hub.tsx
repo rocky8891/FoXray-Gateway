@@ -1,3 +1,4 @@
+import { LinkReadyIcon } from "./workspace_icons";
 import { ActionMenu } from "./action_menu";
 import { interfaceLinkState, interfaceLinkLabels, interfaceOwner, interfaceOwnerLabels, interfaceEditReason } from "./interface_display";
 import "./interface_refinements.css";
@@ -10,7 +11,7 @@ import { CompactFilters, ListFilter, SortHeading } from "./list_controls";
 import { DNSPage } from "./dns";
 import { ModuleHeading } from "./hubs";
 import { useState } from "react";
-import { AlertTriangle, RefreshCw, Search, Network, Activity, Power, Layers } from "lucide-react";
+import { AlertTriangle, RefreshCw, Search, Network, Power, Layers } from "lucide-react";
 import { api, errorMessage, list, text, type Dict, type Plan } from "./api";
 import {
   Button,
@@ -400,7 +401,7 @@ function Interfaces({ act }: { act: Act }) {
         <div className="network-stat-grid interface-stat-grid" aria-label="接口统计与筛选">
           <button type="button" className="network-stat-card" disabled={!ready} aria-label="显示全部接口" onClick={()=>{setQuery("");setColumnFilters({});selection.setSelected(new Set())}}><Network size={19}/><strong>{ready?allRows.length:"—"}</strong><span>接口总数</span><small>全部接口 · 点击清除搜索与列筛选</small></button>
           <div className="network-stat-card managed" data-filter-active={!!columnFilters.state}><Power size={19}/><strong>{ready?searchedRows.filter(r=>r.admin_up).length:"—"} / {ready?searchedRows.filter(r=>!r.admin_up).length:"—"}</strong><span>管理状态 · 启用／停用</span><div className="interface-stat-switch">{["已启用","已停用"].map(value=><button type="button" key={value} disabled={!ready} aria-label={"筛选"+value+"接口"} aria-pressed={columnFilters.state===value} onClick={()=>chooseFilter("state",value)}>{value}</button>)}</div></div>
-          <div className="network-stat-card enabled" data-filter-active={!!columnFilters.link}><Activity size={19}/><strong>{ready?searchedRows.filter(r=>interfaceLinkState(r)==="ready").length:"—"}</strong><span>链路就绪</span><div className="interface-stat-switch">{["ready","down","unknown"].map(key=><button type="button" key={key} disabled={!ready} aria-label={"筛选"+interfaceLinkLabels[key as keyof typeof interfaceLinkLabels]+"接口"} aria-pressed={columnFilters.link===interfaceLinkLabels[key as keyof typeof interfaceLinkLabels]} onClick={()=>chooseFilter("link",interfaceLinkLabels[key as keyof typeof interfaceLinkLabels])}>{({ready:"就绪",down:"未就绪",unknown:"未确认"} as Record<string,string>)[key]} {ready?searchedRows.filter(r=>interfaceLinkState(r)===key).length:"—"}</button>)}</div></div>
+          <div className="network-stat-card enabled" data-filter-active={!!columnFilters.link}><LinkReadyIcon size={19}/><strong>{ready?searchedRows.filter(r=>interfaceLinkState(r)==="ready").length:"—"}</strong><span>链路就绪</span><div className="interface-stat-switch">{["ready","down","unknown"].map(key=><button type="button" key={key} disabled={!ready} aria-label={"筛选"+interfaceLinkLabels[key as keyof typeof interfaceLinkLabels]+"接口"} aria-pressed={columnFilters.link===interfaceLinkLabels[key as keyof typeof interfaceLinkLabels]} onClick={()=>chooseFilter("link",interfaceLinkLabels[key as keyof typeof interfaceLinkLabels])}>{({ready:"就绪",down:"未就绪",unknown:"未确认"} as Record<string,string>)[key]} {ready?searchedRows.filter(r=>interfaceLinkState(r)===key).length:"—"}</button>)}</div></div>
           <div className="network-stat-card interface-kind-card" data-filter-active={!!(columnFilters.type||columnFilters.owner)}><Layers size={19}/><span className="interface-kind-title">类型与来源<SettingInfo label="类型与来源" text="按内核接口类型与后端明确管理归属筛选。来源为系统接口不等于只读；模块维护接口在对应模块操作，其他修改仍需预览和确认。"/></span><Field label="类型"><select aria-label="接口类型筛选" value={columnFilters.type||""} onChange={e=>{setColumnFilters(old=>({...old,type:e.target.value}));selection.setSelected(new Set())}}><option value="">全部类型</option>{types.map(type=><option key={type} value={type}>{type}（{searchedRows.filter(r=>String(r.type||"未上报")===type).length}）</option>)}</select></Field><Field label="来源"><select aria-label="接口来源筛选" value={columnFilters.owner||""} onChange={e=>{setColumnFilters(old=>({...old,owner:e.target.value}));selection.setSelected(new Set())}}><option value="">全部来源</option>{Object.values(interfaceOwnerLabels).map(label=><option key={label} value={label}>{label}（{searchedRows.filter(r=>interfaceOwnerLabels[interfaceOwner(r)]===label).length}）</option>)}</select></Field></div>
         </div>
         <CompactFilters

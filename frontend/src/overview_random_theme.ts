@@ -11,6 +11,7 @@ type Trial = {
 };
 type Committed = { display: Dict; expected: Dict };
 export type HomeRandomTheme = {
+  localOnly?: boolean;
   values: Dict;
   pending: boolean;
   saving: boolean;
@@ -40,13 +41,14 @@ function display(values: Dict): Dict {
 export function useOverviewRandomTheme(
   presentation: unknown,
   save: (values: Dict) => Promise<boolean>,
+  localOnly = false,
 ): HomeRandomTheme {
   const [trial, setTrial] = useState<Trial | null>(null),
     [committed, setCommitted] = useState<Committed | null>(null);
   const [saving, setSaving] = useState(false),
     [failed, setFailed] = useState(false);
-  const latest = useRef({ presentation: record(presentation), save });
-  latest.current = { presentation: record(presentation), save };
+  const latest = useRef({ presentation: record(presentation), save, localOnly });
+  latest.current = { presentation: record(presentation), save, localOnly };
   const active = useRef<Trial | null>(null),
     visible = useRef<Dict | null>(null),
     generation = useRef(0),
@@ -60,7 +62,7 @@ export function useOverviewRandomTheme(
   const enqueue = useCallback(
     (version: number, patch: Dict, done: () => void) => {
       const request = serial.current.then(async () => {
-        if (!alive.current || version !== generation.current) return false;
+        if (latest.current.localOnly || !alive.current || version !== generation.current) return false;
         setSaving(true);
         wrote.current = true;
         try {
@@ -90,7 +92,7 @@ export function useOverviewRandomTheme(
     wrote.current = false;
   };
   useEffect(() => {
-    if (!trial || trial.deadline === null) return;
+    if (localOnly || !trial || trial.deadline === null) return;
     const version = trial.version;
     const timer = setTimeout(
       () => {
@@ -111,7 +113,7 @@ export function useOverviewRandomTheme(
       Math.max(0, trial.deadline - Date.now()),
     );
     return () => clearTimeout(timer);
-  }, [trial?.version, trial?.deadline, enqueue]);
+  }, [trial?.version, trial?.deadline, enqueue, localOnly]);
   useEffect(() => {
     if (
       committed &&
@@ -154,7 +156,7 @@ export function useOverviewRandomTheme(
       baseline,
       display: shown,
       version: ++generation.current,
-      deadline: Date.now() + 60000,
+      deadline: localOnly ? null : Date.now() + 60000,
     });
   };
   const restore = () => {
@@ -163,9 +165,9 @@ export function useOverviewRandomTheme(
     const version = ++generation.current,
       patch = current.baseline,
       shown = display(patch);
-    const needsWrite =
+    const needsWrite = !localOnly && (
       wrote.current ||
-      !same(serviceThemeSnapshot(display(latest.current.presentation)), patch);
+      !same(serviceThemeSnapshot(display(latest.current.presentation)), patch));
     update(null);
     setFailed(false);
     visible.current = { ...latest.current.presentation, ...shown };
@@ -179,6 +181,7 @@ export function useOverviewRandomTheme(
     }
   };
   const saveNow = (extra: Dict) => {
+    if (localOnly) return Promise.resolve(false);
     const current = active.current;
     if (!current) return Promise.resolve(false);
     const shown = {
@@ -192,6 +195,7 @@ export function useOverviewRandomTheme(
     return enqueue(version, patch, () => finish(patch, display(patch)));
   };
   return {
+    localOnly,
     values: trial?.display || committed?.display || {},
     pending: !!trial,
     saving,

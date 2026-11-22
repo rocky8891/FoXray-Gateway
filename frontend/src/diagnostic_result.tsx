@@ -1,3 +1,4 @@
+import { logReadKeys, useReadState } from "./read_state";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, CircleAlert, LoaderCircle } from "lucide-react";
 import {
@@ -12,11 +13,15 @@ import { JsonDetails, PageHeader, Panel } from "./ui";
 import type { Act } from "./nodes";
 
 export function useDiagnosticRunner(act: Act) {
+  const {markRead}=useReadState();
   const [job, setJob] = useState(""),
     [pending, setPending] = useState(false),
     [message, setMessage] = useState(""),
     [result, setResult] = useState<Operation | null>(null);
   const generation = useRef(0);
+  useEffect(()=>{
+    if(result)markRead([...logReadKeys(result),...(job?["task:"+job]:[])]);
+  },[result,job,markRead]);
   const run = async (path: string, data: unknown) => {
     setResult(null);
     setMessage("正在提交诊断…");
