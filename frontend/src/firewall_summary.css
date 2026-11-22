@@ -38,7 +38,7 @@
 .firewall-zone-name>span{font-size:11px;color:var(--muted)}
 .firewall-workspace .firewall-binding-list>div{grid-template-columns:90px minmax(0,1fr);gap:12px}
 .firewall-stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-.firewall-workspace .firewall-stat-button.button{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;text-align:left;min-height:100px;height:auto;padding:12px;min-width:0;white-space:normal;font-weight:400;background:color-mix(in srgb,var(--button),transparent 55%);border:1px solid transparent}
+.firewall-workspace .firewall-stat-button.button{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;text-align:left;min-height:100px;height:auto;padding:12px;min-width:0;white-space:normal;font-weight:400;background:var(--status-card-bg);border:1px solid transparent}
 .firewall-workspace .firewall-stat-button.button.is-selected{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--button))}
 .firewall-stat-button>strong{font-size:24px;line-height:30px;font-weight:650;max-width:100%;overflow-wrap:anywhere}
 .firewall-stat-button>span{font-size:12px;line-height:18px;color:var(--text)}
@@ -84,4 +84,9 @@
 .firewall-workspace .setting-info,.firewall-dialog .setting-info{align-self:flex-start;margin-block-start:0;vertical-align:top}
 @media(min-width:600px) and (max-width:799px){.firewall-workspace .firewall-scope-fields{flex-basis:100%;grid-template-columns:repeat(2,minmax(0,1fr))}.firewall-workspace .firewall-view-mode{margin-left:0}.firewall-workspace .firewall-view-mode>.field{grid-template-columns:auto minmax(160px,1fr)}}
 
-.firewall-workspace .firewall-stat-button.button:not(.is-selected):hover{background:color-mix(in srgb,var(--button),transparent 40%)}
+.firewall-workspace .firewall-stat-button.button:not(.is-selected):hover{background:var(--status-card-bg)}
+
+.firewall-stat-button>strong{color:var(--metric-green)}
+.firewall-stat-button[data-stat="managed"]>strong{color:var(--metric-blue)}
+.firewall-stat-button[data-stat="external"]>strong{color:var(--metric-purple)}
+.firewall-stat-button[data-stat="blocked"]>strong{color:var(--metric-orange)}

@@ -15,15 +15,17 @@ export function SortIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-export function usePagination<T>(rows: T[], resetKey = "", maxPageSize = 100) {
+export function usePagination<T>(rows: T[], resetKey = "", maxPageSize = 100, autoPageSize?: number) {
   const [page, setPage] = useState(1),
-    [requestedSize, setSize] = useState(10);
-  const pageSize = Math.max(1, Math.min(requestedSize, maxPageSize));
+    [requestedSize, setSize] = useState<number | null>(null);
+  const pageSize = Math.max(1, Math.min(requestedSize ?? autoPageSize ?? 10, maxPageSize));
   useEffect(() => setPage(1), [resetKey]);
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const current = Math.min(page, pageCount),
     start = (current - 1) * pageSize;
   return {
+    automatic: requestedSize === null && autoPageSize != null,
+    autoPageSize,
     items: rows.slice(start, start + pageSize),
     page: current,
     pageSize,
@@ -33,7 +35,7 @@ export function usePagination<T>(rows: T[], resetKey = "", maxPageSize = 100) {
     count: rows.length,
     setPage: (value: number) =>
       setPage(Math.max(1, Math.min(value, pageCount))),
-    setPageSize: (value: number) => {
+    setPageSize: (value: number | null) => {
       setSize(value);
       setPage(1);
     },
@@ -109,9 +111,10 @@ export function Pagination({
         </button>
         <select
           aria-label="每页条数"
-          value={value.pageSize}
-          onChange={(e) => value.setPageSize(Number(e.target.value))}
+          value={value.automatic ? "auto" : value.pageSize}
+          onChange={(e) => value.setPageSize(e.target.value === "auto" ? null : Number(e.target.value))}
         >
+          {value.autoPageSize != null && <option value="auto">自动（{value.autoPageSize} 项/页）</option>}
           {[...new Set([value.pageSize, 10, 20, 50, 100])].sort((a,b)=>a-b).map((n) => (
             <option key={n} value={n}>
               {n} 项/页
@@ -163,6 +166,7 @@ export function PaginatedCards({
   resetKey = "",
   className = "cards two",
   pageSizeLimit,
+  autoPageSize,
 }: {
   children: ReactNode;
   total?: number;
@@ -170,9 +174,10 @@ export function PaginatedCards({
   resetKey?: string;
   className?: string;
   pageSizeLimit?: number;
+  autoPageSize?: number;
 }) {
   const items = Children.toArray(children),
-    value = usePagination(items, resetKey, pageSizeLimit);
+    value = usePagination(items, resetKey, pageSizeLimit, autoPageSize);
   return (
     <>
       <div className={className}>{value.items}</div>

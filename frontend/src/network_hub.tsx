@@ -346,43 +346,19 @@ function Interfaces({ act }: { act: Act }) {
     {
       key: "action",
       label: "操作",
-      width:"220px",
+      width:"68px",
       className:"interface-actions-column",
       render: (r) => (
-        <div className="interface-row-actions">
-          <Button onClick={() => setDetails(r)}>详情</Button>
-          <Button
-            disabled={!!r.managed_by_vpn || r.ifname === "lo"}
-            title={interfaceEditReason(r)}
-            onClick={() => {
-              const addresses = list(r.addr_info).filter(
-                  (ip) => ip.scope === "global" && !ip.dynamic && !ip.temporary,
-                ),
-                first = addresses[0];
-              setEditing(r);
-              setAck(false);
-              setFailure("");
-              setEditItem({
-                name: r.ifname,
-                original_address: first
-                  ? String(first.local) + "/" + String(first.prefixlen)
-                  : "",
-                address: first?.local || "",
-                prefix: first?.prefixlen ?? 24,
-                gateway_action: "keep",
-                gateway: "",
-                gateway_metric: 600,
-                activate: false,
-              });
-            }}
-          >
-            编辑IP
-          </Button>
-          <ActionMenu label={text(r.ifname)} triggerLabel="更多" items={[
-            {label:r.admin_up?"停用":"启用",disabled:!!r.managed_by_vpn||r.ifname==="lo",title:interfaceEditReason(r),onClick:()=>{setTarget(r);setAck(false);setFailure("")}},
-            {label:"删除",disabled:!r.can_delete,title:"仅删除FoXray创建、已停用且无地址及引用的虚拟接口",onClick:()=>{setTarget({...r,delete_request:true});setAck(false);setFailure("")}},
-          ]}/>
-        </div>
+        <ActionMenu label={text(r.ifname)} items={[
+          {label:"详情",onClick:()=>setDetails(r)},
+          {label:"编辑",disabled:!!r.managed_by_vpn||r.ifname==="lo",title:interfaceEditReason(r),onClick:()=>{
+            const addresses=list(r.addr_info).filter(ip=>ip.scope==="global"&&!ip.dynamic&&!ip.temporary),first=addresses[0];
+            setEditing(r);setAck(false);setFailure("");
+            setEditItem({name:r.ifname,original_address:first?String(first.local)+"/"+String(first.prefixlen):"",address:first?.local||"",prefix:first?.prefixlen??24,gateway_action:"keep",gateway:"",gateway_metric:600,activate:false});
+          }},
+          {label:r.admin_up?"停用":"启用",disabled:!!r.managed_by_vpn||r.ifname==="lo",title:interfaceEditReason(r),onClick:()=>{setTarget(r);setAck(false);setFailure("")}},
+          {label:"删除",disabled:!r.can_delete,title:"仅删除FoXray创建、已停用且无地址及引用的虚拟接口",onClick:()=>{setTarget({...r,delete_request:true});setAck(false);setFailure("")}},
+        ]}/>
       ),
     },
   ];
@@ -422,9 +398,9 @@ function Interfaces({ act }: { act: Act }) {
           }
         />
         <div className="network-stat-grid interface-stat-grid" aria-label="接口统计与筛选">
-          <button type="button" className="network-stat-card" disabled={!ready} aria-label="显示全部接口" onClick={()=>{setColumnFilters({});selection.setSelected(new Set())}}><Network size={19}/><strong>{ready?searchedRows.length:"—"}</strong><span>接口总数</span><small>当前搜索范围 · 点击清除列筛选</small></button>
-          <div className="network-stat-card" data-filter-active={!!columnFilters.state}><Power size={19}/><strong>{ready?searchedRows.filter(r=>r.admin_up).length:"—"} / {ready?searchedRows.filter(r=>!r.admin_up).length:"—"}</strong><span>管理状态 · 启用／停用</span><div className="interface-stat-switch">{["已启用","已停用"].map(value=><button type="button" key={value} disabled={!ready} aria-label={"筛选"+value+"接口"} aria-pressed={columnFilters.state===value} onClick={()=>chooseFilter("state",value)}>{value}</button>)}</div></div>
-          <div className="network-stat-card" data-filter-active={!!columnFilters.link}><Activity size={19}/><strong>{ready?searchedRows.filter(r=>interfaceLinkState(r)==="ready").length:"—"}</strong><span>链路就绪</span><div className="interface-stat-switch">{["ready","down","unknown"].map(key=><button type="button" key={key} disabled={!ready} aria-label={"筛选"+interfaceLinkLabels[key as keyof typeof interfaceLinkLabels]+"接口"} aria-pressed={columnFilters.link===interfaceLinkLabels[key as keyof typeof interfaceLinkLabels]} onClick={()=>chooseFilter("link",interfaceLinkLabels[key as keyof typeof interfaceLinkLabels])}>{({ready:"就绪",down:"未就绪",unknown:"未确认"} as Record<string,string>)[key]} {ready?searchedRows.filter(r=>interfaceLinkState(r)===key).length:"—"}</button>)}</div></div>
+          <button type="button" className="network-stat-card" disabled={!ready} aria-label="显示全部接口" onClick={()=>{setQuery("");setColumnFilters({});selection.setSelected(new Set())}}><Network size={19}/><strong>{ready?allRows.length:"—"}</strong><span>接口总数</span><small>全部接口 · 点击清除搜索与列筛选</small></button>
+          <div className="network-stat-card managed" data-filter-active={!!columnFilters.state}><Power size={19}/><strong>{ready?searchedRows.filter(r=>r.admin_up).length:"—"} / {ready?searchedRows.filter(r=>!r.admin_up).length:"—"}</strong><span>管理状态 · 启用／停用</span><div className="interface-stat-switch">{["已启用","已停用"].map(value=><button type="button" key={value} disabled={!ready} aria-label={"筛选"+value+"接口"} aria-pressed={columnFilters.state===value} onClick={()=>chooseFilter("state",value)}>{value}</button>)}</div></div>
+          <div className="network-stat-card enabled" data-filter-active={!!columnFilters.link}><Activity size={19}/><strong>{ready?searchedRows.filter(r=>interfaceLinkState(r)==="ready").length:"—"}</strong><span>链路就绪</span><div className="interface-stat-switch">{["ready","down","unknown"].map(key=><button type="button" key={key} disabled={!ready} aria-label={"筛选"+interfaceLinkLabels[key as keyof typeof interfaceLinkLabels]+"接口"} aria-pressed={columnFilters.link===interfaceLinkLabels[key as keyof typeof interfaceLinkLabels]} onClick={()=>chooseFilter("link",interfaceLinkLabels[key as keyof typeof interfaceLinkLabels])}>{({ready:"就绪",down:"未就绪",unknown:"未确认"} as Record<string,string>)[key]} {ready?searchedRows.filter(r=>interfaceLinkState(r)===key).length:"—"}</button>)}</div></div>
           <div className="network-stat-card interface-kind-card" data-filter-active={!!(columnFilters.type||columnFilters.owner)}><Layers size={19}/><span className="interface-kind-title">类型与来源<SettingInfo label="类型与来源" text="按内核接口类型与后端明确管理归属筛选。来源为系统接口不等于只读；模块维护接口在对应模块操作，其他修改仍需预览和确认。"/></span><Field label="类型"><select aria-label="接口类型筛选" value={columnFilters.type||""} onChange={e=>{setColumnFilters(old=>({...old,type:e.target.value}));selection.setSelected(new Set())}}><option value="">全部类型</option>{types.map(type=><option key={type} value={type}>{type}（{searchedRows.filter(r=>String(r.type||"未上报")===type).length}）</option>)}</select></Field><Field label="来源"><select aria-label="接口来源筛选" value={columnFilters.owner||""} onChange={e=>{setColumnFilters(old=>({...old,owner:e.target.value}));selection.setSelected(new Set())}}><option value="">全部来源</option>{Object.values(interfaceOwnerLabels).map(label=><option key={label} value={label}>{label}（{searchedRows.filter(r=>interfaceOwnerLabels[interfaceOwner(r)]===label).length}）</option>)}</select></Field></div>
         </div>
         <CompactFilters

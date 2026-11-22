@@ -192,12 +192,9 @@ function MenuLayer({
                 }
               }}
             >
-              {(/编辑|^(开启.+|关闭.+|启用|停用)/.test(action.label)
-                ? labelIcon(action.label, 16)
-                : action.icon) ||
-                labelIcon(action.label, 15) || (
-                  <CircleDot size={15} aria-hidden="true" />
-                )}
+              {labelIcon(action.label, 15) || action.icon || (
+                <CircleDot size={15} aria-hidden="true" />
+              )}
               <span>{action.label}</span>
               {action.items?.length && (
                 <ChevronRight

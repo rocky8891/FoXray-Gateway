@@ -1216,20 +1216,22 @@ export function Home({
     page === "nodes" ? (layout === "single" ? "single" : "grid") : layout,
     move,
   );
-  const [viewportCapacity, setViewportCapacity] = useState(4);
+  const [viewportCapacity,setViewportCapacity] = useState(6);
   useLayoutEffect(() => {
     if (preview || page !== "nodes") return;
     const panel = editRoot.current?.querySelector<HTMLElement>(".dashboard-nodes");
     if (!panel) return;
     const measure = () => {
-      const style = getComputedStyle(panel);
-      const footer = panel.querySelector<HTMLElement>(".resource-pagination");
-      const usable = Math.max(80, panel.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - (footer?.offsetHeight || 40) - 24);
       const columns = tableView || layout === "single" || panel.clientWidth < 680 ? 1 : 2;
-      const count = tableView ? Math.max(1, Math.floor((usable - 56) / 72)) : Math.max(1, Math.floor(usable / 230)) * columns;
       panel.style.setProperty("--home-node-columns", String(columns));
-      panel.style.setProperty("--home-node-rows", String(Math.max(1, Math.floor(usable / 230))));
-      setViewportCapacity(old => old === count ? old : count);
+      const css=getComputedStyle(panel),footer=panel.querySelector<HTMLElement>(".resource-pagination");
+      const viewport=panel.querySelector<HTMLElement>(".paged-overview,.overview-node-table>.table-wrap");
+      const usable=Math.max(50,viewport?.clientHeight||panel.clientHeight-parseFloat(css.paddingTop)-parseFloat(css.paddingBottom)-(footer?.offsetHeight||44)-16);
+      const head=panel.querySelector("thead")?.getBoundingClientRect().height||40;
+      const count=tableView?Math.max(1,Math.floor((usable-head)/72)):Math.max(1,Math.floor((usable+10)/230))*columns;
+      setViewportCapacity(old=>old===count?old:Math.min(100,count));
+      const rowCount=Math.max(1,Math.floor((usable+10)/230));
+      panel.style.setProperty("--home-node-card-height",Math.min(230,Math.floor((usable-10*(rowCount-1))/rowCount))+"px");
     };
     const observer = new ResizeObserver(measure);
     observer.observe(panel);
@@ -1510,7 +1512,7 @@ export function Home({
             {tableView && orderedNodes.length > 0 ? (
               <NodeTable
                 nodes={sortOverviewNodes(orderedNodes, tableSort)}
-                pageSizeLimit={preview ? undefined : viewportCapacity}
+                autoPageSize={preview ? undefined : viewportCapacity}
                 sort={tableSort || undefined}
                 onSort={(key) =>
                   setTableSort((old) => ({
@@ -1529,7 +1531,7 @@ export function Home({
             ) : (
               <PaginatedCards
                 className="paged-overview"
-                pageSizeLimit={preview ? undefined : viewportCapacity}
+                autoPageSize={preview ? undefined : viewportCapacity}
                 resetKey={orderedNodes.map((n) => n.id).join(",")}
               >
                 {orderedNodes.map((node) => (
@@ -1565,8 +1567,10 @@ export function NodeTable({
   total,
   selectedCount,
   pageSizeLimit,
+  autoPageSize,
 }: {
   pageSizeLimit?: number;
+  autoPageSize?: number;
   total?: number;
   selectedCount?: number;
   onOpen?: (node: Node) => void;
@@ -1631,6 +1635,7 @@ export function NodeTable({
     {
       key: "name",
       label: "节点",
+      className: "node-column-name",
       heading: label("name", "节点"),
       render: (n) =>
         onOpen ? (
@@ -1650,30 +1655,35 @@ export function NodeTable({
     },
     {
       key: "group",
+      width: "100px",
       label: "分组",
       heading: label("group", "分组"),
       render: (n) => (n.subscription ? "订阅节点" : "独立节点"),
     },
     {
       key: "protocol",
+      width: "110px",
       label: "协议",
       heading: label("protocol", "协议"),
       render: (n) => n.protocol,
     },
     {
       key: "status",
+      width: "100px",
       label: "状态",
       heading: label("status", "状态"),
       render: (n) => (n.active ? "当前出口" : n.status),
     },
     {
       key: "score",
+      width: "126px",
       label: "最新评分",
       heading: label("score", "最新评分"),
       render: (n) => <ScoreValue node={n} />,
     },
     {
       key: "latency",
+      width: "132px",
       label: "真连接延迟",
       heading: label("latency", "真连接延迟"),
       render: (n) =>
@@ -1681,6 +1691,7 @@ export function NodeTable({
     },
     {
       key: "speed",
+      width: "170px",
       label: "最近带宽",
       heading: label("speed", "最近带宽"),
       render: (n) => (
@@ -1702,6 +1713,7 @@ export function NodeTable({
     <Table
       rows={nodes}
       pageSizeLimit={pageSizeLimit}
+      autoPageSize={autoPageSize}
       total={total}
       selectedCount={selectedCount}
       columns={

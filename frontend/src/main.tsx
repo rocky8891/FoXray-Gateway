@@ -1,3 +1,4 @@
+import { SettingsIcon } from "./requirement_icons";
 import { useOverviewRandomTheme } from "./overview_random_theme";
 import { HomeTools } from "./home_tools";
 import { HomeHeaderContext } from "./home_header";
@@ -20,7 +21,6 @@ import { createRoot } from "react-dom/client";
 import {
   Moon,
   Sun,
-  Settings as SettingsIcon,
   LoaderCircle,
 } from "lucide-react";
 import {

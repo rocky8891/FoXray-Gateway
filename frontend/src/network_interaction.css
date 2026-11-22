@@ -1,12 +1,12 @@
+:root{--status-card-bg:rgb(28,35,47)}
+html[data-theme="light"]{--status-card-bg:var(--card)}
 .network-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0 20px}
-.network-stat-card{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;min-width:0;min-height:126px;padding:16px;border:1px solid transparent;border-radius:var(--radius);background:color-mix(in srgb,var(--button),transparent 55%);color:var(--text);text-align:left;font:inherit}
+.network-stat-card{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;min-width:0;min-height:126px;padding:16px;border:1px solid transparent;border-radius:var(--radius);background:var(--status-card-bg);color:var(--text);text-align:left;font:inherit}
 button.network-stat-card{cursor:pointer}.network-stat-card:disabled{cursor:default;opacity:.65}
-button.network-stat-card:hover{border-color:var(--line);background:color-mix(in srgb,var(--button),transparent 40%)}.network-stat-card[data-filter-active=true],button.network-stat-card[aria-pressed=true]{border-color:var(--accent);background:var(--accent-bg)}
+button.network-stat-card:hover{border-color:var(--line);background:var(--status-card-bg)}.network-stat-card[data-filter-active=true],button.network-stat-card[aria-pressed=true]{border-color:var(--accent);background:var(--accent-bg)}
 .network-stat-card>svg{position:absolute;top:16px;right:16px;color:var(--muted)}.network-stat-card>strong{font-size:26px;line-height:32px;color:var(--accent)}
 .network-stat-card.managed>strong{color:var(--metric-blue)}.network-stat-card.enabled>strong{color:var(--metric-orange)}.network-family-card>strong{color:var(--metric-purple)}
 .network-stat-card>span{font-size:13px;line-height:20px}.network-stat-card>small{font-size:11px;line-height:18px;color:var(--muted)}
-.network-stat-card:not([data-filter-active=true]):not([aria-pressed=true])>strong{color:var(--text)}
-.network-stat-card[data-filter-active=true]>strong,.network-stat-card[aria-pressed=true]>strong{color:var(--accent)}
 .network-family-switch{display:flex;gap:4px;margin-top:2px}.network-family-switch>button{padding:4px 10px;border:1px solid var(--line);border-radius:var(--radius);background:transparent;color:var(--muted);cursor:pointer;font:inherit;font-size:12px}
 .network-family-switch>button[aria-pressed=true]{border-color:var(--accent);background:var(--accent-bg);color:var(--accent)}
 .network-pending-banner{position:sticky;top:calc(var(--header-height,80px) + 8px);z-index:90;margin:12px 0;border:1px solid var(--metric-orange);border-radius:var(--radius);background:var(--card);box-shadow:var(--shadow)}

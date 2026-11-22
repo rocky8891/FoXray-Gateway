@@ -157,7 +157,7 @@ func (n *Network) planRule(p *NetworkPlan, d M) error {
 		p.undo = append(p.undo, Step{Args: append([]string{"ip", familyFor(item), "rule", "del"}, policySpec(item)...)})
 	}
 	if num(item["priority"]) < 16070 {
-		p.Warnings = append(p.Warnings, "该策略优先于 VPN 路由选择，请验证公司与回家 VPN")
+		p.Warnings = append(p.Warnings, "该策略优先于 VPN 路由选择，请验证现有 VPN 连接与远端网段")
 	}
 	p.Summary = "策略路由 " + op + " · 优先级 " + intstr(item["priority"])
 	p.persist = M{"operation": op, "item": item}

@@ -27,6 +27,8 @@ import {
   IPRulesIcon,
   ServerIcon,
   GlobalSettingsIcon,
+  SettingsIcon,
+  ManagementToolsIcon,
   ProxyModeIcon,
   NodeDetectionIcon,
   AutoSwitchIcon,
@@ -102,7 +104,6 @@ import {
   Save,
   Search,
   Server,
-  Settings,
   Shield,
   Square,
   Trash2,
@@ -110,6 +111,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 const definitions: [RegExp, LucideIcon][] = [
+  [/管理归属|管理来源/, ManagementToolsIcon as LucideIcon],
   [/纳管/, AdoptIcon as LucideIcon],
   [/^完成$/, DoneIcon as LucideIcon],
   [/加载更多|加载更早/, LoadMoreIcon as LucideIcon],
@@ -186,7 +188,7 @@ const definitions: [RegExp, LucideIcon][] = [
   [/诊断/, DiagnosticIcon as LucideIcon],
 
   [/^激活$/, CirclePlay],
-  [/^配置$/, Settings],
+  [/^配置$/, SettingsIcon as LucideIcon],
   [/^宫格$/, LayoutGrid],
   [/布局/, LayoutGrid],
   [/^列表$/, List],
@@ -226,7 +228,7 @@ const definitions: [RegExp, LucideIcon][] = [
   [/分组|订阅/, Layers],
   [/查询|搜索/, Search],
   [/筛选|协议|状态/, ListFilter],
-  [/设置/, Settings],
+  [/设置/, SettingsIcon as LucideIcon],
   [/功能模块/, Boxes],
   [/地址|域名|网络/, Globe],
   [/确认|完成/, Check],

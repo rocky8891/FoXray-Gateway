@@ -913,6 +913,7 @@ export function Table<T>({
   keepHeaders = false,
   footerActions,
   pageSizeLimit,
+  autoPageSize,
   paginationResetKey,
   columnSizingKey,
   toolbar,
@@ -926,6 +927,7 @@ export function Table<T>({
   keepHeaders?: boolean;
   footerActions?: ReactNode;
   pageSizeLimit?: number;
+  autoPageSize?: number;
   paginationResetKey?: string;
   columnSizingKey?: string;
   toolbar?: ReactNode;
@@ -943,7 +945,7 @@ export function Table<T>({
     (sum, c) => sum + (edgeWidth(c) || (c.width && /^\d+px$/.test(c.width) ? Number.parseFloat(c.width) : 140)),
     0,
   );
-  const pagination = usePagination(rows, paginationResetKey ?? rows.map(rowKey).join("\u001f"), pageSizeLimit);
+  const pagination = usePagination(rows, paginationResetKey ?? rows.map(rowKey).join("\u001f"), pageSizeLimit, autoPageSize);
   const shown = paginate ? pagination.items : rows;
   const offset = paginate ? pagination.start : 0;
   const tableRef = useRef<HTMLTableElement>(null);

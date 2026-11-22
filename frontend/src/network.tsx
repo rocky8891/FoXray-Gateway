@@ -179,6 +179,7 @@ export function NetworkPage({
       kind === "wireguard"
         ? {
             name: "",
+            remark: "",
             addresses: "",
             dns: "",
             listen_port: 0,
@@ -246,7 +247,8 @@ export function NetworkPage({
             >
               {text(r.name)}
             </button>
-            {r.protected && <small className="accent">回家 VPN · 受保护</small>}
+            {!!r.remark && <small className="wg-interface-remark" title={String(r.remark)}>{String(r.remark)}</small>}
+            {r.protected && <small className="accent wg-protection-label">受保护<SettingInfo label="接口保护" text="保护来源：当前版本内置对 wg-home 接口的保护，修改或启停需要额外确认。这是保护状态，与用途备注分开；备注可在操作 → 编辑备注中修改。实际接口角色可在接口管理的操作 → 编辑 → 角色、路由与 LAN 转发中配置；改变角色不会取消接口保护。" /></small>}
           </>
         ),
       },
@@ -346,6 +348,7 @@ export function NetworkPage({
             }}
             items={[
               { label: "详情", onClick: () => setDetails(r) },
+              { label: "编辑备注", disabled: !r.configured, onClick: () => begin("remark", {name:r.name,remark:r.remark||""}) },
               {
                 label: r.active ? "停止" : "启动",
                 title: "只操作此接口",
@@ -478,7 +481,8 @@ export function NetworkPage({
         render: (r) => (
           <>
             <strong>{text(r.name)}</strong>
-            {r.protected && <small className="accent">回家 VPN · 受保护</small>}
+            {!!r.remark && <small className="wg-interface-remark" title={String(r.remark)}>{String(r.remark)}</small>}
+            {r.protected && <small className="accent wg-protection-label">受保护<SettingInfo label="接口保护" text="保护来源：当前版本内置对 wg-home 接口的保护，修改或启停需要额外确认。这是保护状态，与用途备注分开；备注可在操作 → 编辑备注中修改。实际接口角色可在接口管理的操作 → 编辑 → 角色、路由与 LAN 转发中配置；改变角色不会取消接口保护。" /></small>}
           </>
         ),
       },
@@ -558,6 +562,7 @@ export function NetworkPage({
                   begin(r.active ? "stop" : "start", { name: r.name }),
               }}
               items={[
+                {label:"编辑备注",disabled:!r.configured,onClick:()=>begin("remark",{name:r.name,remark:r.remark||""})},
                 {
                   label: "重启",
                   disabled: !managed || !r.active,
@@ -813,6 +818,7 @@ export function NetworkPage({
             " · " +
             ({
               add: "新增",
+              remark: "编辑备注",
               replace: "编辑",
               delete: "删除",
               start: "启动",
@@ -831,7 +837,7 @@ export function NetworkPage({
             value={form}
             onChange={setForm}
           />
-          {(form.name === "wg-home" ||
+          {operation !== "remark" && (form.name === "wg-home" ||
             operation === "delete" ||
             (kind === "routes" && form.dst === "default") ||
             kind === "wireguard" ||
@@ -893,6 +899,7 @@ export function NetworkPage({
             <Button onClick={() => setPlan(null)}>取消</Button>
             <Button
               variant="primary"
+              disabled={plan.preview_only === true}
               onClick={() => {
                 const id = plan.id;
                 setPlan(null);
@@ -917,6 +924,9 @@ export function NetworkPage({
     </>
   );
 }
+function WireGuardRemarkField({value,onChange}:{value:string;onChange:(value:string)=>void}) {
+  return <Field label="备注" hint="可选，最多200字；用于说明接口用途，不影响接口名称、角色或路由。"><input aria-label="WireGuard接口备注" value={value} maxLength={200} placeholder="例如：回家 VPN、办公网络" onChange={e=>onChange(e.target.value)}/></Field>;
+}
 function NetworkForm({
   kind,
   operation,
@@ -938,6 +948,7 @@ function NetworkForm({
         ? { ...value, name: v, key_id: undefined, public_key: undefined }
         : { ...value, [k]: v },
     );
+  if (kind === "wireguard" && operation === "remark") return <><p>接口：<strong>{String(value.name)}</strong></p><WireGuardRemarkField value={String(value.remark||"")} onChange={v=>set("remark",v)}/><p className="hint">仅修改用途备注，无需停止或重启接口，不改变受保护状态。</p></>;
   if (!["add", "replace"].includes(operation))
     return (
       <p>
@@ -960,6 +971,7 @@ function NetworkForm({
               maxLength={15}
             />
           </Field>
+          <WireGuardRemarkField value={String(value.remark||"")} onChange={v=>set("remark",v)}/>
           <Field label="监听端口" hint="0 为自动">
             <NumberInput
               type="number"

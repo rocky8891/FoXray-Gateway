@@ -1488,3 +1488,19 @@ body .overview-footer > .data-freshness {
     flex-basis: 100%;
   }
 }
+
+/* Page size is a user choice; scroll the chosen page within the overview. */
+html:has(main>.overview-page) .overview-node-grid>.paged-overview {
+  grid-template-rows:none;
+  grid-auto-rows:var(--home-node-card-height,230px);
+  overflow-y:auto;
+  align-content:start;
+}
+html:has(main>.overview-page) .overview-node-table>.table-wrap {overflow-y:auto}
+@media(min-width:721px) {
+  .table-wrap table.balanced-columns:has(th.node-column-name) {min-width:1184px!important}
+  .table-wrap table.balanced-columns:has(th.node-column-name) :is(th,td)[data-column] {width:auto!important;white-space:nowrap!important}
+  .table-wrap table.balanced-columns:has(th.node-column-name) :is(th,td).node-column-name {white-space:normal!important;text-align:left}
+}
+
+.table-wrap td small.wg-protection-label{display:inline-flex;align-items:center;gap:5px}.wg-protection-label>.setting-info{align-self:flex-start}

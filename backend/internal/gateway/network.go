@@ -228,7 +228,7 @@ func (n *Network) Preview(data M) (*NetworkPlan, error) {
 	n.mu.Lock()
 	sourceRevision := fingerprint(n.managed)
 	n.mu.Unlock()
-	if op != "add" && op != "replace" && op != "delete" && op != "start" && op != "stop" && op != "restart" && op != "enable" && op != "disable" && op != "adopt" {
+	if op != "add" && op != "replace" && op != "delete" && op != "start" && op != "stop" && op != "restart" && op != "enable" && op != "disable" && op != "adopt" && !(op == "remark" && kind == "wireguard") {
 		return nil, errors.New("网络操作无效")
 	}
 	if kind == "routes" || kind == "rules" || kind == "firewall" {
@@ -353,6 +353,7 @@ func (n *Network) wireguard() []M {
 		row := M{"name": name, "active": active, "configured": regular("/etc/wireguard/" + name + ".conf"), "service": a.service("wg-quick@" + name), "protected": name == "wg-home", "peers": []M{}}
 		if yes(row["configured"]) {
 			if profile, e := readWG(name); e == nil {
+				row["remark"] = profile.Remark
 				row["listen_port"] = profile.ListenPort
 				row["configured_addresses"] = profile.Addresses
 				row["peers"] = profile.Peers

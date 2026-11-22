@@ -21,6 +21,7 @@ type WGPeer struct {
 	HasPresharedKey bool     `json:"has_preshared_key"`
 }
 type WGProfile struct {
+	Remark        string     `json:"remark"`
 	Network       *WGNetwork `json:"network,omitempty"`
 	PublicKey     string     `json:"public_key"`
 	Name          string     `json:"name"`
@@ -49,7 +50,7 @@ func readWG(name string) (*WGProfile, error) {
 	return parseWG(name, string(raw))
 }
 func parseWG(name, raw string) (*WGProfile, error) {
-	p := &WGProfile{Name: name, Addresses: []string{}, DNS: []string{}, Peers: []WGPeer{}}
+	p := &WGProfile{Name: name, Remark: readWGRemark(raw), Addresses: []string{}, DNS: []string{}, Peers: []WGPeer{}}
 	section := ""
 	peer := -1
 	for _, line := range strings.Split(raw, "\n") {
@@ -128,6 +129,10 @@ func splitComma(s string) []string {
 }
 func (p *WGProfile) render() string {
 	var b strings.Builder
+	if p.Remark != "" {
+		value, _ := json.Marshal(p.Remark)
+		b.WriteString(wgRemarkPrefix + string(value) + "\n")
+	}
 	if p.Network != nil {
 		meta, _ := json.Marshal(p.Network)
 		b.WriteString(wgMetadataPrefix + string(meta) + "\n")
@@ -179,8 +184,11 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 	if e := iface(name); e != nil {
 		return e
 	}
+	if op == "remark" {
+		return n.planWGRemarkFile(plan, name, "/etc/wireguard/"+name+".conf", item["remark"])
+	}
 	if name == "wg-home" && !yes(d["allow_protected"]) {
-		return errors.New("wg-home 为现有回家 VPN，须明确确认本次接口操作")
+		return errors.New("wg-home 为内置保护接口，须明确确认本次接口操作")
 	}
 	a := n.app
 	path := "/etc/wireguard/" + name + ".conf"
@@ -290,6 +298,14 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 		p.PrivateKey = old.PrivateKey
 		p.extras = old.extras
 		p.Network = old.Network
+		p.Remark = old.Remark
+	}
+	if value, present := item["remark"]; present {
+		remark, err := validateWGRemark(value)
+		if err != nil {
+			return err
+		}
+		p.Remark = remark
 	}
 	if !exists && str(item["key_id"]) == "" {
 		return errors.New("请先为新增接口生成独立密钥对")
