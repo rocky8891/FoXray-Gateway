@@ -1519,3 +1519,11 @@ html:has(main>.overview-page) .overview-node-table>.table-wrap {overflow-y:auto}
   outline-color:transparent!important;
   box-shadow:none!important;
 }
+
+/* Host resource values have a separate palette from network transfer metrics. */
+:root{--host-value-load:#e6cf6a;--host-value-cpu:#ff8f9c;--host-value-memory:#62dce8;--host-value-root:#bad77a}
+html[data-theme="light"]{--host-value-load:#806500;--host-value-cpu:#b43d58;--host-value-memory:#007784;--host-value-root:#567319}
+.overview-page .service-host .summary-metric[data-summary-metric="load"]>strong{color:var(--host-value-load)!important}
+.overview-page .service-host .summary-metric[data-summary-metric="cpu"]>strong{color:var(--host-value-cpu)!important}
+.overview-page .service-host .summary-metric[data-summary-metric="memory"]>strong{color:var(--host-value-memory)!important}
+.overview-page .service-host .summary-metric[data-summary-metric="root"]>strong{color:var(--host-value-root)!important}
