@@ -28,7 +28,7 @@ export function firewallViewState(data: Dict | null, driver: string, zone: strin
 
 export function firewallTargetLabel(value: unknown) {
   const raw = String(value || "");
-  return ({ default: "系统默认", ACCEPT: "允许", DROP: "静默丢弃", REJECT: "拒绝并回应", "%%REJECT%%": "拒绝并回应" } as Record<string, string>)[raw] || raw || "未读取";
+  return ({ default: "系统默认（default）", ACCEPT: "允许", DROP: "静默丢弃", REJECT: "拒绝并回应", "%%REJECT%%": "拒绝并回应" } as Record<string, string>)[raw] || raw || "未读取";
 }
 
 export function firewallBindings(value: unknown) {

@@ -60,7 +60,7 @@ func measureDiagnosticHTTPS(ctx context.Context, host, target string, port int, 
 	if err != nil {
 		return result, err
 	}
-	request.Header.Set("User-Agent", "FoXray-Diagnostics/0.9.3")
+	request.Header.Set("User-Agent", "FoXray-Diagnostics/"+Version)
 	client := &http.Client{Transport: transport, Timeout: 20 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	response, err := client.Do(request)
 	if response != nil {

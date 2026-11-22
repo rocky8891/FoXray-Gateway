@@ -103,6 +103,17 @@
 /* Shared typography: scope titles match section titles; policy labels match stat captions. */
 .firewall-workspace .firewall-scope-bar .field>.field-title{font-size:14px;font-weight:600;color:var(--text)}
 .firewall-workspace .firewall-policy-grid>div>span{font-size:12px;line-height:18px;font-weight:650;color:var(--text)}
-.firewall-workspace .firewall-policy-grid strong,.firewall-workspace .firewall-policy-grid code,.firewall-workspace .firewall-policy-grid small,.firewall-workspace .firewall-rule-jump{font-family:inherit;font-size:13px;line-height:22px;font-weight:400;color:var(--accent);text-decoration:none}
+.firewall-workspace .firewall-policy-grid strong,.firewall-workspace .firewall-policy-grid code,.firewall-workspace .firewall-policy-grid small,.firewall-workspace .firewall-rule-jump{font-family:inherit;font-size:13px;line-height:22px;font-weight:400;color:var(--muted);text-decoration:none}
 .firewall-workspace .firewall-rule-jump:disabled{color:var(--muted)}
-.firewall-workspace .firewall-address-chip{color:var(--accent)}
+.firewall-workspace .firewall-address-chip{color:var(--muted)}
+
+.firewall-workspace .firewall-rule-jump:not(:disabled){color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.firewall-target-explanation{margin:0 0 16px;color:var(--muted);font-size:12px;line-height:20px}
+
+.firewall-workspace .firewall-target-inline>span{font-size:13px;line-height:22px;color:var(--muted)}
+.firewall-workspace .firewall-target-inline{gap:4px;align-items:center}
+.firewall-target-inline>.setting-info{align-self:flex-start}
+
+.firewall-workspace .firewall-policy-grid>div>strong,
+.firewall-workspace .firewall-target-inline>span:not(.setting-info),
+.firewall-workspace .firewall-target-inline>strong{color:var(--accent)}

@@ -455,11 +455,11 @@ function App() {
               role="img"
               aria-label="FoXray"
             >
-              <image href="/foxray-icon.svg?v=0.9.3" width="512" height="512" />
+              <image href="/foxray-icon.svg?v=0.9.4" width="512" height="512" />
             </svg>
             <div>
               <div className="brand-title-row">
-                <h1>FoXray Gateway</h1>
+                <h1 aria-label="FoXray Gateway">Fo<span className="brand-name-x">X</span>ray Gateway</h1>
                 <span
                   className="manager-status-dot"
                   data-status={managerStatus}
@@ -587,7 +587,7 @@ function App() {
                   <DataFreshness statusRefresh={statusRefresh} />
                 )}
                 <footer>
-                  {versionLabel(state?.version || "0.9.3")} · Go / React ·
+                  {versionLabel(state?.version || "0.9.4")} · Go / React ·
                   网络变更采用预览、确认与回退
                 </footer>
               </main>

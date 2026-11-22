@@ -1507,3 +1507,15 @@ html:has(main>.overview-page) .overview-node-table>.table-wrap {overflow-y:auto}
 
 /* Keep the native dropdown arrow clear of the complete pagination caption. */
 .resource-pagination select.pagination-page-size {width:var(--page-size-width,max-content)!important;min-width:0;padding-inline:10px 32px!important;background-position:right 10px center}
+
+/* The host's symmetric rectangles use the same framed cells as Xray. */
+.overview-page .service-host.summary-v417.service-style-metrics[class]:not([data-adaptive-circles=true]) .summary-metric{
+  border:1px solid var(--overview-xray-detail-edge,var(--overview-detail-edge,var(--line)))!important;
+  border-radius:var(--radius);
+}
+
+.overview-page .service-host.summary-v417.service-style-metrics[class]:not([data-adaptive-circles=true]) .summary-metric:hover{
+  border-color:transparent!important;
+  outline-color:transparent!important;
+  box-shadow:none!important;
+}
