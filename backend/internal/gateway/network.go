@@ -61,10 +61,10 @@ func (n *Network) rollbackPending() {
 		}
 	}
 }
-func (n *Network) rollback(p *NetworkPlan) {
+func (n *Network) rollback(p *NetworkPlan, uiAction ...string) {
 	_ = rollbackFile(n.specPath(p), n.app.runner)
 	n.refreshPlan(p)
-	n.app.audit("network.rollback", p.Summary+"："+p.Status, p.Status == "rolled_back", M{"plan_id": p.ID})
+	n.app.audit("network.rollback", p.Summary+"："+p.Status, p.Status == "rolled_back", M{"plan_id": p.ID}, uiAction...)
 }
 func (n *Network) Apply(identity string) error { return n.ApplyProgress(n.app.ctx, identity, nil) }
 func (n *Network) ApplyProgress(ctx context.Context, identity string, progress func(string)) error {
@@ -102,14 +102,14 @@ func (n *Network) ApplyProgress(ctx context.Context, identity string, progress f
 	defer func() { p.applyFiles = nil; p.undoFiles = nil; p.precondition = nil; p.postcondition = nil }()
 	if p.applyFiles != nil {
 		if e := p.applyFiles(); e != nil {
-			n.rollback(p)
+			n.rollback(p, uiActionFromContext(ctx))
 			return e
 		}
 	}
 	done := 0
 	for index, s := range p.steps {
 		if ctx.Err() != nil {
-			n.rollback(p)
+			n.rollback(p, uiActionFromContext(ctx))
 			return errors.New("已取消并回退本次变更")
 		}
 		if progress != nil {
@@ -122,34 +122,34 @@ func (n *Network) ApplyProgress(ctx context.Context, identity string, progress f
 			if len(s.Args) > 0 && (s.Args[0] == "systemctl" || s.Args[0] == "firewall-cmd" || s.Args[0] == "nmcli") {
 				_ = n.writeSpec(p, done+1)
 			}
-			n.rollback(p)
+			n.rollback(p, uiActionFromContext(ctx))
 			return e
 		}
 		done++
 		if e := n.writeSpec(p, done); e != nil {
-			n.rollback(p)
+			n.rollback(p, uiActionFromContext(ctx))
 			return e
 		}
 	}
 	if ctx.Err() != nil {
-		n.rollback(p)
+		n.rollback(p, uiActionFromContext(ctx))
 		return errors.New("已取消并回退本次变更")
 	}
 	if p.postcondition != nil {
 		if e := p.postcondition(); e != nil {
-			n.rollback(p)
+			n.rollback(p, uiActionFromContext(ctx))
 			return e
 		}
 	}
 	p.Status = "awaiting_confirmation"
 	if e := n.writeSpec(p, done); e != nil {
-		n.rollback(p)
+		n.rollback(p, uiActionFromContext(ctx))
 		return e
 	}
-	n.app.audit("network.apply", p.Summary+"：等待确认", true, M{"plan_id": p.ID, "expires": p.Expires})
+	n.app.audit("network.apply", p.Summary+"：等待确认", true, M{"plan_id": p.ID, "expires": p.Expires}, uiActionFromContext(ctx))
 	return nil
 }
-func (n *Network) Confirm(identity string) error {
+func (n *Network) Confirm(identity string, uiAction ...string) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	p := n.plans[identity]
@@ -203,7 +203,7 @@ func (n *Network) Confirm(identity string) error {
 	}
 	n.managed = candidate
 	p.Status = "confirmed"
-	n.app.audit("network.confirm", p.Summary+"：已确认", true, M{"plan_id": p.ID})
+	n.app.audit("network.confirm", p.Summary+"：已确认", true, M{"plan_id": p.ID}, uiAction...)
 	return nil
 }
 func (n *Network) Plans() []NetworkPlan {

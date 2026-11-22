@@ -130,7 +130,7 @@ func (a *App) rebuildEndpoints(c, native M) {
 	}
 	c["endpoints"] = eps
 }
-func (a *App) nodeAction(path string, d M) (M, error) {
+func (a *App) nodeAction(path string, d M, uiAction ...string) (M, error) {
 	a.mutate.Lock()
 	defer a.mutate.Unlock()
 	a.mu.RLock()
@@ -175,7 +175,7 @@ func (a *App) nodeAction(path string, d M) (M, error) {
 	}
 	if op == "delete" || op == "disable" {
 		var e error
-		c, active, applied, e = a.subscriptionFallbackLocked(ids, c, active, applied)
+		c, active, applied, e = a.subscriptionFallbackLocked(ids, c, active, applied, uiAction...)
 		if e != nil {
 			return nil, e
 		}
@@ -241,7 +241,7 @@ func (a *App) nodeAction(path string, d M) (M, error) {
 		e = a.persist()
 	}
 	a.mu.Unlock()
-	a.audit("node."+op, "节点操作完成："+op, e == nil, M{"nodes": changes})
+	a.audit("node."+op, "节点操作完成："+op, e == nil, M{"nodes": changes}, uiAction...)
 	return M{"ok": e == nil, "count": len(changes)}, e
 }
 func (a *App) attachWithNative(c, native M) error { return a.attachConfig(c, native) }
@@ -279,7 +279,7 @@ func (a *App) importPreview(d M) (M, error) {
 	}
 	return M{"id": token, "count": len(parsed), "new_count": newCount, "conflicts": conflicts}, nil
 }
-func (a *App) importCommit(d M) (M, error) {
+func (a *App) importCommit(d M, uiAction ...string) (M, error) {
 	a.mutate.Lock()
 	defer a.mutate.Unlock()
 	policy := str(d["policy"])
@@ -323,7 +323,7 @@ func (a *App) importCommit(d M) (M, error) {
 	}
 	delete(a.pendingImports, str(d["id"]))
 	a.mu.Unlock()
-	a.audit("node.import", fmt.Sprintf("导入节点 %d 项，跳过 %d 项", count, skip), e == nil, nil)
+	a.audit("node.import", fmt.Sprintf("导入节点 %d 项，跳过 %d 项", count, skip), e == nil, nil, uiAction...)
 	return M{"ok": e == nil, "count": count, "skipped": skip}, e
 }
 func mergeNodes(native M, parsed []M, subscription, policy string) (int, int, error) {
@@ -381,7 +381,7 @@ func validateSubscriptionURL(s string) error {
 	}
 	return nil
 }
-func (a *App) subscriptionAction(d M) (M, error) {
+func (a *App) subscriptionAction(d M, uiAction ...string) (M, error) {
 	a.mutate.Lock()
 	defer a.mutate.Unlock()
 	a.mu.RLock()
@@ -464,7 +464,7 @@ func (a *App) subscriptionAction(d M) (M, error) {
 		e = a.persist()
 	}
 	a.mu.Unlock()
-	a.audit("subscription.updated", "订阅配置已更新", e == nil, M{"id": identity, "deleted": deleting, "delete_nodes": yes(d["delete_nodes"])})
+	a.audit("subscription.updated", "订阅配置已更新", e == nil, M{"id": identity, "deleted": deleting, "delete_nodes": yes(d["delete_nodes"])}, uiAction...)
 	return M{"ok": e == nil, "id": identity}, e
 }
 func (a *App) updateSubscription(ctx context.Context, j *Job, identity, policy string) error {
@@ -588,7 +588,7 @@ func (a *App) backups() []M {
 	sort.Slice(out, func(i, j int) bool { return num(out[i]["created"]) > num(out[j]["created"]) })
 	return out
 }
-func (a *App) createBackup(name, reason string) (M, error) {
+func (a *App) createBackup(name, reason string, uiAction ...string) (M, error) {
 	a.mu.RLock()
 	data := clone(a.native)
 	a.mu.RUnlock()
@@ -604,10 +604,10 @@ func (a *App) createBackup(name, reason string) (M, error) {
 	}
 	delete(record, "data")
 	delete(record, "checksum")
-	a.audit("backup.create", "已创建节点订阅备份", true, M{"id": identity})
+	a.audit("backup.create", "已创建节点订阅备份", true, M{"id": identity}, uiAction...)
 	return record, nil
 }
-func (a *App) restoreBackup(identity string) error {
+func (a *App) restoreBackup(identity string, uiAction ...string) error {
 	if !regexpID(identity) {
 		return errors.New("备份标识无效")
 	}
@@ -619,7 +619,7 @@ func (a *App) restoreBackup(identity string) error {
 	if str(m["checksum"]) != fingerprint(native) {
 		return errors.New("备份校验失败")
 	}
-	if _, e := a.createBackup("恢复前自动备份", "before_restore"); e != nil {
+	if _, e := a.createBackup("恢复前自动备份", "before_restore", uiAction...); e != nil {
 		return e
 	}
 	a.mutate.Lock()
@@ -676,7 +676,7 @@ func secretField(k string) bool {
 }
 
 // Caller holds mutate; reuse the verified node fallback for subscription operations.
-func (a *App) subscriptionFallbackLocked(ids map[string]bool, c M, active string, applied bool) (M, string, bool, error) {
+func (a *App) subscriptionFallbackLocked(ids map[string]bool, c M, active string, applied bool, uiAction ...string) (M, string, bool, error) {
 	if ids[active] && applied {
 		a.mu.RLock()
 		scores := a.scores()
@@ -691,7 +691,7 @@ func (a *App) subscriptionFallbackLocked(ids map[string]bool, c M, active string
 		}
 		if fallback == "" {
 			if yes(a.warp()["connected"]) {
-				if e := a.proxyControlLocked(M{"enabled": false}); e != nil {
+				if e := a.proxyControlLocked(M{"enabled": false}, uiAction...); e != nil {
 					return c, active, applied, e
 				}
 				applied = false
@@ -700,7 +700,7 @@ func (a *App) subscriptionFallbackLocked(ids map[string]bool, c M, active string
 				return c, active, applied, errors.New("当前出口在所选节点中，且没有已验证回退；请先切换可用出口")
 			}
 		} else {
-			if e := a.proxyControlLocked(M{"enabled": true, "selected": fallback, "mode": "manual"}); e != nil {
+			if e := a.proxyControlLocked(M{"enabled": true, "selected": fallback, "mode": "manual"}, uiAction...); e != nil {
 				return c, active, applied, e
 			}
 			active = fallback
@@ -735,7 +735,7 @@ func subscriptionIDs(d M, native M) (map[string]bool, error) {
 	}
 	return ids, nil
 }
-func (a *App) subscriptionBatch(d M) (M, error) {
+func (a *App) subscriptionBatch(d M, uiAction ...string) (M, error) {
 	a.mutate.Lock()
 	defer a.mutate.Unlock()
 	a.mu.RLock()
@@ -763,7 +763,7 @@ func (a *App) subscriptionBatch(d M) (M, error) {
 	}
 	deletingNodes := op == "delete" && yes(d["delete_nodes"])
 	if op == "disable" || deletingNodes {
-		c, active, applied, e = a.subscriptionFallbackLocked(nodeIDs, c, active, applied)
+		c, active, applied, e = a.subscriptionFallbackLocked(nodeIDs, c, active, applied, uiAction...)
 		if e != nil {
 			return nil, e
 		}
@@ -815,7 +815,7 @@ func (a *App) subscriptionBatch(d M) (M, error) {
 		e = a.persist()
 	}
 	a.mu.Unlock()
-	a.audit("subscription."+op, "订阅批量操作完成", e == nil, M{"count": len(ids)})
+	a.audit("subscription."+op, "订阅批量操作完成", e == nil, M{"count": len(ids)}, uiAction...)
 	return M{"ok": e == nil, "count": len(ids)}, e
 }
 func (a *App) updateSubscriptions(ctx context.Context, j *Job, d M) error {

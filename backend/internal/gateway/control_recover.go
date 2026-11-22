@@ -9,7 +9,7 @@ import (
 
 // Only reclaims management metadata after independently verifying the already
 // running engine. It never restarts a core or attaches/replaces capture rules.
-func (a *App) recoverControl(data M) error {
+func (a *App) recoverControl(data M, uiAction ...string) error {
 	if a.readonly || !yes(data["confirmed"]) {
 		return errors.New("请确认恢复管理状态认领")
 	}
@@ -62,6 +62,6 @@ func (a *App) recoverControl(data M) error {
 	a.lastSwitch = a.activeSince
 	a.mu.Unlock()
 	a.maintainControlState()
-	a.audit("manager.control.recover", "已核验并恢复管理认领；未重载核心或修改网络", true, nil)
+	a.audit("manager.control.recover", "已核验并恢复管理认领；未重载核心或修改网络", true, nil, uiAction...)
 	return nil
 }

@@ -401,11 +401,11 @@ func (a *App) enableTraffic(ctx context.Context, j *Job, enabled bool) error {
 		return e
 	}
 	if !enabled {
-		a.audit("traffic.disable", "已关闭 Xray 统计配置；现有核心将在下次正常更新时移除统计监听", true, nil)
+		a.audit("traffic.disable", "已关闭 Xray 统计配置；现有核心将在下次正常更新时移除统计监听", true, nil, uiActionFromContext(ctx))
 		return nil
 	}
 	if str(a.service("foxray-engine")["state"]) != "active" {
-		a.audit("traffic.enable", "流量统计将在核心下次启动时生效", true, nil)
+		a.audit("traffic.enable", "流量统计将在核心下次启动时生效", true, nil, uiActionFromContext(ctx))
 		return nil
 	}
 	a.mu.RLock()
@@ -428,7 +428,7 @@ func (a *App) enableTraffic(ctx context.Context, j *Job, enabled bool) error {
 			return e
 		}
 	}
-	a.audit("traffic.enable", "Xray 出口统计已启用，监听仅限本机回环", true, M{"address": trafficMetricsAddress})
+	a.audit("traffic.enable", "Xray 出口统计已启用，监听仅限本机回环", true, M{"address": trafficMetricsAddress}, uiActionFromContext(ctx))
 	return nil
 }
 func (t *Traffic) start() {

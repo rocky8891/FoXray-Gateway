@@ -10,7 +10,7 @@ func (a *App) managerServiceStatus() M {
 	return status
 }
 
-func (a *App) managerServiceAction(data M) (M, error) {
+func (a *App) managerServiceAction(data M, uiAction ...string) (M, error) {
 	if a.readonly {
 		return nil, errors.New("只读实例不能操作管理服务")
 	}
@@ -34,14 +34,14 @@ func (a *App) managerServiceAction(data M) (M, error) {
 		details := M{"action": action, "unit": "foxray.service", "scheduler": unit, "delay_seconds": 3, "stage": "scheduled"}
 		message := "管理服务操作已安排，约 3 秒后执行；执行结果以服务状态及 systemd 日志为准"
 		if err != nil {
-			a.audit("manager.service."+action+".scheduled", "管理服务操作未能安排", false, details)
+			a.audit("manager.service."+action+".scheduled", "管理服务操作未能安排", false, details, uiAction...)
 			return nil, err
 		}
-		a.audit("manager.service."+action+".scheduled", message, true, details)
+		a.audit("manager.service."+action+".scheduled", message, true, details, uiAction...)
 		return M{"ok": true, "scheduled": true, "delay_seconds": 3, "message": message}, nil
 	}
 	_, err := a.command(15, "", "systemctl", action, "foxray.service")
-	a.audit("manager.service."+action, "管理服务操作："+action, err == nil, M{"action": action, "unit": "foxray.service"})
+	a.audit("manager.service."+action, "管理服务操作："+action, err == nil, M{"action": action, "unit": "foxray.service"}, uiAction...)
 	if err != nil {
 		return nil, err
 	}

@@ -477,15 +477,15 @@ func (a *App) attachConfig(c, native M) error {
 	_, e = a.command(5, text, "nft", "-f", "-")
 	return e
 }
-func (a *App) proxyControl(data M) error {
+func (a *App) proxyControl(data M, uiAction ...string) error {
 	a.mutate.Lock()
 	defer a.mutate.Unlock()
-	return a.proxyControlLocked(data)
+	return a.proxyControlLocked(data, uiAction...)
 }
-func (a *App) proxyControlLocked(data M) error {
-	return a.proxyControlConfigLocked(data, nil)
+func (a *App) proxyControlLocked(data M, uiAction ...string) error {
+	return a.proxyControlConfigLocked(data, nil, uiAction...)
 }
-func (a *App) proxyControlConfigLocked(data M, prepared M) error {
+func (a *App) proxyControlConfigLocked(data M, prepared M, uiAction ...string) error {
 	a.mu.RLock()
 	c, native := clone(a.cfg), clone(a.native)
 	oldApplied, oldActive := a.applied, a.active
@@ -558,8 +558,8 @@ func (a *App) proxyControlConfigLocked(data M, prepared M) error {
 			a.lanDNS.stop()
 		}
 		a.routes.setDomainCollection(yes(c["domain_identification"]))
-		a.switchRecord(oldActive, target, str(first(data["method"], "manual")), true, "")
-		a.audit("proxy.updated", "代理状态已更新", true, M{"active": target, "enabled": c["enabled"], "route_profile": c["route_profile"]})
+		a.switchRecord(oldActive, target, str(first(data["method"], "manual")), true, "", uiAction...)
+		a.audit("proxy.updated", "代理状态已更新", true, M{"active": target, "enabled": c["enabled"], "route_profile": c["route_profile"]}, uiAction...)
 	}
 	return e
 }
@@ -646,7 +646,7 @@ func validateConfig(c M) error {
 	}
 	return nil
 }
-func (a *App) switchRecord(source, target, method string, ok bool, message string) {
+func (a *App) switchRecord(source, target, method string, ok bool, message string, uiAction ...string) {
 	if ok {
 		a.noteExitSwitch(source, target)
 	}
@@ -654,7 +654,7 @@ func (a *App) switchRecord(source, target, method string, ok bool, message strin
 	if !ok {
 		status = "error"
 	}
-	a.audit("switch.result", message, ok, M{"time": now(), "source": source, "target": target, "method": method, "status": status, "error": message, "duration": 0})
+	a.audit("switch.result", message, ok, M{"time": now(), "source": source, "target": target, "method": method, "status": status, "error": message, "duration": 0}, uiAction...)
 }
 func fingerprint(v any) string {
 	var buf bytes.Buffer

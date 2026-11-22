@@ -49,7 +49,7 @@ func (a *App) queryTaskHistory(before string, hidePeriodic bool) M {
 		if source != "manual" && source != "automatic" {
 			source = "unknown"
 		}
-		items = append(items, M{"id": d["job_id"], "log_id": logID, "title": title, "group": group, "source": source, "status": status, "message": message, "started": first(d["started"], stamp), "finished": first(d["finished"], stamp), "details": arr(d["results"])})
+		items = append(items, M{"id": d["job_id"], "log_id": logID, "ui_action": d["ui_action"], "title": title, "group": group, "source": source, "status": status, "message": message, "started": first(d["started"], stamp), "finished": first(d["finished"], stamp), "details": arr(d["results"])})
 	}
 	if rows.Err() != nil {
 		return M{"items": []M{}, "error": "任务历史读取失败"}

@@ -47,7 +47,7 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 		a.jobs.mu.RLock()
 		result["steps"] = append([]string{}, j.Details...)
 		a.jobs.mu.RUnlock()
-		if err := a.audit("diagnostic.result", diagnosticResultSummary(result), diagnosticError == nil && yes(result["ok"]), result); err != nil {
+		if err := a.audit("diagnostic.result", diagnosticResultSummary(result), diagnosticError == nil && yes(result["ok"]), result, uiActionFromContext(ctx)); err != nil {
 			diagnosticError = fmt.Errorf("诊断已执行，但结果保存失败：%w", err)
 		}
 	}()

@@ -91,7 +91,7 @@ func endpointValid(address string) bool {
 	port, e := strconv.Atoi(p)
 	return e == nil && port >= 1 && port <= 65535 && ip != nil && ip.To4() != nil && ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback()
 }
-func (a *App) warpAction(path string, d M) (M, error) {
+func (a *App) warpAction(path string, d M, uiAction ...string) (M, error) {
 	if !yes(a.components["warp"]) {
 		return nil, errors.New("WARP 未部署")
 	}
@@ -121,7 +121,7 @@ func (a *App) warpAction(path string, d M) (M, error) {
 		return nil, errors.New("该协议的端口不支持")
 	}
 	if op == "discover" || op == "refresh" {
-		job, err := a.submit("WARP 优选端点发现", "warp.discover", func(ctx context.Context, j *Job) error {
+		job, err := a.submitUI(uiActionID(uiAction...), "WARP 优选端点发现", "warp.discover", func(ctx context.Context, j *Job) error {
 			return a.discoverWarp(ctx, j, protocol, p)
 		})
 		return M{"ok": err == nil, "id": job}, err
@@ -130,7 +130,7 @@ func (a *App) warpAction(path string, d M) (M, error) {
 		if !yes(d["confirmed"]) {
 			return nil, errors.New("实际优选会短暂切换 WARP，请先确认")
 		}
-		job, err := a.submit("WARP 官方端点验证优选", "warp.verify", func(ctx context.Context, j *Job) error { return a.verifyBestWarp(ctx, j, protocol) })
+		job, err := a.submitUI(uiActionID(uiAction...), "WARP 官方端点验证优选", "warp.verify", func(ctx context.Context, j *Job) error { return a.verifyBestWarp(ctx, j, protocol) })
 		return M{"ok": err == nil, "id": job}, err
 	}
 	if op == "restore" {
@@ -153,14 +153,14 @@ func (a *App) warpAction(path string, d M) (M, error) {
 		if err != nil {
 			return nil, err
 		}
-		job, err := a.submit("WARP 当前隧道检测", "warp.current-test", func(ctx context.Context, j *Job) error { return a.testCurrentWarp(ctx, j, metrics) })
+		job, err := a.submitUI(uiActionID(uiAction...), "WARP 当前隧道检测", "warp.current-test", func(ctx context.Context, j *Job) error { return a.testCurrentWarp(ctx, j, metrics) })
 		return M{"ok": err == nil, "id": job}, err
 	}
 	if op == "current" || op == "speed-current" {
 		if !yes(a.warpMonitorPolicy()["speed_enabled"]) {
 			return nil, errors.New("WARP 速度检测已关闭")
 		}
-		j, e := a.submit("WARP 当前隧道测速", "probe.warp_speed", func(ctx context.Context, j *Job) error {
+		j, e := a.submitUI(uiActionID(uiAction...), "WARP 当前隧道测速", "probe.warp_speed", func(ctx context.Context, j *Job) error {
 			current := a.warp()
 			if !yes(current["connected"]) {
 				return errors.New("当前 WARP 隧道未连接，未执行下载")
@@ -200,7 +200,7 @@ func (a *App) warpAction(path string, d M) (M, error) {
 		if endpoint != "" && !endpointValid(endpoint) {
 			return nil, errors.New("端点无效")
 		}
-		j, e := a.submit("WARP 端点切换", "warp.activate", func(ctx context.Context, j *Job) error { return a.activateWarp(ctx, j, protocol, endpoint) })
+		j, e := a.submitUI(uiActionID(uiAction...), "WARP 端点切换", "warp.activate", func(ctx context.Context, j *Job) error { return a.activateWarp(ctx, j, protocol, endpoint) })
 		return M{"ok": e == nil, "id": j}, e
 	}
 	if op == "scan" {
@@ -224,7 +224,7 @@ func (a *App) warpAction(path string, d M) (M, error) {
 		if err != nil {
 			return nil, err
 		}
-		j, e := a.submit("WARP 候选端点检测", "warp.scan", func(ctx context.Context, j *Job) error { return a.scanWarp(ctx, j, protocol, targets, metrics) })
+		j, e := a.submitUI(uiActionID(uiAction...), "WARP 候选端点检测", "warp.scan", func(ctx context.Context, j *Job) error { return a.scanWarp(ctx, j, protocol, targets, metrics) })
 		return M{"ok": e == nil, "id": j}, e
 	}
 	return nil, errors.New("WARP 操作不支持")

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Operation, Task } from "./api";
 import { Button } from "./ui";
+import { loadReadState, markResultsRead, readEventName } from "./read_store";
 
 export function ReadAllIcon() {
   return <svg width="18" height="18" viewBox="0 0 1024 1024" fill="currentColor" aria-hidden="true" data-icon="ReadAllIcon">
@@ -14,39 +15,25 @@ export function MarkAllReadButton({ disabled, onClick }: { disabled: boolean; on
   </Button>;
 }
 
-export const switchReadKeys = (row: { time?: unknown; target?: unknown }) =>
-  ["switch:" + String(row.time) + ":" + String(row.target)];
+export const switchReadKeys = (row: { time?: unknown; target?: unknown; ui_action?: unknown }) =>
+  ["switch:" + String(row.time) + ":" + String(row.target), ...(row.ui_action ? ["ui:" + String(row.ui_action)] : [])];
 
-const storageKey = "foxray.results.read.v1";
-const eventName = "foxray:results-read";
-let memory = new Set<string>();
-function load() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
-    if (Array.isArray(saved)) memory = new Set(saved.filter(v => typeof v === "string"));
-  } catch { /* Keep the in-memory state when storage is unavailable. */ }
-  return new Set(memory);
-}
-export const taskReadKeys = (task: Pick<Task, "id" | "log_id">) =>
-  ["task:" + task.id, ...(task.log_id ? ["log:" + task.log_id] : [])];
+export const taskReadKeys = (task: Pick<Task, "id" | "log_id" | "ui_action">) =>
+  ["task:" + task.id, ...(task.log_id ? ["log:" + task.log_id] : []), ...(task.ui_action ? ["ui:" + task.ui_action] : [])];
 export const logReadKeys = (row: Pick<Operation, "id" | "details">) =>
-  ["log:" + row.id, ...(row.details?.job_id ? ["task:" + String(row.details.job_id)] : [])];
+  ["log:" + row.id, ...(row.details?.job_id ? ["task:" + String(row.details.job_id)] : []), ...(row.details?.ui_action ? ["ui:" + String(row.details.ui_action)] : [])];
 export function useReadState() {
-  const [read, setRead] = useState(load);
+  const [read, setRead] = useState(loadReadState);
   useEffect(() => {
-    const sync = () => setRead(load());
-    window.addEventListener(eventName, sync);
+    const sync = () => setRead(loadReadState());
+    window.addEventListener(readEventName, sync);
     window.addEventListener("storage", sync);
-    return () => { window.removeEventListener(eventName, sync); window.removeEventListener("storage", sync); };
+    return () => { window.removeEventListener(readEventName, sync); window.removeEventListener("storage", sync); };
   }, []);
   const markRead = useCallback((keys: string[]) => {
     if (!keys.length) return;
-    const next = load();
-    keys.forEach(key => next.add(key));
-    memory = new Set([...next].slice(-10000));
-    try { localStorage.setItem(storageKey, JSON.stringify([...memory])); } catch { /* Session-only fallback. */ }
-    setRead(new Set(memory));
-    window.dispatchEvent(new Event(eventName));
+    markResultsRead(keys);
+    setRead(loadReadState());
   }, []);
   return { isRead: (keys: string[]) => keys.some(key => read.has(key)), markRead };
 }

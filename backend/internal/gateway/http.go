@@ -155,7 +155,7 @@ func (a *App) getAPI(w http.ResponseWriter, r *http.Request) {
 		a.jobs.mu.RLock()
 		items := []M{}
 		for _, j := range a.jobs.items {
-			items = append(items, M{"id": j.ID, "title": j.Title, "group": j.Group, "source": j.Source, "status": j.Status, "message": j.Message, "started": j.Started, "finished": j.Finished, "details": append([]string{}, j.Details...)})
+			items = append(items, M{"id": j.ID, "title": j.Title, "group": j.Group, "source": j.Source, "ui_action": j.UIAction, "status": j.Status, "message": j.Message, "started": j.Started, "finished": j.Finished, "details": append([]string{}, j.Details...)})
 		}
 		a.jobs.mu.RUnlock()
 		writeResponse(w, 200, M{"tasks": items})
@@ -312,6 +312,7 @@ func (a *App) getAPI(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (a *App) postAPI(r *http.Request, d M) (any, error) {
+	uiAction := uiActionID(r.Header.Get("X-Foxray-UI-Action"))
 	if e := a.moduleRequestAllowed(r.URL.Path, d); e != nil {
 		return nil, e
 	}
@@ -336,7 +337,7 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 				d["url"] = "http://" + net.JoinHostPort(host, "25774") + "/"
 			}
 		}
-		identity, e := a.submit(str(d["module"])+" 模块", "module.settings", func(ctx context.Context, j *Job) error { return a.changeModule(ctx, j, d) })
+		identity, e := a.submitUI(uiAction, str(d["module"])+" 模块", "module.settings", func(ctx context.Context, j *Job) error { return a.changeModule(ctx, j, d) })
 		return M{"ok": e == nil, "id": identity}, e
 	case "/api/modules/komari-check":
 		address := str(d["url"])
@@ -351,11 +352,11 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 	case "/api/system/policy":
 		e := a.host.configure(d)
 		if e == nil {
-			a.audit("monitor.settings", "主机监控设置已更新", true, nil)
+			a.audit("monitor.settings", "主机监控设置已更新", true, nil, uiAction)
 		}
 		return M{"ok": e == nil}, e
 	case "/api/traffic/enable":
-		identity, e := a.submit("出口流量统计设置", "traffic", func(ctx context.Context, j *Job) error { return a.enableTraffic(ctx, j, yes(d["enabled"])) })
+		identity, e := a.submitUI(uiAction, "出口流量统计设置", "traffic", func(ctx context.Context, j *Job) error { return a.enableTraffic(ctx, j, yes(d["enabled"])) })
 		return M{"ok": e == nil, "id": identity}, e
 	case "/api/traffic/policy":
 		var err error
@@ -364,11 +365,11 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 		} else {
 			err = a.traffic.configure(d)
 		}
-		a.audit("monitor.traffic.policy", "流量监控设置已更新", err == nil, nil)
+		a.audit("monitor.traffic.policy", "流量监控设置已更新", err == nil, nil, uiAction)
 		return M{"ok": err == nil}, err
 	case "/api/probe/policy":
 		err := a.configureProbePolicy(d)
-		a.audit("monitor.probe.policy", "节点检测设置已更新", err == nil, nil)
+		a.audit("monitor.probe.policy", "节点检测设置已更新", err == nil, nil, uiAction)
 		return M{"ok": err == nil}, err
 	case "/api/tasks/cancel":
 		a.jobs.mu.Lock()
@@ -384,7 +385,7 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 		err := a.saveWGMonitor(d)
 		return M{"ok": err == nil}, err
 	case "/api/proxy/pause":
-		identity, e := a.submit("断开代理", "proxy.pause", func(ctx context.Context, j *Job) error {
+		identity, e := a.submitUI(uiAction, "断开代理", "proxy.pause", func(ctx context.Context, j *Job) error {
 			a.mutate.Lock()
 			defer a.mutate.Unlock()
 			a.mu.RLock()
@@ -395,7 +396,7 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 					return err
 				}
 			}
-			if err := a.proxyControlLocked(M{"enabled": false}); err != nil {
+			if err := a.proxyControlLocked(M{"enabled": false}, uiAction); err != nil {
 				return err
 			}
 			if !currentWarp && a.moduleEnabled("xray") {
@@ -413,21 +414,21 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 				err = writeJSON(filepath.Join(a.base, "manager-settings.json"), a.settings)
 			}
 			a.mu.Unlock()
-			a.audit("proxy.pause", "已临时断开代理", err == nil, M{})
+			a.audit("proxy.pause", "已临时断开代理", err == nil, M{}, uiAction)
 			return err
 		})
 		return M{"ok": e == nil, "id": identity}, e
 	case "/api/proxy":
-		identity, e := a.submit("Xray 代理模式", "proxy", func(ctx context.Context, j *Job) error {
+		identity, e := a.submitUI(uiAction, "Xray 代理模式", "proxy", func(ctx context.Context, j *Job) error {
 			a.stage(j, "校验配置与 VPN 排除范围")
-			return a.proxyControl(d)
+			return a.proxyControl(d, uiAction)
 		})
 		return M{"ok": e == nil, "id": identity}, e
 	case "/api/rulesets/update":
-		identity, e := a.submit("更新规则集", "rules.update", func(ctx context.Context, j *Job) error { return a.updateRuleSet(ctx, j, str(d["id"])) })
+		identity, e := a.submitUI(uiAction, "更新规则集", "rules.update", func(ctx context.Context, j *Job) error { return a.updateRuleSet(ctx, j, str(d["id"])) })
 		return M{"ok": e == nil, "id": identity}, e
 	case "/api/config":
-		err := a.saveXraySettings(d)
+		err := a.saveXraySettings(d, uiAction)
 		return M{"ok": err == nil}, err
 	case "/api/native/activate":
 		identity := str(d["id"])
@@ -438,18 +439,18 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 			if a.applied {
 				return nil, errors.New("Xray 优先级高于 WARP；管理隧道不会切换当前 Xray 出口")
 			}
-			j, e := a.submit("激活 WARP", "node.switch", func(ctx context.Context, job *Job) error {
+			j, e := a.submitUI(uiAction, "激活 WARP", "node.switch", func(ctx context.Context, job *Job) error {
 				if err := a.serviceAction(ctx, job, "warp", "connect", M{}); err != nil {
 					return err
 				}
-				return a.proxyControl(M{"enabled": false})
+				return a.proxyControl(M{"enabled": false}, uiAction)
 			})
 			return M{"ok": e == nil, "id": j}, e
 		}
 		c["selected"], c["enabled"], c["mode"] = identity, true, "manual"
-		j, e := a.submit("节点切换", "node.switch", func(ctx context.Context, job *Job) error {
+		j, e := a.submitUI(uiAction, "节点切换", "node.switch", func(ctx context.Context, job *Job) error {
 			a.stage(job, "切换出口并验证路由")
-			return a.proxyControl(c)
+			return a.proxyControl(c, uiAction)
 		})
 		return M{"ok": e == nil, "id": j}, e
 	case "/api/probe", "/api/speed":
@@ -462,33 +463,33 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 		if len(ids) == 1 && ids[0] == "warp" {
 			title = map[bool]string{true: "WARP 带宽测速", false: "WARP 真连接检测"}[speed]
 		}
-		j, e := a.submit(title, map[bool]string{true: "probe.speed", false: "probe.latency"}[speed], func(ctx context.Context, j *Job) error { return a.detect(ctx, j, speed, ids) })
+		j, e := a.submitUI(uiAction, title, map[bool]string{true: "probe.speed", false: "probe.latency"}[speed], func(ctx context.Context, j *Job) error { return a.detect(ctx, j, speed, ids) })
 		return M{"ok": e == nil, "id": j}, e
 	case "/api/native/node", "/api/native/batch", "/api/native/view", "/api/native/config":
-		return a.nodeAction(r.URL.Path, d)
+		return a.nodeAction(r.URL.Path, d, uiAction)
 	case "/api/nodes/import/preview":
 		return a.importPreview(d)
 	case "/api/nodes/import/commit":
-		return a.importCommit(d)
+		return a.importCommit(d, uiAction)
 	case "/api/native/subscription":
-		return a.subscriptionAction(d)
+		return a.subscriptionAction(d, uiAction)
 	case "/api/subscriptions/batch":
 		if str(d["operation"]) != "update" {
-			return a.subscriptionBatch(d)
+			return a.subscriptionBatch(d, uiAction)
 		}
-		j, e := a.submit("批量更新订阅", "subscription.update", func(ctx context.Context, j *Job) error { return a.updateSubscriptions(ctx, j, d) })
+		j, e := a.submitUI(uiAction, "批量更新订阅", "subscription.update", func(ctx context.Context, j *Job) error { return a.updateSubscriptions(ctx, j, d) })
 		return M{"ok": e == nil, "id": j}, e
 	case "/api/subscriptions/update":
 		identity := str(d["id"])
-		j, e := a.submit("更新订阅", "subscription.update", func(ctx context.Context, j *Job) error {
+		j, e := a.submitUI(uiAction, "更新订阅", "subscription.update", func(ctx context.Context, j *Job) error {
 			return a.updateSubscription(ctx, j, identity, str(d["conflict_policy"]))
 		})
 		return M{"ok": e == nil, "id": j}, e
 	case "/api/manager/service":
-		return a.managerServiceAction(d)
+		return a.managerServiceAction(d, uiAction)
 	case "/api/services/action":
 		service, action := str(d["service"]), str(d["action"])
-		j, e := a.submit("服务操作 · "+service, "service."+action, func(ctx context.Context, j *Job) error { return a.serviceAction(ctx, j, service, action, d) })
+		j, e := a.submitUI(uiAction, "服务操作 · "+service, "service."+action, func(ctx context.Context, j *Job) error { return a.serviceAction(ctx, j, service, action, d) })
 		return M{"ok": e == nil, "id": j}, e
 	case "/api/monitoring/retention":
 		err := a.saveLatencyRetention(d, r.URL.Query().Get("module"))
@@ -509,7 +510,7 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 		err := a.saveHistoryIntervals(r.URL.Query().Get("module"), d)
 		return M{"ok": err == nil}, err
 	case "/api/monitoring/probe-intervals":
-		err := a.saveProbeIntervals(r.URL.Query().Get("module"), d)
+		err := a.saveProbeIntervals(r.URL.Query().Get("module"), d, uiAction)
 		return M{"ok": err == nil}, err
 	case "/api/monitoring/items":
 		err := a.saveMonitorItems(r.URL.Query().Get("module"), d)
@@ -546,19 +547,19 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 		}
 		e := writeJSON(filepath.Join(a.base, "manager-settings.json"), a.settings)
 		a.mu.Unlock()
-		a.audit("settings.updated", "管理设置已保存", e == nil, nil)
+		a.audit("settings.updated", "管理设置已保存", e == nil, nil, uiAction)
 		return M{"ok": e == nil}, e
 	case "/api/updates/upgrade":
 		service := str(d["service"])
 		if !validUpdateService(service) || !yes(d["confirmed"]) {
 			return nil, errors.New("请确认所选模块的版本更新")
 		}
-		id, err := a.submit("版本更新 · "+service, "version.upgrade."+service, func(ctx context.Context, j *Job) error {
+		id, err := a.submitUI(uiAction, "版本更新 · "+service, "version.upgrade."+service, func(ctx context.Context, j *Job) error {
 			return a.upgradeServiceVersion(ctx, j, service, str(d["version"]))
 		})
 		return M{"ok": err == nil, "id": id}, err
 	case "/api/manager/recover-control":
-		err := a.recoverControl(d)
+		err := a.recoverControl(d, uiAction)
 		return M{"ok": err == nil}, err
 	case "/api/updates/policy":
 		err := a.saveVersionCheckPolicy(d)
@@ -568,38 +569,38 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 		if !validUpdateService(service) {
 			return nil, errors.New("更新模块无效")
 		}
-		j, e := a.submit("版本检查 · "+service, "version.check."+service, func(ctx context.Context, j *Job) error { return a.checkServiceVersion(ctx, j, service) })
+		j, e := a.submitUI(uiAction, "版本检查 · "+service, "version.check."+service, func(ctx context.Context, j *Job) error { return a.checkServiceVersion(ctx, j, service) })
 		return M{"ok": e == nil, "id": j}, e
 	case "/api/settings/check-update":
-		j, e := a.submit("版本更新检查", "version.check", func(ctx context.Context, j *Job) error { return a.checkUpdate(ctx, j) })
+		j, e := a.submitUI(uiAction, "版本更新检查", "version.check", func(ctx context.Context, j *Job) error { return a.checkUpdate(ctx, j) })
 		return M{"ok": e == nil, "id": j}, e
 	case "/api/icmp-policy":
-		err := a.saveXraySettings(M{"icmp_policy": d})
+		err := a.saveXraySettings(M{"icmp_policy": d}, uiAction)
 		return M{"ok": err == nil}, err
 
 	case "/api/backups/create":
-		return a.createBackup(str(d["name"]), "manual")
+		return a.createBackup(str(d["name"]), "manual", uiAction)
 	case "/api/backups/restore":
-		j, e := a.submit("恢复节点与订阅", "backup.restore", func(ctx context.Context, j *Job) error { return a.restoreBackup(str(d["id"])) })
+		j, e := a.submitUI(uiAction, "恢复节点与订阅", "backup.restore", func(ctx context.Context, j *Job) error { return a.restoreBackup(str(d["id"]), uiAction) })
 		return M{"ok": e == nil, "id": j}, e
 	case "/api/warp/action", "/api/warp/scout", "/api/warp/policy":
-		return a.warpAction(r.URL.Path, d)
+		return a.warpAction(r.URL.Path, d, uiAction)
 	case "/api/diagnostics":
-		j, e := a.submit("目标路径诊断", "diagnostic.run", func(ctx context.Context, j *Job) error { return a.diagnose(ctx, j, d) })
+		j, e := a.submitUI(uiAction, "目标路径诊断", "diagnostic.run", func(ctx context.Context, j *Job) error { return a.diagnose(ctx, j, d) })
 		return M{"ok": e == nil, "id": j}, e
 	case "/api/diagnostics/replay":
 		params := a.diagnosticParams(str(d["id"]))
 		if len(params) == 0 {
 			return nil, errors.New("历史诊断参数不存在")
 		}
-		j, e := a.submit("重新执行历史诊断", "diagnostic.run", func(ctx context.Context, j *Job) error { return a.diagnose(ctx, j, params) })
+		j, e := a.submitUI(uiAction, "重新执行历史诊断", "diagnostic.run", func(ctx context.Context, j *Job) error { return a.diagnose(ctx, j, params) })
 		return M{"ok": e == nil, "id": j}, e
 	case "/api/network/wireguard/keys":
 		return a.newWGKey(str(d["name"]))
 	case "/api/network/plan":
 		return a.network.Preview(d)
 	case "/api/network/apply":
-		j, e := a.submit("应用网络变更", "network.apply", func(ctx context.Context, j *Job) error {
+		j, e := a.submitUI(uiAction, "应用网络变更", "network.apply", func(ctx context.Context, j *Job) error {
 			a.stage(j, "校验变更并创建独立回退任务")
 			e := a.network.ApplyProgress(ctx, str(d["id"]), func(message string) { a.stage(j, message) })
 			if e == nil {
@@ -609,7 +610,7 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 		})
 		return M{"ok": e == nil, "id": j}, e
 	case "/api/network/confirm":
-		e := a.network.Confirm(str(d["id"]))
+		e := a.network.Confirm(str(d["id"]), uiAction)
 		return M{"ok": e == nil}, e
 	case "/api/network/rollback":
 		a.network.mu.Lock()
@@ -620,7 +621,7 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 		}
 		a.mutate.Lock()
 		defer a.mutate.Unlock()
-		a.network.rollback(p)
+		a.network.rollback(p, uiAction)
 		return M{"ok": true}, nil
 	default:
 		return nil, errors.New("接口不存在")

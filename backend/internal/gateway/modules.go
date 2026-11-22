@@ -213,7 +213,7 @@ func (a *App) changeModule(ctx context.Context, j *Job, data M) error {
 	}
 	a.mu.Unlock()
 	a.refreshSnapshot()
-	a.audit("module.updated", "功能模块设置已更新", true, M{"module": name, "enabled": enabled})
+	a.audit("module.updated", "功能模块设置已更新", true, M{"module": name, "enabled": enabled}, uiActionFromContext(ctx))
 	a.stage(j, map[bool]string{true: "模块已启用，已有服务和配置保留", false: "管理功能已停用；现有服务与连接保持"}[enabled])
 	return nil
 }

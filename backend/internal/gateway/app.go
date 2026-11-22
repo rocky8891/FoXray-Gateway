@@ -241,13 +241,17 @@ func (a *App) saveMetrics() {
 	a.mu.RUnlock()
 	_ = writeJSON(filepath.Join(a.base, "measurements.json"), data)
 }
-func (a *App) audit(action, message string, ok bool, details M) error {
+func (a *App) audit(action, message string, ok bool, details M, uiAction ...string) error {
 	status, level := "success", "info"
 	if !ok {
 		status, level = "error", "error"
 	}
 	if details == nil {
 		details = M{}
+	}
+	if actionID := uiActionID(uiAction...); actionID != "" {
+		details = clone(details)
+		details["ui_action"] = actionID
 	}
 	if str(details["result_status"]) == "partial" {
 		status, level = "partial", "warning"

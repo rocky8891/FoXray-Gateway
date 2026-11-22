@@ -278,6 +278,7 @@ type Job struct {
 	Title    string   `json:"title"`
 	Group    string   `json:"group"`
 	Source   string   `json:"source"`
+	UIAction string   `json:"ui_action,omitempty"`
 	Status   string   `json:"status"`
 	Message  string   `json:"message"`
 	Started  float64  `json:"started"`
@@ -297,14 +298,17 @@ func (a *App) submit(title, group string, fn func(context.Context, *Job) error) 
 func (a *App) submitAutomatic(title, group string, fn func(context.Context, *Job) error) (string, error) {
 	return a.submitTask(title, group, "automatic", fn)
 }
-func (a *App) submitTask(title, group, source string, fn func(context.Context, *Job) error) (string, error) {
+func (a *App) submitTask(title, group, source string, fn func(context.Context, *Job) error, uiAction ...string) (string, error) {
 	select {
 	case a.jobs.gate <- struct{}{}:
 	default:
 		return "", errors.New("任务队列已满，请等待现有任务完成")
 	}
 	ctx, cancel := context.WithCancel(a.ctx)
+	actionID := uiActionID(uiAction...)
+	ctx = context.WithValue(ctx, uiActionContextKey{}, actionID)
 	j := &Job{ID: id(), Title: title, Group: group, Source: source, Status: "running", Started: now(), Details: []string{}, cancel: cancel}
+	j.UIAction = actionID
 	a.jobs.mu.Lock()
 	a.jobs.items = append([]*Job{j}, a.jobs.items...)
 	if len(a.jobs.items) > 100 {
@@ -346,7 +350,7 @@ func (a *App) submitTask(title, group, source string, fn func(context.Context, *
 		}
 		a.maintainControlState()
 		if !isPeriodicNodeTask(j.Source, j.Group) {
-			a.audit(group, j.Title+"："+j.Message, e == nil, M{"job_id": j.ID, "result_status": j.Status, "results": details, "source": j.Source, "title": j.Title, "started": j.Started, "finished": j.Finished})
+			a.audit(group, j.Title+"："+j.Message, e == nil, M{"job_id": j.ID, "result_status": j.Status, "results": details, "source": j.Source, "title": j.Title, "started": j.Started, "finished": j.Finished}, j.UIAction)
 		}
 	}()
 	return j.ID, nil

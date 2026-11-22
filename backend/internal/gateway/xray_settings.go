@@ -17,12 +17,12 @@ func validateICMPPolicy(policy M) error {
 	return nil
 }
 
-func (a *App) saveXraySettings(data M) error {
+func (a *App) saveXraySettings(data M, uiAction ...string) error {
 	a.mutate.Lock()
 	defer a.mutate.Unlock()
-	return a.saveXraySettingsLocked(data)
+	return a.saveXraySettingsLocked(data, uiAction...)
 }
-func (a *App) saveXraySettingsLocked(data M) error {
+func (a *App) saveXraySettingsLocked(data M, uiAction ...string) error {
 	a.mu.RLock()
 	oldConfig, oldICMP, wasApplied := clone(a.cfg), clone(a.icmp), a.applied
 	a.mu.RUnlock()
@@ -73,7 +73,7 @@ func (a *App) saveXraySettingsLocked(data M) error {
 	}
 	routingChanged := fingerprint(routingComparable(networkConfig)) != fingerprint(routingComparable(oldConfig))
 	if routingChanged && (yes(next["enabled"]) || wasApplied) {
-		if err := a.proxyControlConfigLocked(next, next); err != nil {
+		if err := a.proxyControlConfigLocked(next, next, uiAction...); err != nil {
 			if icmpChanged {
 				_ = writeJSON(filepath.Join(a.base, "icmp-policy.json"), oldICMP)
 			}
@@ -89,7 +89,7 @@ func (a *App) saveXraySettingsLocked(data M) error {
 	a.mu.Unlock()
 	if err != nil {
 		if routingChanged && (wasApplied || yes(next["enabled"])) {
-			_ = a.proxyControlConfigLocked(oldConfig, oldConfig)
+			_ = a.proxyControlConfigLocked(oldConfig, oldConfig, uiAction...)
 		}
 		_ = writeJSON(filepath.Join(a.base, "config.json"), oldConfig)
 		if icmpChanged {
@@ -99,6 +99,6 @@ func (a *App) saveXraySettingsLocked(data M) error {
 	}
 	a.lanDNS.invalidate()
 	a.routes.setDomainCollection(yes(next["domain_identification"]))
-	a.audit("policy.save", "Xray 配置与 ICMP 设置已统一保存", true, M{"routing_changed": routingChanged, "icmp_changed": icmpChanged})
+	a.audit("policy.save", "Xray 配置与 ICMP 设置已统一保存", true, M{"routing_changed": routingChanged, "icmp_changed": icmpChanged}, uiAction...)
 	return nil
 }

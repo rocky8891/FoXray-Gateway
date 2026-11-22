@@ -21,7 +21,7 @@ func (a *App) probeIntervals(module string) M {
 	return M{"error": "检测模块无效"}
 }
 
-func (a *App) saveProbeIntervals(module string, data M) error {
+func (a *App) saveProbeIntervals(module string, data M, uiAction ...string) error {
 	minValue := 10
 	if module == "xray" {
 		minValue = 0
@@ -49,7 +49,7 @@ func (a *App) saveProbeIntervals(module string, data M) error {
 		icmp := clone(a.icmp)
 		a.mu.RUnlock()
 		icmp["interval"] = data["icmp_interval"]
-		return a.saveXraySettingsLocked(M{"interval": data["interval"], "icmp_policy": icmp})
+		return a.saveXraySettingsLocked(M{"interval": data["interval"], "icmp_policy": icmp}, uiAction...)
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()

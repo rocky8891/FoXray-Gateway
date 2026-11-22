@@ -484,7 +484,7 @@ export function Operations({
     <Panel>
       <PageHeader
         title={title}
-        description="查看详情后标为已读，与对应任务结果同步；阅读状态保存在当前浏览器，不同浏览器各自记录。日志仍按服务器保留周期清理。"
+        description="UI操作日志自动标为已读；其他日志查看详情后标为已读。阅读状态保存在当前浏览器，日志仍按服务器保留周期清理。"
         actions={<>
           <MarkAllReadButton disabled={!rows.some(r => !isRead(logReadKeys(r)))} onClick={() => markRead(rows.flatMap(logReadKeys))} />
           <Button onClick={() => void refresh()}>刷新</Button>

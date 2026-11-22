@@ -173,8 +173,9 @@ export function Tasks({
         details: [],
       };
       setLocalHistory((old) => [task, ...old].slice(0, 50));
+      markRead(taskReadKeys(task));
     }
-  }, [notice]);
+  }, [notice, markRead]);
   const current = toast?.taskId
     ? tasks.find((task) => task.id === toast.taskId)
     : undefined;

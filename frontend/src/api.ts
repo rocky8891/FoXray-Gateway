@@ -1,3 +1,5 @@
+import { markResultsRead } from "./read_store";
+
 export type Dict = Record<string, unknown>;
 export interface Metrics {
   active_connections?: number;
@@ -114,6 +116,7 @@ export interface State {
   proxy: Dict;
 }
 export interface Task {
+  ui_action?: string;
   source?: "manual" | "automatic" | "unknown";
   log_id?: string;
   id: string;
@@ -193,10 +196,12 @@ export async function api<T>(
   signal?.addEventListener("abort", abort, { once: true });
   if (signal?.aborted) abort();
   const timer = setTimeout(abort, body === undefined ? 12000 : 45000);
+  const uiAction = body === undefined ? "" : Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, "0")).join("");
+  if (uiAction) markResultsRead(["ui:" + uiAction]);
   try {
     const response = await fetch(path, {
       method: body === undefined ? "GET" : "POST",
-      headers: body === undefined ? {} : { "Content-Type": "application/json" },
+      headers: body === undefined ? {} : { "Content-Type": "application/json", "X-Foxray-UI-Action": uiAction },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
     });

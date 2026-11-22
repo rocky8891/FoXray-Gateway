@@ -132,10 +132,10 @@ func (a *App) updateRuleSet(ctx context.Context, j *Job, id string) error {
 	if !found {
 		return errors.New("规则集已删除，取消更新")
 	}
-	if e = a.saveXraySettingsLocked(M{"rule_sets": sets}); e != nil {
+	if e = a.saveXraySettingsLocked(M{"rule_sets": sets}, uiActionFromContext(ctx)); e != nil {
 		return e
 	}
-	a.audit("rules.update", "规则集已更新", true, M{"id": id, "name": previous["name"], "count": len(rules)})
+	a.audit("rules.update", "规则集已更新", true, M{"id": id, "name": previous["name"], "count": len(rules)}, uiActionFromContext(ctx))
 	return nil
 }
 func (a *App) ruleSetLoop() {
