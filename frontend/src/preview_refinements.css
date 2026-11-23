@@ -1552,7 +1552,8 @@ html:has(main>.overview-page) .overview-node-table>.table-wrap {overflow-y:auto}
     border-color:transparent!important;
     background:color-mix(in srgb,var(--overview-detail-paint,var(--panel)) 94%,var(--text) 6%)!important;
   }
-  .overview-page .summary-v417.service-overview-card.service-host[data-adaptive-circles=true][class] .summary-metric:hover .summary-ring-track {
-    stroke:transparent!important;
+  .overview-page .service-host.summary-v417.service-overview-card.service-style-metrics[class]:not([data-adaptive-circles=true]) .summary-metric:hover,
+  .overview-page .service-host.summary-v417.service-overview-card[class]:not([data-adaptive-circles=true]) .summary-metric:hover {
+    border-color:var(--overview-xray-detail-edge,var(--overview-detail-edge,var(--line)))!important;
   }
 }

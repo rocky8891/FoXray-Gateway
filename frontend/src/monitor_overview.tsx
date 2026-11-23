@@ -241,10 +241,14 @@ function SummaryHeader({
       if (!card.classList.contains("service-wireguard")) {
         const fit = circleLayout(width, height, circleStyle, !!card.closest(".overview-layout-top"));
         const waveDiameter = circleLayout(width, height, "radial-wave").diameter;
+        const hostTopAnchor = card.classList.contains("service-host") &&
+          !!card.closest('.overview-layout-top[data-overview-anchor="service-host"]');
         // Wave and mixed styles interpret user font settings at a 200px circle;
         // mixed large circles use the wave-circle type size for the same surface.
         const responsiveType = fit.layout === "mixed" || circleStyle === "radial-wave";
-        circleTypeScale = responsiveType ? Math.max(0.5, fit.diameter / 200) : 1;
+        circleTypeScale = responsiveType
+          ? Math.max(hostTopAnchor ? 1 : 0.5, fit.diameter / (hostTopAnchor ? 400 : 200))
+          : 1;
         card.style.setProperty("--summary-ring-diameter", `${fit.diameter}px`);
         card.style.setProperty(
           "--summary-ring-stroke",
@@ -268,10 +272,13 @@ function SummaryHeader({
               String(400 / diameter),
             );
             metric.style.setProperty("--summary-disk-inset", `${400 / diameter}%`);
-            const typeDiameter = fit.layout === "mixed" && diameter === fit.diameter
+            const typeDiameter = !hostTopAnchor && fit.layout === "mixed" && diameter === fit.diameter
               ? Math.min(diameter, waveDiameter)
               : diameter;
-            fitText(metric, typeDiameter * 0.8, typeDiameter, responsiveType ? Math.max(0.5, typeDiameter / 200) : 1);
+            const fontScale = hostTopAnchor
+              ? Math.max(1, diameter / 400)
+              : responsiveType ? Math.max(0.5, typeDiameter / 200) : 1;
+            fitText(metric, typeDiameter * 0.8, typeDiameter, fontScale);
           });
       } else {
         const rows = [
