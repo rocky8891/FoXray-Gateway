@@ -19,15 +19,18 @@ type FileRestore struct {
 	Existed      bool   `json:"existed"`
 }
 type rollbackSpec struct {
-	ID      string       `json:"id"`
-	Kind    string       `json:"kind"`
-	Summary string       `json:"summary"`
-	Created float64      `json:"created"`
-	Expires float64      `json:"expires"`
-	Status  string       `json:"status"`
-	Undo    []Step       `json:"undo"`
-	File    *FileRestore `json:"file,omitempty"`
-	Persist M            `json:"persist,omitempty"`
+	ID         string         `json:"id"`
+	Kind       string         `json:"kind"`
+	Summary    string         `json:"summary"`
+	Created    float64        `json:"created"`
+	Expires    float64        `json:"expires"`
+	Status     string         `json:"status"`
+	Undo       []Step         `json:"undo"`
+	File       *FileRestore   `json:"file,omitempty"`
+	Persist    M              `json:"persist,omitempty"`
+	Files      []*FileRestore `json:"files,omitempty"`
+	BeforeFile []Step         `json:"before_file,omitempty"`
+	AfterFile  []Step         `json:"after_file,omitempty"`
 }
 
 func (n *Network) specPath(p *NetworkPlan) string {
@@ -41,7 +44,11 @@ func (n *Network) writeSpec(p *NetworkPlan, done int) error {
 			end = p.undoEnds[min(done, len(p.undoEnds))-1]
 		}
 	}
-	return writeJSON(n.specPath(p), rollbackSpec{ID: p.ID, Kind: p.Kind, Summary: p.Summary, Created: p.Created, Expires: p.Expires, Status: p.Status, Undo: p.undo[:end], File: p.restoreFile, Persist: p.persist})
+	undo := p.undo[:end]
+	if len(p.undoStates) == len(p.steps) && done > 0 {
+		undo = p.undoStates[min(done, len(p.steps))-1]
+	}
+	return writeJSON(n.specPath(p), rollbackSpec{ID: p.ID, Kind: p.Kind, Summary: p.Summary, Created: p.Created, Expires: p.Expires, Status: p.Status, Undo: undo, File: p.restoreFile, Files: p.restoreFiles, BeforeFile: p.beforeRestore, AfterFile: p.afterRestore, Persist: p.persist})
 }
 func (n *Network) arm(p *NetworkPlan) error {
 	p.Expires = now() + 120
@@ -99,33 +106,52 @@ func rollbackFile(path string, runner Runner) error {
 	if spec.Status == "confirmed" || spec.Status == "rolled_back" || spec.Status == "failed" {
 		return nil
 	}
+	files := append([]*FileRestore(nil), spec.Files...)
 	if spec.File != nil {
-		f := spec.File
-		if filepath.Dir(f.Target) != "/etc/wireguard" && !((f.Target == "/etc/netns/foxray-warp/resolv.conf" || f.Target == "/etc/foxray/warp-netns-resolv.conf") && f.InPlace) {
-			return errors.New("回退文件不在受管接口目录")
+		files = append(files, spec.File)
+	}
+	fail := func(err error) error { spec.Status = "rollback_error"; _ = writeJSON(path, spec); return err }
+	for _, f := range files {
+		if f == nil || (filepath.Dir(f.Target) != "/etc/wireguard" && !((f.Target == "/etc/netns/foxray-warp/resolv.conf" || f.Target == "/etc/foxray/warp-netns-resolv.conf") && f.InPlace)) {
+			return fail(errors.New("回退文件不在受管接口目录"))
 		}
-		if e := restoreManagedFile(f); e != nil {
-			spec.Status = "rollback_error"
-			_ = writeJSON(path, spec)
-			return e
+		if _, err := managedFileNeedsRestore(f); err != nil {
+			return fail(err)
 		}
-
+	}
+	if spec.Kind == "wireguard" && len(files) > 0 {
+		changed := false
+		for _, file := range files {
+			if file.ExpectedHash != "" {
+				changed = true
+			}
+		}
+		if !changed {
+			spec.BeforeFile = nil
+			spec.AfterFile = nil
+		}
+	}
+	if err := prepareWGRollbackFiles(path, &spec, files); err != nil {
+		return fail(err)
+	}
+	for _, step := range spec.BeforeFile {
+		if err := runRollbackStep(runner, step); err != nil {
+			return fail(err)
+		}
+	}
+	for _, f := range files {
+		if err := restoreManagedFile(f); err != nil {
+			return fail(err)
+		}
 	}
 	failed := false
 	for i := len(spec.Undo) - 1; i >= 0; i-- {
-		step := spec.Undo[i]
-		if len(step.Args) == 0 {
-			return errors.New("回退命令无效")
+		if runRollbackStep(runner, spec.Undo[i]) != nil {
+			failed = true
 		}
-		switch step.Args[0] {
-		case "ip", "systemctl", "firewall-cmd", "nft", "iptables", "ip6tables", "nmcli":
-		default:
-			return errors.New("回退命令不在允许列表")
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		_, e := runner.Run(ctx, step.Args, step.Input)
-		cancel()
-		if e != nil {
+	}
+	for _, step := range spec.AfterFile {
+		if runRollbackStep(runner, step) != nil {
 			failed = true
 		}
 	}
@@ -166,25 +192,42 @@ func (n *Network) confirmSpec(p *NetworkPlan) error {
 
 var _ json.RawMessage
 
-func restoreManagedFile(f *FileRestore) error {
+func managedFileNeedsRestore(f *FileRestore) (bool, error) {
 	if f.ExpectedHash == "" {
-		return nil
+		return false, nil
 	}
 	current, e := os.ReadFile(f.Target)
 	missing := os.IsNotExist(e)
 	if e != nil && !missing {
-		return errors.New("回退无法检查接口配置")
+		return false, errors.New("回退无法检查接口配置")
+	}
+	if missing && !f.Existed {
+		return false, nil
 	}
 	if !missing && fingerprint(string(current)) == f.OldHash {
-		return nil
+		return false, nil
 	}
 	if f.ExpectedHash == "delete" {
 		if !missing {
-			return errors.New("配置在应用后被其他操作修改，未覆盖")
+			return false, errors.New("配置在应用后被其他操作修改，未覆盖")
 		}
 	} else if missing || fingerprint(string(current)) != f.ExpectedHash {
-		return errors.New("接口配置与本次写入不匹配，未覆盖其他修改")
+		return false, errors.New("接口配置与本次写入不匹配，未覆盖其他修改")
 	}
+	if f.Existed {
+		old, err := os.ReadFile(f.Backup)
+		if err != nil || fingerprint(string(old)) != f.OldHash {
+			return false, errors.New("原配置备份不可用")
+		}
+	}
+	return true, nil
+}
+func restoreManagedFile(f *FileRestore) error {
+	needed, err := managedFileNeedsRestore(f)
+	if err != nil || !needed {
+		return err
+	}
+
 	if f.Existed {
 		old, e := os.ReadFile(f.Backup)
 		if e != nil || fingerprint(string(old)) != f.OldHash {
@@ -196,4 +239,19 @@ func restoreManagedFile(f *FileRestore) error {
 		return atomicFile(f.Target, old, 0600)
 	}
 	return os.Remove(f.Target)
+}
+
+func runRollbackStep(runner Runner, step Step) error {
+	if len(step.Args) == 0 {
+		return errors.New("回退命令无效")
+	}
+	switch step.Args[0] {
+	case "ip", "systemctl", "firewall-cmd", "nft", "iptables", "ip6tables", "nmcli":
+	default:
+		return errors.New("回退命令不在允许列表")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err := runner.Run(ctx, step.Args, step.Input)
+	return err
 }

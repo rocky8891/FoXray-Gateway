@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { FirewallManagerIcon, ZoneOwnershipIcon, FirewallOverviewIcon, ZonePolicyIcon } from "./workspace_icons";
 import { RefreshCw } from "lucide-react";
 import { FirewallIcon } from "./firewall_icons";
@@ -17,8 +18,12 @@ export function FirewallWorkspace({ serviceData,serviceError,rulesLoading,data, 
 }) {
   const view = firewallViewState(data, driver, zone, error), info = view.current && !error ? record(data?.zone_info) : {};
   const serviceView=firewallViewState(serviceData ? {...serviceData,zone} : data,driver,zone,serviceError || (serviceData ? "" : error));
+  const titleStatus = view.native ? view : serviceView;
   const permanentTarget=String(record(record(data?.zone_policy).permanent).target||"");
-  const types = list(data?.types), zones = Array.isArray(data?.zones) ? data.zones.map(String) : [];
+  const rememberedTypes=useRef<Dict[]>([]);
+  const loadedTypes=list(serviceData?.types).length?list(serviceData?.types):list(data?.types);
+  if(loadedTypes.length)rememberedTypes.current=loadedTypes;
+  const types = loadedTypes.length?loadedTypes:rememberedTypes.current, zones = Array.isArray(data?.zones) ? data.zones.map(String) : [];
   const interfaces = firewallBindings(info.interfaces), sources = firewallBindings(info.sources), target = String(info.target || "");
   const entries = view.current && !error ? list(data?.entries) : [], managed = entries.filter(r => r.managed).length;
   const blocked = entries.filter(r=>["drop","reject"].includes(String(r.action).toLowerCase())).length;
@@ -29,8 +34,8 @@ export function FirewallWorkspace({ serviceData,serviceError,rulesLoading,data, 
   return <section className="firewall-workspace" aria-label="防火墙状态与管理范围">
     <div className="firewall-service-bar">
       <div className="firewall-service-identity"><div>
-        <div className="firewall-service-title"><h2><FirewallIcon size={20}/><span>{view.native?"防火墙工具":"服务管理"}</span></h2><SettingInfo label="防火墙" text="选择管理工具和查看区域，再管理规则。查看范围不改变网络配置；接口归属、服务启停和规则修改均需先生成变更预览。" /><span className={"firewall-status " + serviceView.tone}><i />{serviceView.label}</span></div>
-        <div className="firewall-service-meta"><span>管理工具：{driver}</span><span>{view.native ? "不提供独立服务状态" : serviceView.autostart == null ? "开机启动：未确认" : "开机启动：" + (serviceView.autostart ? "已开启" : "已关闭")}</span><span className={view.complete ? "muted" : "fair"}>{rulesLoading&&!data ? "规则读取中" : view.inventoryLabel}</span>{lastRead>0 && view.current && <span>{error ? "上次读取：" : "最近读取："}{new Date(lastRead).toLocaleTimeString('zh-CN',{hour12:false})}</span>}</div>
+        <div className="firewall-service-title"><h2><FirewallIcon size={20}/><span>{view.native?"防火墙工具":"服务管理"}</span></h2><SettingInfo label="防火墙" text="选择管理工具和查看区域，再管理规则。查看范围不改变网络配置；接口归属、服务启停和规则修改均需先生成变更预览。" /><span className={"firewall-status " + titleStatus.tone}><i />{titleStatus.label}</span></div>
+        <div className="firewall-service-meta"><span>管理工具：{driver}</span><span>{view.native ? "不提供独立服务状态" : serviceView.autostart == null ? "开机启动：未确认" : "开机启动：" + (serviceView.autostart ? "已开启" : "已关闭")}</span>{!view.native && <span className={view.complete ? "muted" : "fair"}>{rulesLoading&&!data ? "规则读取中" : view.inventoryLabel}</span>}{lastRead>0 && view.current && <span>{error ? "上次读取：" : "最近读取："}{new Date(lastRead).toLocaleTimeString('zh-CN',{hour12:false})}</span>}</div>
       </div></div>
       <div className="firewall-service-buttons"><Button disabled={refreshing} onClick={refresh}><RefreshCw size={15} />{refreshing ? "刷新中" : "刷新"}</Button>{!view.native && <><Button disabled={!serviceView.canServiceControl} onClick={()=>serviceAction(serviceView.running ? "stop" : "start")}>{serviceView.running ? "停止服务" : "启动服务"}</Button><Button disabled={!serviceView.canServiceControl||serviceView.autostart==null} onClick={()=>serviceAction(serviceView.autostart ? "disable" : "enable")}>{serviceView.autostart ? "关闭自启" : "开启自启"}</Button></>}</div>
     </div>
@@ -50,8 +55,8 @@ export function FirewallWorkspace({ serviceData,serviceError,rulesLoading,data, 
         <div className="firewall-detail-heading"><h3><ZoneOwnershipIcon size={20} className="firewall-heading-icon"/>区域与流量归属<SettingInfo label="区域与流量归属" text="接口和来源地址是区域匹配条件；这不是访问白名单。当前显示的是所选区域返回的真实绑定信息。" /></h3><div className="firewall-binding-actions"><Button size="compact" disabled={!view.canManage} onClick={manageInterfaces}>管理归属</Button><Button size="compact" disabled={!view.canManage} onClick={manageSources}>管理来源</Button></div></div>
         <div className="firewall-zone-name"><strong>{zone}</strong><span>查看区域</span></div>
         <dl className="firewall-binding-list">
-          <div><dt>绑定接口<SettingInfo label="接口归属" text="经过这些网络接口的流量按此区域处理；来源地址绑定等更具体的归属条件可能影响最终区域。调整归属需先生成变更预览并确认。" /></dt><dd>{!view.current || error ? "未读取" : interfaces.length ? interfaces.map(v=><span className="firewall-address-chip" key={v}>{v}</span>) : "未绑定接口"}</dd></div>
-          <div><dt>来源地址<SettingInfo label="来源地址归属" text="按来源IP、网段、MAC地址或IP集合把流量归入此区域。这是区域匹配条件，不是允许访问的来源白名单。未设置仅表示没有来源地址绑定，不代表允许所有来源。" /></dt><dd>{!view.current || error ? "未读取" : sources.length ? sources.map(v=><span className="firewall-address-chip" key={v}>{v}</span>) : "未设置"}</dd></div>
+          <div><dt>绑定接口<SettingInfo label="接口归属" text="经过这些网络接口的流量按此区域处理；来源地址绑定等更具体的归属条件可能影响最终区域。调整归属需先生成变更预览并确认。" /></dt><dd>{!("interfaces" in info) ? "未读取" : interfaces.length ? interfaces.map(v=><span className="firewall-address-chip" key={v}>{v}</span>) : "未绑定接口"}</dd></div>
+          <div><dt>来源地址<SettingInfo label="来源地址归属" text="按来源IP、网段、MAC地址或IP集合把流量归入此区域。这是区域匹配条件，不是允许访问的来源白名单。未设置仅表示没有来源地址绑定，不代表允许所有来源。" /></dt><dd>{!("sources" in info) ? "未读取" : sources.length ? sources.map(v=><span className="firewall-address-chip" key={v}>{v}</span>) : "未设置"}</dd></div>
         </dl>
       </section>}
       <section className="firewall-rule-overview firewall-layout-section" aria-label="规则概览">

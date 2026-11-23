@@ -29,8 +29,13 @@ func (n *Network) batchPreview(data M) (*NetworkPlan, error) {
 	seen := map[string]bool{}
 	for _, value := range items {
 		item := obj(value)
-		if kind == "firewall" && str(item["kind"]) == "zone-policy" {
+		if kind == "firewall" && (str(item["kind"]) == "zone-policy" || str(item["kind"]) == "cross-zone") {
 			return nil, errors.New("区域策略须单独预览和确认，不支持批量变更")
+		}
+		if kind == "firewall" {
+			if owned := n.ownedItem(kind, str(item["id"])); owned != nil && str(owned["kind"]) == "cross-zone" {
+				return nil, errors.New("跨区域规则须单独预览和确认")
+			}
 		}
 		identity := str(item["id"])
 		if kind == "interfaces" {
@@ -44,6 +49,9 @@ func (n *Network) batchPreview(data M) (*NetworkPlan, error) {
 			item = n.ownedItem(kind, str(item["id"]))
 			if item == nil {
 				return nil, errors.New("所选规则不属于 FoXray")
+			}
+			if str(item["kind"]) == "cross-zone" {
+				return nil, errors.New("跨区域规则须单独预览和确认")
 			}
 			item["enabled"] = operation == "enable"
 		}

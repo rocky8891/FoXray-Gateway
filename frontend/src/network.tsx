@@ -847,7 +847,7 @@ export function NetworkPage({
             value={form}
             onChange={setForm}
           />
-          {operation !== "remark" && !onlyWireGuardRemarkChanged && (form.name === "wg-home" ||
+          {operation !== "remark" && !onlyWireGuardRemarkChanged && (form.name === "wg-home" || form.new_name === "wg-home" || (kind === "wireguard" && ["add","replace"].includes(operation)) ||
             operation === "delete" ||
             (kind === "routes" && form.dst === "default") ||
             kind === "wireguard" ||
@@ -979,9 +979,8 @@ function NetworkForm({
         <div className="form-grid">
           <Field label="接口名称" hint="例如 wg-home、wg-work、wg-work2">
             <input
-              value={String(value.name || "")}
-              disabled={operation === "replace"}
-              onChange={(e) => set("name", e.target.value)}
+              value={String(value.new_name ?? value.name ?? "")}
+              onChange={(e) => set(operation === "replace" ? "new_name" : "name", e.target.value)}
               maxLength={15}
             />
           </Field>
@@ -1426,21 +1425,16 @@ function PeerEditor({
                 onChange={(e) => change(i, "public_key", e.target.value)}
               />
             </Field>
-            <Field label="AllowedIPs">
+            <Field label="AllowedIPs" hint="支持多个 IP/CIDR，用逗号、空格或换行分隔">
               <input
                 value={
-                  Array.isArray(peer.allowed_ips)
-                    ? peer.allowed_ips.join(", ")
-                    : ""
+                  typeof peer.allowed_ips === "string" ? peer.allowed_ips : Array.isArray(peer.allowed_ips) ? peer.allowed_ips.join(", ") : ""
                 }
                 onChange={(e) =>
                   change(
                     i,
                     "allowed_ips",
-                    e.target.value
-                      .split(",")
-                      .map((v) => v.trim())
-                      .filter(Boolean),
+                    e.target.value,
                   )
                 }
               />
@@ -1492,16 +1486,18 @@ export function NetworkPending({ act, inline = false, readOnly = false }: { act:
   useEffect(() => { const t=setInterval(()=>tick(n=>n+1),1000); return ()=>clearInterval(t); }, []);
   useEffect(() => { if (typeof data?.server_time === "number" && Number.isFinite(data.server_time)) setOffset(Date.now()/1000-data.server_time); },[data]);
   const pending = data?.plans.filter(p=>p.status === "awaiting_confirmation") || [];
+  const [dismissed,setDismissed]=useState("");
+  const notice=pending.find(p=>p.id!==dismissed);
   const run = async (p:Plan, operation:string) => {
     if (readOnly || busy) return;
     setBusy(p.id+operation); setFailure("");
     try { const ok = await act("/api/network/"+operation,{id:p.id}); if(!ok) setFailure("操作未完成，请核对状态后重试；变更仍按服务端期限自动回退。"); await refresh(); }
     catch(e) {setFailure(errorMessage(e));} finally {setBusy("");}
   };
-  return pending.length ? <section className={inline?"network-pending-banner":"network-pending"} aria-label="网络变更待确认" role="region">
+  return pending.length ? <>{notice&&<Modal title="网络变更待确认" onClose={()=>setDismissed(notice.id)}><div className="network-confirm-content"><p>{notice.summary}</p><p className="network-confirm-countdown" role="timer">{remainingPlanSeconds(notice.expires,Date.now()/1000-offset)} 秒后自动回退</p><p>请确认管理连接、VPN 和业务访问正常，再保留本次变更。</p><ErrorLine error={failure||resourceError||""}/><div className="modal-actions"><Button variant="danger" disabled={readOnly||!!busy} onClick={()=>void run(notice,"rollback")}>立即回退</Button><Button variant="primary" disabled={readOnly||!!busy||remainingPlanSeconds(notice.expires,Date.now()/1000-offset)===0||!!resourceError} onClick={()=>void run(notice,"confirm")}>确认保留</Button></div></div></Modal>}<section className={inline?"network-pending-banner":"network-pending"} aria-label="网络变更待确认" role="region">
     {pending.map(p=>{const remaining=remainingPlanSeconds(p.expires,Date.now()/1000-offset);return <div className="network-pending-item" key={p.id}>
       <div className="network-pending-description"><strong><AlertTriangle size={17}/>有 {pending.length} 项网络变更待确认</strong><p>{p.summary}</p><small role="timer" aria-live="off">{remaining>0?remaining+"秒后自动回退":"确认期限已到，正在核对自动回退状态"}</small>{readOnly&&<small>只读预览：请在正式服务确认或回退。</small>}</div>
       <div className="actions"><Button variant="primary" disabled={readOnly||!!busy||remaining===0||!!resourceError} onClick={()=>void run(p,"confirm")}>{busy===p.id+"confirm"?"正在确认…":"确认保留"}</Button><Button variant="danger" disabled={readOnly||!!busy} onClick={()=>void run(p,"rollback")}>{busy===p.id+"rollback"?"正在回退…":"立即回退"}</Button></div>
     </div>})}<ErrorLine error={failure||resourceError||""}/>
-  </section> : null;
+  </section></> : null;
 }

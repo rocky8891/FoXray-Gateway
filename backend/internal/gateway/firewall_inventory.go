@@ -1,12 +1,15 @@
 package gateway
 
 import (
+	"context"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 var richPriority = regexp.MustCompile(`priority="?(-?[0-9]+)"?`)
@@ -103,10 +106,71 @@ func parseFirewallEntry(zone, storage, raw string) M {
 	}
 	return normalized
 }
+
+// firewall-cmd prints rich rules on separate indented lines under their heading.
+func addZoneInventory(entries map[string]M, zone, scope, state string) bool {
+	details := parseZoneDetails(scope)
+	richRules := []string{}
+	inRichRules := false
+	for _, line := range strings.Split(scope, "\n") {
+		line = strings.TrimSpace(line)
+		if value, ok := strings.CutPrefix(line, "rich rules:"); ok {
+			inRichRules = true
+			if value = strings.TrimSpace(value); value != "" {
+				richRules = append(richRules, value)
+			}
+			continue
+		}
+		if inRichRules && strings.HasPrefix(line, "rule ") {
+			richRules = append(richRules, line)
+		} else if line != "" {
+			inRichRules = false
+		}
+	}
+	inventory := map[string][]string{
+		"port":         strings.Fields(str(details["ports"])),
+		"service":      strings.Fields(str(details["services"])),
+		"forward-port": strings.Fields(str(details["forward-ports"])),
+		"rich-rule":    richRules,
+	}
+	if str(details["masquerade"]) == "yes" {
+		inventory["masquerade"] = []string{""}
+	}
+	for storage, lines := range inventory {
+		for _, line := range lines {
+			key := storage + "|" + compactRule(line)
+			row := entries[key]
+			if row == nil {
+				row = parseFirewallEntry(zone, storage, line)
+				if row == nil {
+					continue
+				}
+				row["id"], row["managed"] = "external-"+fingerprint(key)[:16], false
+				entries[key] = row
+			}
+			row[state] = true
+		}
+	}
+	for _, key := range []string{"ports", "services", "forward-ports", "rich rules", "masquerade"} {
+		if _, ok := details[key]; !ok {
+			return false
+		}
+	}
+	return str(details["masquerade"]) == "yes" || str(details["masquerade"]) == "no"
+}
+
 func (n *Network) FirewallSnapshot(zone string) M {
 	return n.firewallSnapshotWithState(zone, n.app.service("firewalld"))
 }
-func (n *Network) firewallSnapshotWithState(zone string, state M) M {
+func (n *Network) firewallSnapshotWithState(zone string, state M, contexts ...context.Context) M {
+	command := n.app.command
+	if len(contexts) > 0 && contexts[0] != nil {
+		command = func(seconds int, input string, args ...string) (string, error) {
+			ctx, cancel := context.WithTimeout(contexts[0], time.Duration(seconds)*time.Second)
+			defer cancel()
+			return n.app.runner.Run(ctx, args, input)
+		}
+	}
 	result := M{"plans": n.Plans(), "firewalld": state, "complete": false, "entries": []M{}, "zones": []string{}, "managed": []any{}}
 	n.mu.Lock()
 	managed := clone(arr(n.managed["firewall"]))
@@ -115,118 +179,86 @@ func (n *Network) firewallSnapshotWithState(zone string, state M) M {
 	if str(state["state"]) != "active" {
 		result["zone"] = "public"
 		result["error"] = "firewalld 未运行；系统 nftables 规则仍可查看"
-		raw, e := n.app.command(5, "", "nft", "-j", "list", "ruleset")
+		raw, e := command(5, "", "nft", "-j", "list", "ruleset")
 		if e == nil {
 			result["ruleset_raw"] = raw
 		}
 		return result
 	}
-	zonesRaw, e := n.app.command(5, "", "firewall-cmd", "--get-zones")
-	if e != nil {
-		return result
-	}
-	zones := strings.Fields(zonesRaw)
-	result["zones"] = zones
 	if zone == "" {
-		raw, _ := n.app.command(5, "", "firewall-cmd", "--get-default-zone")
+		raw, err := command(8, "", "firewall-cmd", "--get-default-zone")
+		if err != nil {
+			result["error"] = "无法读取默认防火墙区域"
+			return result
+		}
 		zone = strings.TrimSpace(raw)
 	}
-	valid := false
-	for _, v := range zones {
-		valid = valid || zone == v
-	}
-	if !valid || !firewallZoneName.MatchString(zone) {
+	if !firewallZoneName.MatchString(zone) {
 		result["error"] = "请选择有效区域"
 		return result
 	}
 	result["zone"] = zone
 	entries := map[string]M{}
-	var mutex sync.Mutex
 	var wg sync.WaitGroup
-	gate := make(chan struct{}, 4)
-	complete := true
-	runtimeDetails, permanentDetails, icmpTypes := "", "", ""
-	policyReadOK := true
-
-	for _, query := range []string{"runtime-details", "permanent-details", "icmp-types"} {
+	var runtimeDetails, permanentDetails, icmpTypes, zonesRaw string
+	var runtimeErr, permanentErr, icmpErr, zonesErr error
+	read := func(output *string, err *error, args ...string) {
 		wg.Add(1)
-		go func(query string) {
+		go func() {
 			defer wg.Done()
-			gate <- struct{}{}
-			defer func() { <-gate }()
-			args := []string{"firewall-cmd", "--get-icmptypes"}
-			if query != "icmp-types" {
-				args = append(zoneArgs(zone, query == "permanent-details"), "--list-all")
-			}
-			raw, err := n.app.command(6, "", args...)
-			mutex.Lock()
-			defer mutex.Unlock()
-			if err != nil {
-				policyReadOK = false
-				return
-			}
-			switch query {
-			case "runtime-details":
-				runtimeDetails = raw
-			case "permanent-details":
-				permanentDetails = raw
-			default:
-				icmpTypes = raw
-			}
-		}(query)
+			*output, *err = command(20, "", args...)
+		}()
 	}
-	for _, permanent := range []bool{false, true} {
-		for _, kind := range []string{"port", "rich-rule", "forward-port", "service", "masquerade"} {
-			wg.Add(1)
-			go func(storage string, permanent bool) {
-				defer wg.Done()
-				gate <- struct{}{}
-				defer func() { <-gate }()
-				args := []string{"firewall-cmd", "--zone=" + zone}
-				if permanent {
-					args = append(args, "--permanent")
-				}
-				flag := map[string]string{"port": "--list-ports", "rich-rule": "--list-rich-rules", "forward-port": "--list-forward-ports", "service": "--list-services", "masquerade": "--query-masquerade"}[storage]
-				raw, e := n.app.command(6, "", append(args, flag)...)
-				mutex.Lock()
-				defer mutex.Unlock()
-				if e != nil && !(storage == "masquerade" && strings.TrimSpace(raw) == "no") {
-					complete = false
-					return
-				}
-				lines := textLines(raw)
-				if storage == "port" || storage == "service" {
-					lines = strings.Fields(raw)
-				}
-				if storage == "masquerade" {
-					lines = nil
-					if strings.TrimSpace(raw) == "yes" {
-						lines = []string{""}
-					}
-				}
-				for _, line := range lines {
-					row := parseFirewallEntry(zone, storage, line)
-					if row == nil {
-						continue
-					}
-					key := storage + "|" + compactRule(line)
-					stored := entries[key]
-					if stored == nil {
-						stored = row
-						stored["id"] = "external-" + fingerprint(key)[:16]
-						stored["managed"] = false
-						entries[key] = stored
-					}
-					if permanent {
-						stored["permanent"] = true
-					} else {
-						stored["runtime"] = true
-					}
-				}
-			}(kind, permanent)
+	if bundle, err := readFirewallBundle(command, zone); err == nil {
+		zonesRaw = strings.Join(bundle.Zones, " ")
+		runtimeDetails = firewallZoneText(zone, bundle.Runtime)
+		permanentDetails = firewallZoneText(zone, bundle.Permanent)
+		icmpTypes = strings.Join(bundle.ICMPTypes, " ")
+	} else {
+		read(&zonesRaw, &zonesErr, "firewall-cmd", "--get-zones")
+		read(&runtimeDetails, &runtimeErr, append(zoneArgs(zone, false), "--list-all")...)
+		read(&permanentDetails, &permanentErr, append(zoneArgs(zone, true), "--list-all")...)
+		read(&icmpTypes, &icmpErr, "firewall-cmd", "--get-icmptypes")
+	}
+	var runtimeDirect, permanentDirect string
+	var runtimeDirectErr, permanentDirectErr error
+	for _, value := range managed {
+		rule, err := normalizeFirewall(obj(value))
+		if err == nil && firewallDriver(rule) == "firewalld" && str(rule["zone"]) == zone && str(rule["kind"]) == "masquerade" && str(rule["action"]) == "snat" {
+			read(&runtimeDirect, &runtimeDirectErr, "firewall-cmd", "--direct", "--get-all-rules")
+			read(&permanentDirect, &permanentDirectErr, "firewall-cmd", "--permanent", "--direct", "--get-all-rules")
+			break
 		}
 	}
 	wg.Wait()
+	if zonesErr == nil {
+		zones := strings.Fields(zonesRaw)
+		result["zones"] = zones
+		if !slices.Contains(zones, zone) {
+			result["error"] = "请选择有效区域"
+			return result
+		}
+	} else {
+		result["zones"] = []string{zone}
+	}
+	if runtimeErr != nil && permanentErr != nil {
+		result["error"] = "防火墙运行时与永久规则读取失败，请刷新重试"
+	}
+	complete := runtimeErr == nil && permanentErr == nil && runtimeDirectErr == nil && permanentDirectErr == nil
+	if runtimeErr == nil {
+		complete = addZoneInventory(entries, zone, runtimeDetails, "runtime") && complete
+	}
+	if permanentErr == nil {
+		complete = addZoneInventory(entries, zone, permanentDetails, "permanent") && complete
+	}
+	directRules := func(raw string) map[string]bool {
+		rules := map[string]bool{}
+		for _, line := range textLines(raw) {
+			rules[compactRule(line)] = true
+		}
+		return rules
+	}
+	liveDirect, savedDirect := directRules(runtimeDirect), directRules(permanentDirect)
 	for _, value := range managed {
 		rule, e := normalizeFirewall(obj(value))
 		if e != nil || firewallDriver(rule) != "firewalld" || str(rule["zone"]) != zone {
@@ -241,10 +273,8 @@ func (n *Network) firewallSnapshotWithState(zone string, state M) M {
 			match := entries[key]
 			live, saved := match != nil && yes(match["runtime"]), match != nil && yes(match["permanent"])
 			if spec[0] == "direct-rule" {
-				var liveErr, savedErr error
-				live, liveErr = n.queryFirewall(zone, spec, false)
-				saved, savedErr = n.queryFirewall(zone, spec, true)
-				complete = complete && liveErr == nil && savedErr == nil
+				live = runtimeDirectErr == nil && liveDirect[compactRule(spec[1])]
+				saved = permanentDirectErr == nil && savedDirect[compactRule(spec[1])]
 			}
 			allRuntime, allPermanent = allRuntime && live, allPermanent && saved
 			anyRuntime, anyPermanent = anyRuntime || live, anyPermanent || saved
@@ -276,7 +306,7 @@ func (n *Network) firewallSnapshotWithState(zone string, state M) M {
 	live, e1 := parseZonePolicy(runtimeDetails)
 	saved, e2 := parseZonePolicy(permanentDetails)
 	policy := M{"complete": false, "runtime": M{}, "permanent": M{}, "icmp_types": []string{}}
-	if policyReadOK && e1 == nil && e2 == nil {
+	if runtimeErr == nil && permanentErr == nil && icmpErr == nil && e1 == nil && e2 == nil {
 		policy["runtime"], policy["permanent"], policy["icmp_types"], policy["complete"] = live, saved, strings.Fields(icmpTypes), true
 		policy["different"] = fingerprint(live) != fingerprint(saved)
 	} else {

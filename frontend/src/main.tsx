@@ -56,6 +56,7 @@ import "./popup_system.css";
 import "./preview_refinements.css";
 import "./network_interaction.css";
 import "./select_menus.css";
+import "./release_098.css";
 const navigation: [Page, string][] = [
   ["overview", "主页"],
   ["monitoring", "监控"],
@@ -539,6 +540,7 @@ function App() {
               }
             >
               <main
+                data-home-fullwidth={page === "overview" && Number(record(state?.manager_settings.presentation).content_width_percent || 80) === 100 || undefined}
                 className={page === "monitoring" && hideHomeHeader ? "monitoring-shortcut-page" : undefined}
                 style={
                   {

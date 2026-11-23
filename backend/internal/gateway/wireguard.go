@@ -184,6 +184,13 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 	if e := iface(name); e != nil {
 		return e
 	}
+	if op == "replace" {
+		if value, ok := item["new_name"]; ok {
+			if err := iface(str(value)); err != nil {
+				return err
+			}
+		}
+	}
 	if op == "remark" {
 		return n.planWGRemarkFile(plan, name, "/etc/wireguard/"+name+".conf", item["remark"])
 	}
@@ -238,8 +245,11 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 		plan.Warnings = append(plan.Warnings, "只操作此接口；停止或重启会中断此 VPN 自身连接")
 		return nil
 	}
-	if active {
-		return errors.New("请先单独停止该接口，再修改地址、Peer 或删除配置；其他 VPN 保持运行")
+	if active && op == "replace" && !yes(d["allow_protected"]) {
+		return errors.New("运行中编辑会重启此接口，请确认本次操作")
+	}
+	if active && op == "delete" {
+		return errors.New("删除配置前请先停止该接口；其他 VPN 保持运行")
 	}
 	if op == "add" && exists {
 		return errors.New("同名接口配置已存在")
@@ -398,7 +408,11 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 			}
 			peer.PresharedKey = value
 		}
-		for _, ip := range arr(m["allowed_ips"]) {
+		allowed, err := wgAllowedInput(m["allowed_ips"])
+		if err != nil {
+			return err
+		}
+		for _, ip := range allowed {
 			if str(ip) == "all" || str(ip) == "default" {
 				return errors.New("AllowedIPs 须为 IP 或 CIDR")
 			}
@@ -472,6 +486,13 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 		if network.SNAT {
 			plan.Warnings = append(plan.Warnings, "SNAT 仅匹配指定 LAN 网段与该 VPN 出接口；回程可无需配置 LAN 路由。已有连接停止后会中断，其他 VPN 不变")
 		}
+	}
+	if op == "replace" {
+		newName := firstNonempty(str(item["new_name"]), name)
+		if newName == "wg-home" && !yes(d["allow_protected"]) {
+			return errors.New("wg-home 为保护接口，请确认本次操作")
+		}
+		return n.planWGEditFiles(plan, p, path, newName, oldBytes, active, yes(state["autostart"]))
 	}
 	plan.applyFiles = func() error {
 		if exists {

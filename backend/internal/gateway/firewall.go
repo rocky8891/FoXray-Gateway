@@ -44,6 +44,9 @@ func portRange(value any) (string, error) {
 	return strconv.Itoa(first) + "-" + strconv.Itoa(last), nil
 }
 func normalizeFirewall(item M) (M, error) {
+	if str(item["kind"]) == "cross-zone" {
+		return normalizeCrossZone(item)
+	}
 	r := M{}
 	for _, key := range []string{"id", "driver", "name", "kind", "zone", "port", "protocol", "source", "action", "target_ip", "target_port", "enabled", "family", "storage", "priority", "logging", "log_rate", "service", "to_source", "out_interface", "rich_match"} {
 		if value, ok := item[key]; ok {
@@ -328,6 +331,9 @@ func (n *Network) planFirewall(p *NetworkPlan, d M) error {
 		return n.planNativeFirewall(p, d)
 	}
 	raw := obj(d["item"])
+	if str(raw["kind"]) == "cross-zone" {
+		return n.planCrossZone(p, d)
+	}
 	if str(raw["kind"]) == "zone-interface" {
 		return n.planZoneInterface(p, d)
 	}

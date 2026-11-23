@@ -1,0 +1,58 @@
+import { CrossZoneIcon } from "./cross_zone_icon";
+import { useState } from "react";
+import { Plus, RefreshCw } from "lucide-react";
+import { api, errorMessage, list, text, type Dict, type Plan } from "./api";
+import { Button, ErrorLine, Field, Modal, Panel, Table, useResource, SettingInfo, type Column } from "./ui";
+import type { Act } from "./nodes";
+
+const actions: Record<string,string> = {accept:"允许",drop:"丢弃",reject:"拒绝并回应"};
+export function CrossZoneRules({act}:{act:Act}) {
+  const resource=useResource<Dict>("/api/network/firewall/cross-zone",30000);
+  const [form,setForm]=useState<Dict|null>(null),[operation,setOperation]=useState("add"),[ack,setAck]=useState(false);
+  const [plan,setPlan]=useState<Plan|null>(null),[failure,setFailure]=useState(""),[busy,setBusy]=useState(false),[detail,setDetail]=useState<Dict|null>(null);
+  const zones=Array.isArray(resource.data?.zones)?resource.data.zones.map(String):[];
+  const complete=resource.data?.complete===true&&!resource.error;
+  const update=(key:string,value:unknown)=>setForm(current=>current?{...current,[key]:value}:null);
+  const start=(op:string,item?:Dict)=>{setFailure("");setAck(false);setOperation(op);setForm(item?{...item,apply_mode:"permanent",reload_ack:false}:{kind:"cross-zone",driver:"firewalld",name:"",ingress_zone:zones.includes("public")?"public":zones[0]||"",egress_zone:zones.includes("home-vpn")?"home-vpn":zones[1]||"",source:"",destination:"",protocol:"all",port:"",action:"accept",enabled:true,apply_mode:"permanent",reload_ack:false});};
+  async function preview(){
+    setFailure("");setBusy(true);
+    try {const result=await api<Plan>("/api/network/plan",{kind:"firewall",operation,item:form,allow_protected:ack});setPlan(result);setForm(null)}
+    catch(error){setFailure(errorMessage(error))}finally{setBusy(false)}
+  }
+  const columns:Column<Dict>[]=[
+    {key:"name",label:"规则名称",render:r=><><strong>{text(r.name||r.policy_name)}</strong><small>{r.managed?"本应用管理":"系统 / 外部 · 只读"}</small></>},
+    {key:"zones",label:"入口 → 出口",render:r=><span>{text(r.ingress_zone)||"未设置"} → {text(r.egress_zone)||"未设置"}</span>},
+    {key:"addresses",label:"来源 → 目标",render:r=>r.managed?<span>{text(r.source)} → {text(r.destination)}</span>:"查看详情"},
+    {key:"protocol",label:"协议 / 端口 / 动作",render:r=>r.managed?`${text(r.protocol)}${r.port?" / "+text(r.port):""} · ${actions[text(r.action)]||text(r.action)}`:"查看详情"},
+    {key:"state",label:"状态 / 配置",render:r=><><span className={!r.enabled?"muted":r.managed&&!r.runtime?"fair":"accent"}>{r.managed?(r.enabled?(r.runtime?"已生效":"待生效"):"配置停用"):(r.enabled?"启用":"停用")}</span><small>{r.runtime?"运行时已载入":"运行时未同步"} · {r.permanent?"永久已保存":"永久未保存"}{r.drift?" · 存在差异":""}</small></>},
+    {key:"actions",label:"操作",render:r=><div className="row-actions"><Button size="compact" onClick={()=>setDetail(r)}>详情</Button>{!!r.managed&&<><Button size="compact" disabled={!complete} onClick={()=>start("replace",r)}>编辑</Button><Button size="compact" disabled={!complete} onClick={()=>start("replace",{...r,enabled:!r.enabled})}>{r.enabled?"停用":"启用"}</Button><Button size="compact" variant="danger" disabled={!complete} onClick={()=>start("delete",r)}>删除</Button></>}</div>},
+  ];
+  return <Panel className="management-panel">
+    <div className="cross-zone-heading"><h3><CrossZoneIcon size={20}/>跨区域规则<SettingInfo label="跨区域规则" text="控制流量从入口区域转发到出口区域。每条规则独立管理，按来源、目标和协议匹配；不修改接口归属、路由或 NAT。"/></h3><div className="cross-zone-actions"><Button onClick={()=>void resource.refresh()}><RefreshCw size={16}/>刷新</Button><Button variant="primary" disabled={!complete} onClick={()=>start("add")}><Plus size={16}/>添加跨区域规则</Button></div></div>
+    <ErrorLine error={resource.error||String(resource.data?.error||"")||(!form&&!plan?failure:"")}/>
+    {resource.loading&&!resource.data?<p className="hint">正在读取跨区域规则…</p>:<Table rows={complete?list(resource.data?.items):[]} columns={columns} rowKey={r=>text(r.id)}/>}
+    {form&&<Modal className="firewall-dialog" title={operation==="delete"?"删除跨区域规则":operation==="add"?"添加跨区域规则":"编辑跨区域规则"} onClose={()=>!busy&&setForm(null)} wide>
+      {operation==="delete"?<p>删除“{text(form.name||form.policy_name)}”：{text(form.ingress_zone)} → {text(form.egress_zone)}，{text(form.source)} → {text(form.destination)}。</p>:<div className="form-grid">
+        <Field label="备注名称"><input value={text(form.name)} onChange={e=>update("name",e.target.value)}/></Field>
+        <Field label="规则状态"><select value={form.enabled?"yes":"no"} onChange={e=>update("enabled",e.target.value==="yes")}><option value="yes">启用</option><option value="no">停用</option></select></Field>
+        {(["ingress_zone","egress_zone"] as const).map((key,i)=><Field key={key} label={i?"出口区域":"入口区域"}><select aria-label={i?"出口区域":"入口区域"} value={text(form[key])} onChange={e=>update(key,e.target.value)}>{zones.map(z=><option key={z}>{z}</option>)}</select></Field>)}
+        <Field label="来源 IP / 网段"><input aria-label="来源 IP / 网段" placeholder="例如 192.168.1.10 或 192.168.1.0/24" value={text(form.source)} onChange={e=>{update("source",e.target.value);update("family","")}}/></Field>
+        <Field label="目标 IP / 网段"><input aria-label="目标 IP / 网段" placeholder="例如 10.24.255.3" value={text(form.destination)} onChange={e=>{update("destination",e.target.value);update("family","")}}/></Field>
+        <Field label="协议"><select value={text(form.protocol)} onChange={e=>update("protocol",e.target.value)}>{["all","tcp","udp","tcpudp","icmp"].map(p=><option key={p} value={p}>{p==="all"?"全部协议":p==="tcpudp"?"TCP + UDP":p.toUpperCase()}</option>)}</select></Field>
+        <Field label="目标端口（可选）"><input disabled={!["tcp","udp","tcpudp"].includes(text(form.protocol))} placeholder="留空匹配此协议所有端口，例如 443 或 8000-8010" value={text(form.port)} onChange={e=>update("port",e.target.value)}/></Field>
+        <Field label="动作"><select value={text(form.action)} onChange={e=>update("action",e.target.value)}>{Object.entries(actions).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></Field>
+      </div>}
+      <Field label="生效方式"><select aria-label="生效方式" value={text(form.apply_mode)} onChange={e=>update("apply_mode",e.target.value)}><option value="permanent">仅保存永久配置</option><option value="immediate">检查后立即生效，同时保存永久配置</option></select></Field>
+      <p className="hint">永久配置在下次 firewalld 重载或启动后生效。新增策略立即生效需要全局重载；会保留已核对的运行时富规则；其他配置差异仍阻止重载。</p>
+      <div className="cross-zone-acknowledgements">{form.apply_mode==="immediate"&&operation!=="delete"&&<label className="check risk"><input type="checkbox" checked={form.reload_ack===true} onChange={e=>update("reload_ack",e.target.checked)}/>若策略尚未载入，允许核对配置后执行全局重载</label>}
+      <label className="check risk"><input type="checkbox" checked={ack} onChange={e=>setAck(e.target.checked)}/>我已确认转发与管理连接影响；应用后 120 秒内确认，否则自动回退</label>
+      </div><ErrorLine error={failure}/><div className="modal-actions"><Button disabled={busy} onClick={()=>setForm(null)}>取消</Button><Button variant="primary" disabled={busy||!ack||(operation!=="delete"&&(!text(form.source).trim()||!text(form.destination).trim()||form.ingress_zone===form.egress_zone))} onClick={()=>void preview()}>{busy?"正在核对…":"生成变更预览"}</Button></div>
+    </Modal>}
+    {plan&&<Modal className="firewall-dialog" title="跨区域规则变更预览" onClose={()=>!busy&&setPlan(null)} wide>
+      <h3>{plan.summary}</h3>{plan.warnings.map((warning,i)=><p className="hint" key={i}>{warning}</p>)}
+      <pre className="command-preview">{plan.preview.join("\n")}</pre><details><summary>回退命令</summary><pre className="command-preview">{plan.rollback?.join("\n")}</pre></details>
+      <ErrorLine error={failure}/><div className="modal-actions"><Button disabled={busy} onClick={()=>setPlan(null)}>取消</Button><Button variant="primary" disabled={busy} onClick={()=>{setBusy(true);void act("/api/network/apply",{id:plan.id}).then(ok=>{if(ok){setPlan(null);void resource.refresh()}}).finally(()=>setBusy(false))}}>应用变更</Button></div>
+    </Modal>}
+    {detail&&<Modal title="跨区域规则详情" onClose={()=>setDetail(null)} wide><p className="hint">{detail.managed?"本应用管理的独立跨区域规则。":"系统或外部策略，只读展示，保留原有配置。"}</p><pre className="command-preview">{JSON.stringify(detail,null,2)}</pre></Modal>}
+  </Panel>;
+}

@@ -26,7 +26,7 @@ func canonicalFirewallObjects(raw string) string {
 			continue
 		}
 		if line[0] != ' ' && line[0] != '\t' {
-			key = strings.TrimSuffix(strings.TrimSpace(line), " (active)")
+			key = strings.Fields(line)[0]
 			objects[key] = []string{}
 		} else {
 			objects[key] = append(objects[key], strings.TrimSpace(line))
@@ -38,6 +38,9 @@ func canonicalFirewallObjects(raw string) string {
 // A reload must not discard runtime-only configuration. Query all traffic-related
 // objects, including referenced service definitions, before allowing it.
 func (n *Network) firewallReloadBaseline() (string, error) {
+	return n.firewallReloadBaselineWithOptions(nil)
+}
+func (n *Network) firewallReloadBaselineWithOptions(options *firewallReloadOptions) (string, error) {
 	baseline := M{}
 	started := time.Now()
 	read := func(permanent bool, args ...string) (string, error) {
@@ -56,12 +59,28 @@ func (n *Network) firewallReloadBaseline() (string, error) {
 		if e1 != nil || e2 != nil {
 			return "", errors.New("无法完整核对" + label + "，请选择仅保存永久配置")
 		}
+		if options != nil && label == "全部区域" {
+			protection, err := protectableZoneRules(live, saved)
+			if err != nil {
+				return "", err
+			}
+			options.protection = protection
+			baseline[label] = fingerprint([]string{reloadObjectFingerprint(live, ""), reloadObjectFingerprint(saved, "")})
+			return live, nil
+		}
 		a, b := live, saved
 		if objects {
 			if len(args) > 0 && strings.HasPrefix(args[0], "--info-") && (strings.TrimSpace(a) == "" || strings.TrimSpace(b) == "") {
 				return "", errors.New(label + "定义未完整读取，不能立即重载")
 			}
 			a, b = canonicalFirewallObjects(live), canonicalFirewallObjects(saved)
+			if options != nil {
+				omit := ""
+				if label == "全部策略" {
+					omit = options.policy
+				}
+				a, b = reloadObjectFingerprint(live, omit), reloadObjectFingerprint(saved, omit)
+			}
 		} else {
 			a, b = strings.TrimSpace(live), strings.TrimSpace(saved)
 		}

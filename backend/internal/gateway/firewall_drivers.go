@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os/exec"
@@ -30,7 +31,7 @@ func (n *Network) firewallTypes() []M {
 	}
 	return rows
 }
-func (n *Network) FirewallView(driver, zone string) M {
+func (n *Network) FirewallView(driver, zone string, contexts ...context.Context) M {
 	if driver == "" {
 		driver = "firewalld"
 	}
@@ -53,7 +54,7 @@ func (n *Network) FirewallView(driver, zone string) M {
 				state = obj(v["service"])
 			}
 		}
-		r := n.firewallSnapshotWithState(zone, state)
+		r := n.firewallSnapshotWithState(zone, state, contexts...)
 		r["driver"], r["types"], r["installed"] = driver, types, installed
 		return r
 	}
@@ -362,6 +363,17 @@ func (n *Network) FirewallServiceState(driver string) M {
 		driver = "firewalld"
 	}
 	result := M{"driver": driver, "installed": false, "checked_at": now()}
+	types := []M{}
+	for _, name := range firewallDrivers {
+		command := map[string]string{"firewalld": "firewall-cmd", "nftables": "nft"}[name]
+		if command == "" {
+			command = name
+		}
+		_, err := exec.LookPath(command)
+		types = append(types, M{"id": name, "installed": err == nil})
+	}
+	result["types"] = types
+
 	for _, name := range firewallDrivers {
 		if name == driver {
 			command := map[string]string{"firewalld": "firewall-cmd", "nftables": "nft"}[driver]

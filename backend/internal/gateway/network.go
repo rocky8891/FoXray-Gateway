@@ -18,26 +18,29 @@ type Step struct {
 	Input string   `json:"input,omitempty"`
 }
 type NetworkPlan struct {
-	ID            string                `json:"id"`
-	Kind          string                `json:"kind"`
-	Summary       string                `json:"summary"`
-	Status        string                `json:"status"`
-	Created       float64               `json:"created"`
-	Expires       float64               `json:"expires"`
-	Warnings      []string              `json:"warnings"`
-	Preview       []string              `json:"preview"`
-	ZoneChanges   []ZoneInterfaceChange `json:"zone_changes,omitempty"`
-	Details       M                     `json:"details,omitempty"`
-	Rollback      []string              `json:"rollback,omitempty"`
-	steps, undo   []Step
-	undoEnds      []int
-	applyFiles    func() error
-	undoFiles     func() error
-	persist       M
-	restoreFile   *FileRestore
-	precondition  func() error
-	postcondition func() error
-	revision      string
+	ID                          string                `json:"id"`
+	Kind                        string                `json:"kind"`
+	Summary                     string                `json:"summary"`
+	Status                      string                `json:"status"`
+	Created                     float64               `json:"created"`
+	Expires                     float64               `json:"expires"`
+	Warnings                    []string              `json:"warnings"`
+	Preview                     []string              `json:"preview"`
+	ZoneChanges                 []ZoneInterfaceChange `json:"zone_changes,omitempty"`
+	Details                     M                     `json:"details,omitempty"`
+	Rollback                    []string              `json:"rollback,omitempty"`
+	steps, undo                 []Step
+	undoEnds                    []int
+	undoStates                  [][]Step
+	applyFiles                  func() error
+	undoFiles                   func() error
+	persist                     M
+	restoreFile                 *FileRestore
+	restoreFiles                []*FileRestore
+	beforeRestore, afterRestore []Step
+	precondition                func() error
+	postcondition               func() error
+	revision                    string
 }
 type Network struct {
 	app     *App
@@ -240,6 +243,9 @@ func (n *Network) Preview(data M) (*NetworkPlan, error) {
 			if old == nil {
 				return nil, errors.New("只能修改 FoXray 管理的对象")
 			}
+			if kind == "firewall" && op == "replace" && (str(old["kind"]) == "cross-zone" || str(item["kind"]) == "cross-zone") && str(old["kind"]) != str(item["kind"]) {
+				return nil, errors.New("跨区域规则不能转换为区域入站规则")
+			}
 			if kind == "routes" && (str(old["dev"]) == "wg-home" || str(old["dev"]) == "vone0") && !yes(data["allow_protected"]) {
 				return nil, errors.New("原路由属于受保护 VPN，需要本次明确确认")
 			}
@@ -282,8 +288,25 @@ func (n *Network) Preview(data M) (*NetworkPlan, error) {
 			p.Preview = append(p.Preview, s.Input)
 		}
 	}
+	for _, step := range p.beforeRestore {
+		p.Rollback = append(p.Rollback, printableCommand(step.Args))
+	}
+	files := append([]*FileRestore(nil), p.restoreFiles...)
+	if p.restoreFile != nil {
+		files = append(files, p.restoreFile)
+	}
+	for _, file := range files {
+		if file.Existed {
+			p.Rollback = append(p.Rollback, "从受限备份恢复 "+file.Target)
+		} else {
+			p.Rollback = append(p.Rollback, "移除本次创建的配置 "+file.Target)
+		}
+	}
 	for i := len(p.undo) - 1; i >= 0; i-- {
 		p.Rollback = append(p.Rollback, printableCommand(p.undo[i].Args))
+	}
+	for _, step := range p.afterRestore {
+		p.Rollback = append(p.Rollback, printableCommand(step.Args))
 	}
 	n.mu.Lock()
 	if sourceRevision != fingerprint(n.managed) {

@@ -130,7 +130,7 @@ function liveSnapshot<T>(path: string): Promise<T> {
   liveSnapshots.set(path, entry);
   return entry.promise as Promise<T>;
 }
-export function useResource<T>(path: string, interval = 10000) {
+export function useResource<T>(path: string, interval = 10000, enabled = true) {
   const chartRefresh = useChartRefresh();
   const liveRefresh = useContext(LiveRefreshContext);
   if (
@@ -152,6 +152,7 @@ export function useResource<T>(path: string, interval = 10000) {
     pending = useRef<AbortController | null>(null);
   const refresh = useCallback(
     async (force = false) => {
+      if (!enabled) return;
       if (pending.current && force !== true) return;
       pending.current?.abort();
       const controller = new AbortController();
@@ -197,9 +198,10 @@ export function useResource<T>(path: string, interval = 10000) {
         if (current === seq.current) setLoading(false);
       }
     },
-    [path, interval],
+    [path, interval, enabled],
   );
   useEffect(() => {
+    if (!enabled) { setLoading(false); return; }
     const scope = path.replace(/([?&])(start|end)=[^&]*/g, "");
     if (previousScope.current !== scope) {
       setData(null);
@@ -218,7 +220,7 @@ export function useResource<T>(path: string, interval = 10000) {
       pending.current?.abort();
       pending.current = null;
     };
-  }, [refresh, interval]);
+  }, [refresh, interval, enabled]);
   return {
     data,
     error,

@@ -1,3 +1,4 @@
+import { CrossZoneIcon } from "./cross_zone_icon";
 import { AdoptIcon } from "./action_icons";
 import { FirewallIcon, UnknownRulesIcon } from "./firewall_icons";
 import { DoneIcon, LoadMoreIcon, PreviewIcon } from "./action_icons";
@@ -235,6 +236,7 @@ const definitions: [RegExp, LucideIcon][] = [
   [/版本/, Info],
 ];
 export function labelIcon(label: string, size = 16) {
+  if (label === "跨区域规则") return <CrossZoneIcon size={size}/>;
   if (/升序|降序|排序/.test(label)) return <SortIcon size={size} />;
   if (label === "卡片外观") return <AppearanceIcon size={size} />;
   if (/路径探测/.test(label)) return <PathProbeIcon size={size} />;

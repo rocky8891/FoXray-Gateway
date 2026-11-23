@@ -1,3 +1,4 @@
+import { CrossZoneRules } from "./cross_zone_rules";
 import { ZoneRulesIcon } from "./workspace_icons";
 import { FirewallServiceSelect } from "./firewall_service_select";
 import { AdaptiveSearch } from "./adaptive_search";
@@ -49,6 +50,7 @@ const categories = [
   ["masquerade", "SNAT"],
   ["forward", "端口转发"],
   ["rich", "高级规则"],
+  ["cross-zone", "跨区域规则"],
   ["advanced", "未知规则（只读）"],
 ];
 const strategies: Record<string, string> = {
@@ -74,8 +76,9 @@ export function FirewallPage({ act }: { act: Act }) {
       "&zone=" +
       encodeURIComponent(zone),
     15000,
+    category !== "cross-zone",
   );
-  const serviceResource=useResource<Dict>("/api/network/firewall/service?driver="+encodeURIComponent(driver),5000);
+  const serviceResource=useResource<Dict>("/api/network/firewall/service?driver="+encodeURIComponent(driver),5000,category!=="cross-zone");
   const [lastRead, setLastRead] = useState(0), [refreshing, setRefreshing] = useState(false);
   useEffect(()=>{if(resource.data)setLastRead(Date.now())},[resource.data]);
   const [selected, setSelected] = useState<Set<string>>(new Set()),
@@ -474,7 +477,7 @@ export function FirewallPage({ act }: { act: Act }) {
         <SecondaryNav label="防火墙规则分类">
             <div className="module-tabs firewall-secondary-tabs" role="tablist" aria-label="防火墙规则分类">
               {categories
-                .filter(([id]) => !native || !["service-rule","rich"].includes(id))
+                .filter(([id]) => !native || !["service-rule","rich","cross-zone"].includes(id))
                 .map(([id, label]) => (
                   <button
                     key={id}
@@ -492,6 +495,8 @@ export function FirewallPage({ act }: { act: Act }) {
                 ))}
             </div>
         </SecondaryNav>
+        {category === "cross-zone" && <CrossZoneRules act={act}/>}
+        <div hidden={category === "cross-zone"}>
         <FirewallWorkspace serviceData={serviceResource.data} serviceError={serviceResource.error || ""} rulesLoading={resource.loading} data={resource.data ? {...resource.data,entries:all} : null} error={resource.error || ""} driver={driver} zone={zone} lastRead={lastRead} refreshing={refreshing}
           refresh={()=>{setRefreshing(true);void Promise.all([resource.refresh(),serviceResource.refresh()]).finally(()=>setRefreshing(false))}}
           changeDriver={value=>{setDriver(value);setCategory("all");localStorage.setItem("foxray.firewall.driver",value);setZone(value==="firewalld"?"public":"host");setSelected(new Set());setQuery("");setProtocol("all");setStatus("all");setOwner("all");setRuleAction("all");setConfigScope("all");setForm(null);setPlan(null);setFailure("")}}
@@ -865,6 +870,7 @@ export function FirewallPage({ act }: { act: Act }) {
           <FirewallRuleSummary value={record(detail)} />
         </Modal>
       )}
+        </div>
     </>
   );
 }
