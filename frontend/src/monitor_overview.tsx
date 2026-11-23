@@ -116,14 +116,15 @@ function SummaryHeader({
         element: HTMLElement,
         area: number,
         diameter: number,
+        fontScale = 1,
       ) => {
         const label = element.querySelector<HTMLElement>(
             ".summary-metric-label",
           ),
           value = element.querySelector<HTMLElement>("strong");
-        let labelSize = Math.min(requestedLabel, Math.max(7, diameter * 0.12)),
-          valueSize = Math.min(requestedValue, Math.max(10, diameter * 0.18));
-        const icon = Math.min(14, Math.max(9, labelSize + 1)),
+        let labelSize = Math.min(requestedLabel * fontScale, Math.max(7, diameter * 0.12)),
+          valueSize = Math.min(requestedValue * fontScale, Math.max(10, diameter * 0.18));
+        const icon = Math.min(14 * fontScale, Math.max(9, labelSize + 1)),
           extras =
             icon + 5 + (label?.querySelector(".setting-info") ? icon + 5 : 0);
         if (label)
@@ -260,7 +261,8 @@ function SummaryHeader({
               String(400 / diameter),
             );
             metric.style.setProperty("--summary-disk-inset", `${2 + 200 / diameter}%`);
-            fitText(metric, diameter * 0.8, diameter);
+            const smallestDiameter = Math.max(1, Math.min(...fit.diameters));
+            fitText(metric, diameter * 0.8, diameter, diameter / smallestDiameter);
           });
       } else {
         const rows = [
@@ -297,14 +299,14 @@ function SummaryHeader({
         const leftAnchor =
           grid?.classList.contains("overview-layout-sidebar") &&
           grid.dataset.overviewAnchor === "service-wireguard";
-        const diameter =
+        const diameter = Math.min(427,
           requested > 0
             ? Math.min(requested, available)
             : leftAnchor
               ? Math.min(available, 280)
               : grid?.classList.contains("overview-layout-grid")
                 ? available * 0.9
-                : available;
+                : available);
         card.style.setProperty("--summary-tunnel-diameter", `${diameter}px`);
         const center =
           card.classList.contains("wg-circle-center") && diameter >= 180;
@@ -335,6 +337,9 @@ function SummaryHeader({
         });
       }
       alignInterfaceNames();
+      // Mixed layouts intentionally give large and small circles different type sizes.
+      // Each size is fitted against a stable representative, never a live value.
+      if (card.dataset.circleLayout === "mixed") return;
       const metrics = [
         ...card.querySelectorAll<HTMLElement>(".summary-metric"),
       ];
