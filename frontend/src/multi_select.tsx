@@ -1,6 +1,7 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Search } from "lucide-react";
+import { MenuScrollArea } from "./menu_scroll_area";
 
 export function MultiSelect({
   label,
@@ -135,7 +136,7 @@ export function MultiSelect({
               />
               全选当前筛选
             </label>
-            <div className="multi-select-options">
+            <MenuScrollArea className="multi-select-options">
               {rows.map((name) => (
                 <label className="check" key={name}>
                   <input
@@ -157,7 +158,7 @@ export function MultiSelect({
               {!rows.length && (
                 <span className="small muted">没有匹配接口</span>
               )}
-            </div>
+            </MenuScrollArea>
           </div>,
           trigger.current?.closest("dialog[open]") || document.body,
         )}

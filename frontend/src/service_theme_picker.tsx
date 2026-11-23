@@ -1,4 +1,5 @@
 import { RandomThemeIcon } from "./requirement_icons";
+import { MenuScrollArea } from "./menu_scroll_area";
 import { createPortal } from "react-dom";
 import { overviewPolicy } from "./overview_policy";
 import {
@@ -366,7 +367,7 @@ export function ServiceThemePicker({
                 placeholder="查询布局、圆形样式或主题名称"
               />
             </label>
-            <div role="tree" aria-label="主题分级列表" id={id} ref={tree}>
+            <MenuScrollArea role="tree" aria-label="主题分级列表" id={id} ref={tree}>
               {!!custom.length && (
                 <ThemeBranch
                   id={id + "-custom"}
@@ -427,7 +428,7 @@ export function ServiceThemePicker({
                   没有匹配的主题
                 </div>
               )}
-            </div>
+            </MenuScrollArea>
           </div>,
           trigger.current?.closest("dialog[open]") || document.body,
         )}

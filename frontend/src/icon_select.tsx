@@ -7,6 +7,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
+import { MenuScrollArea } from "./menu_scroll_area";
 
 export type IconOption = {
   value: string;
@@ -99,7 +100,7 @@ export function IconSelect({
     place();
     const buttons = [
       ...menu.current!.querySelectorAll<HTMLButtonElement>(
-        "button:not(:disabled)",
+        '[role="option"]:not(:disabled)',
       ),
     ];
     (
@@ -152,10 +153,9 @@ export function IconSelect({
           <div
             ref={menu}
             id={id}
-            role="listbox"
             aria-label={label}
             className={
-              "icon-select-menu" +
+              "icon-select-menu managed-icon-select-menu" +
               (label === "主页切换" ? " overview-view-menu" : "")
             }
             style={position}
@@ -174,7 +174,7 @@ export function IconSelect({
                 e.preventDefault();
                 const buttons = [
                     ...menu.current!.querySelectorAll<HTMLButtonElement>(
-                      "button:not(:disabled)",
+                      '[role="option"]:not(:disabled)',
                     ),
                   ],
                   i = buttons.indexOf(
@@ -193,6 +193,7 @@ export function IconSelect({
               }
             }}
           >
+            <MenuScrollArea role="listbox" aria-label={label}>
             {options.map((row) => (
               <button
                 key={row.value}
@@ -214,6 +215,7 @@ export function IconSelect({
                 <span>{row.label}</span>
               </button>
             ))}
+            </MenuScrollArea>
           </div>,
           trigger.current?.closest("dialog[open]") || document.body,
         )}

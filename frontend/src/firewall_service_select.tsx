@@ -1,6 +1,7 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Search } from "lucide-react";
+import { MenuScrollArea } from "./menu_scroll_area";
 
 export function FirewallServiceSelect({ value, services, onChange, label = "预定义服务" }: {
   value: string;
@@ -65,11 +66,9 @@ export function FirewallServiceSelect({ value, services, onChange, label = "预�
     {value && options.length > 0 && !options.includes(value) && <p className="small muted" role="status">当前服务不在已读取清单中，请刷新后重新选择。</p>}
     {open && createPortal(<div ref={menu} id={id} role="dialog" aria-label={"选择" + label}
       className="icon-select-menu firewall-service-menu" style={position}
-      onBlur={event => {
-        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node) && event.relatedTarget !== trigger.current) close();
-      }}
       onKeyDown={event => {
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(true); return; }
+        if (event.key === "Tab") { close(); return; }
         const input = event.target instanceof HTMLInputElement;
         const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="option"]')];
         if (input && event.key === "Enter") { event.preventDefault(); if (rows[0]) choose(rows[0]); return; }
@@ -84,10 +83,10 @@ export function FirewallServiceSelect({ value, services, onChange, label = "预�
       }}>
       <label className="multi-select-search"><Search size={16}/><input type="search" aria-label={"搜索" + label}
         placeholder="搜索服务，如 ssh、http、dns" value={query} onChange={event => setQuery(event.target.value)}/></label>
-      <div className="firewall-service-options" role="listbox" aria-label={label + "列表"}>
+      <MenuScrollArea className="firewall-service-options" role="listbox" aria-label={label + "列表"}>
         {rows.map(name => <button type="button" role="option" aria-selected={name === value} tabIndex={-1}
           key={name} onClick={() => choose(name)}>{name}</button>)}
-      </div>
+      </MenuScrollArea>
       {!rows.length && <p className="small muted" role="status">{options.length ? "没有匹配的预定义服务" : "没有读取到预定义服务，请刷新后重试"}</p>}
     </div>, trigger.current?.closest("dialog[open]") || document.body)}
   </div>;

@@ -1,4 +1,5 @@
 import { SettingsIcon } from "./requirement_icons";
+import { ThemedSelects } from "./themed_selects";
 import { useOverviewRandomTheme } from "./overview_random_theme";
 import { HomeTools } from "./home_tools";
 import { HomeHeaderContext } from "./home_header";
@@ -54,6 +55,7 @@ import "./warp_detection_control.css";
 import "./popup_system.css";
 import "./preview_refinements.css";
 import "./network_interaction.css";
+import "./select_menus.css";
 const navigation: [Page, string][] = [
   ["overview", "主页"],
   ["monitoring", "监控"],
@@ -596,6 +598,7 @@ function App() {
         </RangeDefaultsContext.Provider>
       </TrafficWindowContext.Provider>
       {state && !state.read_only && !["network","routes","rules","firewall"].includes(page) && <NetworkPending act={act} />}
+      <ThemedSelects />
     </UpdatesContext.Provider>
     </HomeHeaderContext.Provider>
   );
