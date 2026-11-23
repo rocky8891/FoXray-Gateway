@@ -300,17 +300,16 @@ function SummaryHeader({
         const leftAnchor =
           grid?.classList.contains("overview-layout-sidebar") &&
           grid.dataset.overviewAnchor === "service-wireguard";
-        // Cap screen pixels as well as CSS pixels: browser/display scaling can
-        // otherwise turn a 427px circle into roughly 569px at 133% scaling.
-        const screenPixelRatio = Math.max(1, window.devicePixelRatio || 1);
-        const diameter = Math.min(427 / screenPixelRatio,
+        // Match the large-circle geometry used by the neighboring mixed cards.
+        // Keep normal browser scaling and grow with the available card surface.
+        const diameter =
           requested > 0
             ? Math.min(requested, available)
             : leftAnchor
               ? Math.min(available, 280)
               : grid?.classList.contains("overview-layout-grid")
-                ? available * 0.9
-                : available);
+                ? Math.min(available, circleLayout(width, height, "radial-mixed").diameter)
+                : available;
         card.style.setProperty("--summary-tunnel-diameter", `${diameter}px`);
         const center =
           card.classList.contains("wg-circle-center") && diameter >= 180;
