@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -166,7 +167,27 @@ func (n *Network) planWGEditFiles(plan *NetworkPlan, profile *WGProfile, path, n
 		if rename {
 			plan.beforeRestore = append(plan.beforeRestore, Step{Args: []string{"systemctl", "stop", "wg-quick@" + name}})
 		}
-		plan.afterRestore = []Step{{Args: []string{"systemctl", "start", "wg-quick@" + name}}}
+		guard, err := n.app.command(4, "", "nft", "list", "table", "inet", "foxray_wireguard_guard")
+		if err != nil {
+			tables, readErr := n.app.command(4, "", "nft", "-j", "list", "tables")
+			if readErr != nil {
+				return errors.New("无法备份 WireGuard 传输保护规则")
+			}
+			var inventory M
+			if json.Unmarshal([]byte(tables), &inventory) != nil {
+				return errors.New("无法核对 WireGuard 传输保护规则")
+			}
+			for _, value := range arr(inventory["nftables"]) {
+				table := obj(obj(value)["table"])
+				if str(table["family"]) == "inet" && str(table["name"]) == "foxray_wireguard_guard" {
+					return errors.New("无法备份已有 WireGuard 传输保护规则")
+				}
+			}
+			guard = ""
+		}
+		restoreGuard := "add table inet foxray_wireguard_guard\ndelete table inet foxray_wireguard_guard\n" + guard
+		plan.afterRestore = []Step{{Args: []string{"nft", "-f", "-"}, Input: restoreGuard}, {Args: []string{"systemctl", "start", "wg-quick@" + name}}}
+
 		appendStep([]string{"systemctl", "start", "wg-quick@" + newName}, []string{"systemctl", "stop", "wg-quick@" + newName})
 	}
 	profile.Name = newName
@@ -218,9 +239,17 @@ func (n *Network) planWGEditFiles(plan *NetworkPlan, profile *WGProfile, path, n
 			err = atomicFile(path, payload, 0600)
 		}
 		profile.PrivateKey = ""
+		if err == nil && active {
+			err = n.app.refreshWGGuard()
+		}
 		return err
 	}
 	plan.postcondition = func() error {
+		if active {
+			if err := n.app.refreshWGGuard(); err != nil {
+				return err
+			}
+		}
 		state := n.app.service("wg-quick@" + newName)
 		if (str(state["state"]) == "active") != active {
 			return errors.New("接口应用后的运行状态不符合预期，已请求回退")
