@@ -277,7 +277,7 @@ func (a *App) getAPI(w http.ResponseWriter, r *http.Request) {
 	case path == "/api/network/firewall/service":
 		writeResponse(w, 200, a.network.FirewallServiceState(q.Get("driver")))
 	case path == "/api/network/firewall/cross-zone":
-		writeResponse(w, 200, a.network.CrossZoneSnapshot())
+		writeResponse(w, 200, a.network.CrossZoneSnapshot(r.Context()))
 	case path == "/api/network/firewall":
 		writeResponse(w, 200, a.network.FirewallView(q.Get("driver"), q.Get("zone"), r.Context()))
 	case path == "/api/network/interfaces":

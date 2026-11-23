@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -205,38 +206,47 @@ func crossZoneRules(item M) []string {
 	return rules
 }
 
-func (n *Network) readCrossZonePolicies(permanent bool) (map[string]crossZonePolicy, error) {
+func (n *Network) readCrossZonePolicies(permanent bool, contexts ...context.Context) (map[string]crossZonePolicy, error) {
 	args := []string{"firewall-cmd"}
 	if permanent {
 		args = append(args, "--permanent")
 	}
-	raw, err := n.app.command(20, "", append(args, "--list-all-policies")...)
+	raw, err := n.firewallReadCommand(contexts...)(20, "", append(args, "--list-all-policies")...)
 	if err != nil {
 		return nil, errors.New("跨区域规则未完整读取；请确认firewalld支持Policy且正在运行")
 	}
 	return parseCrossZonePolicies(raw)
 }
 
-func (n *Network) CrossZoneSnapshot() M {
+func (n *Network) CrossZoneSnapshot(contexts ...context.Context) M {
 	result := M{"items": []M{}, "zones": []string{}, "complete": false}
 	if str(n.app.service("firewalld")["state"]) != "active" {
 		result["error"] = "firewalld未运行，无法管理跨区域规则"
 		return result
 	}
-	var live, saved map[string]crossZonePolicy
-	var a, b, c error
-	var zones string
-	var wg sync.WaitGroup
-	wg.Add(3)
-	go func() { defer wg.Done(); live, a = n.readCrossZonePolicies(false) }()
-	go func() { defer wg.Done(); saved, b = n.readCrossZonePolicies(true) }()
-	go func() { defer wg.Done(); zones, c = n.app.command(20, "", "firewall-cmd", "--get-zones") }()
-	wg.Wait()
-	if a != nil || b != nil || c != nil {
-		result["error"] = "跨区域规则或区域列表读取失败，请刷新重试"
-		return result
+	command := n.firewallReadCommand(contexts...)
+	live, saved, zoneNames, err := readCrossBundle(command)
+	if err != nil {
+		if len(contexts) > 0 && contexts[0] != nil && contexts[0].Err() != nil {
+			result["error"] = "跨区域规则读取已取消"
+			return result
+		}
+		var a, b, c error
+		var zones string
+		var wg sync.WaitGroup
+		wg.Add(3)
+		go func() { defer wg.Done(); live, a = n.readCrossZonePolicies(false, contexts...) }()
+		go func() { defer wg.Done(); saved, b = n.readCrossZonePolicies(true, contexts...) }()
+		go func() { defer wg.Done(); zones, c = command(20, "", "firewall-cmd", "--get-zones") }()
+		wg.Wait()
+		if a != nil || b != nil || c != nil {
+			result["error"] = "跨区域规则或区域列表读取失败，请刷新重试"
+			return result
+		}
+		zoneNames = strings.Fields(zones)
 	}
-	result["zones"] = strings.Fields(zones)
+	result["zones"] = zoneNames
+
 	n.mu.Lock()
 	managed := clone(arr(n.managed["firewall"]))
 	n.mu.Unlock()
