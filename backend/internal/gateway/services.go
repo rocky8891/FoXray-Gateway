@@ -339,6 +339,16 @@ func (a *App) serviceAction(ctx context.Context, j *Job, service, action string,
 	if action == "connect" || action == "disconnect" {
 		return errors.New("Xray 代理启停请使用代理模式控制")
 	}
+	if action == "start" || action == "restart" {
+		_, err := os.Stat(filepath.Join(a.base, "engine.json"))
+		if errors.Is(err, os.ErrNotExist) {
+			a.jobDetail(j, "缺少 Xray 配置文件 engine.json")
+			return errors.New("Xray-core 无法启动：请先在 Xray 设置中保存配置并启用代理")
+		}
+		if err != nil {
+			return errors.New("无法检查 Xray 配置文件 engine.json，请检查文件权限")
+		}
+	}
 	if action == "stop" || action == "restart" {
 		a.mu.RLock()
 		applied := a.applied
@@ -373,14 +383,49 @@ func (a *App) serviceAction(ctx context.Context, j *Job, service, action string,
 		}
 	}
 	a.stage(j, "正在操作 Xray-core 服务")
-	_, e := a.command(30, "", "systemctl", action, unit)
-	if e == nil && (action == "enable" || action == "disable") {
+	_, commandErr := a.command(30, "", "systemctl", action, unit)
+	if action == "start" || action == "restart" || action == "stop" {
+		raw, statusErr := a.command(5, "", "systemctl", "show", unit, "-p", "ActiveState", "-p", "SubState", "-p", "ConditionResult", "-p", "Result", "-p", "ExecMainStatus")
+		if statusErr != nil {
+			return errors.Join(commandErr, errors.New("无法核实 Xray-core 操作后的运行状态"))
+		}
+		props := parseKV(raw)
+		// Report structured systemd state without copying potentially sensitive Xray stderr.
+		for _, field := range []string{"ActiveState", "SubState", "ConditionResult", "Result", "ExecMainStatus"} {
+			if value := str(props[field]); value != "" {
+				a.jobDetail(j, field+"="+value)
+			}
+		}
+		active := str(props["ActiveState"])
+		if action == "stop" {
+			if commandErr != nil || active != "inactive" {
+				return errors.Join(commandErr, errors.New("Xray-core 停止失败，请查看服务详情"))
+			}
+			a.stage(j, "Xray-core 已停止")
+			return nil
+		}
+		if str(props["ConditionResult"]) == "no" && active != "active" {
+			return errors.New("Xray-core 未启动：systemd 跳过了服务，因为启动条件未满足")
+		}
+		if commandErr != nil || active != "active" || str(props["SubState"]) != "running" {
+			return errors.Join(commandErr, errors.New("Xray-core 未进入运行状态，请查看服务详情"))
+		}
+		a.stage(j, "Xray-core 已运行")
+		return nil
+	}
+	if commandErr == nil && (action == "enable" || action == "disable") {
 		if yes(a.service(unit)["autostart"]) != (action == "enable") {
 			return errors.New("开机自启状态未达到目标，请查看服务单元配置")
 		}
+		if action == "enable" {
+			a.stage(j, "Xray-core 已开启自启")
+		} else {
+			a.stage(j, "Xray-core 已关闭自启")
+		}
 	}
-	return e
+	return commandErr
 }
+
 func (a *App) checkComponent(ctx context.Context, j *Job, service string) error {
 	return a.checkServiceVersion(ctx, j, service)
 }

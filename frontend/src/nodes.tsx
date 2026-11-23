@@ -1,4 +1,4 @@
-import { HomeTools, shouldAutoHideHomeTools } from "./home_tools";
+import { HomeTools } from "./home_tools";
 import { AdaptiveSearch } from "./adaptive_search";
 import { ResetFilters } from "./list_controls";
 import { SelectAllIcon } from "./action_icons";
@@ -1258,10 +1258,7 @@ export function Home({
       style={{ display: "contents" }}
     >
       {!preview && (
-        <HomeTools
-          autoHide={shouldAutoHideHomeTools(presentation.content_width_percent)}
-          view={page}
-        >
+        <HomeTools dock view={page}>
           {navigation}
           {act && (
             <Button

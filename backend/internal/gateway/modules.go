@@ -352,12 +352,7 @@ func (a *App) ensureModule(ctx context.Context, j *Job, name string, terms bool)
 			if str(a.service("warp-svc")["state"]) == "active" {
 				return errors.New("已有 WARP 服务运行中，未覆盖现有部署")
 			}
-			if e := a.moduleRun(ctx, "systemctl", "mask", "--runtime", "warp-svc.service"); e != nil {
-				return e
-			}
-			defer func() { _ = a.moduleRun(context.Background(), "systemctl", "unmask", "--runtime", "warp-svc.service") }()
-			a.stage(j, "正在安装 Cloudflare WARP；安装阶段禁止自动启动主机隧道")
-			if e := a.installPackages(ctx, "cloudflare-warp"); e != nil {
+			if e := a.installWarpPackage(ctx, j); e != nil {
 				return e
 			}
 		}
@@ -376,7 +371,7 @@ func (a *App) ensureModule(ctx context.Context, j *Job, name string, terms bool)
 		}
 		prep := "/etc/systemd/system/foxray-warp-netns.service"
 		if !presentFile(prep) {
-			if e := atomicFile(prep, []byte("[Unit]\nDescription=FoXray isolated WARP namespace\nAfter=network-online.target\n[Service]\nType=oneshot\nExecStart="+a.base+"/foxray --warp-network\nRemainAfterExit=yes\n"), 0644); e != nil {
+			if e := atomicFile(prep, []byte("[Unit]\nDescription=FoXray isolated WARP namespace\nAfter=network-online.target\nConditionPathExists=!"+warpInstallGuard+"\n[Service]\nType=oneshot\nExecStart="+a.base+"/foxray --warp-network\nRemainAfterExit=yes\n"), 0644); e != nil {
 				return e
 			}
 		}
@@ -496,6 +491,39 @@ func CheckKomari(address string) (M, error) {
 	return probeKomari(ctx, address)
 }
 func NormalizeKomariURL(address string) (string, error) { return normalizeKomariURL(address) }
+
+const warpInstallGuard = "/run/systemd/system/warp-svc.service.d/90-foxray-offline-install.conf"
+
+func (a *App) installWarpPackage(ctx context.Context, j *Job) error {
+	if err := os.MkdirAll(filepath.Dir(warpInstallGuard), 0755); err != nil {
+		return err
+	}
+	guard, err := os.OpenFile(warpInstallGuard, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = os.Remove(warpInstallGuard)
+		_ = a.moduleRun(context.Background(), "systemctl", "daemon-reload")
+	}()
+	_, writeErr := guard.WriteString("[Unit]\nConditionPathExists=!" + warpInstallGuard + "\n")
+	if err := errors.Join(writeErr, guard.Close()); err != nil {
+		return err
+	}
+	if err := a.moduleRun(ctx, "systemctl", "daemon-reload"); err != nil {
+		return err
+	}
+	a.stage(j, "正在安装 Cloudflare WARP；安装阶段禁止自动启动主机隧道")
+	if err := a.installPackages(ctx, "cloudflare-warp"); err != nil {
+		return err
+	}
+	if str(a.service("warp-svc")["state"]) == "active" {
+		if err := a.moduleRun(ctx, "systemctl", "stop", "warp-svc.service"); err != nil {
+			return err
+		}
+	}
+	return a.moduleRun(ctx, "systemctl", "disable", "warp-svc.service")
+}
 
 func (a *App) ensureScout(ctx context.Context, j *Job) error {
 	path := filepath.Join(a.base, "probe-tools", "warpscout")

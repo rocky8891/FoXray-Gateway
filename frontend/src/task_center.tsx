@@ -553,6 +553,11 @@ export function Tasks({
               >
                 {manualTask?.title || toast.operation || "本次操作"}
                 {statusLabel(toastStatus)}
+                {toastStatus === "error" && (
+                  <span className="task-toast-error-message">
+                    {manualTask?.message || toast.message}
+                  </span>
+                )}
               </button>
             )}
             <Button variant="ghost" onClick={closeToast} title="关闭任务提示">

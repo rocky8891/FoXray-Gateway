@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -128,34 +129,94 @@ func SetupWarpNetwork() error {
 	if e = VPNGuard(false); e != nil {
 		return e
 	}
-	raw, e = adminRun([]string{"ip", "-j", "-4", "rule"}, "")
-	if e != nil {
-		return e
+	return configureWarpHostPolicy(adminRun)
+}
+
+// Only local sockets explicitly bound to the WARP veth should use its route table.
+// Ordinary host traffic, including replies to remote management clients, uses its existing routing policy.
+func configureWarpHostPolicy(run func([]string, string) (string, error)) error {
+	raw, err := run([]string{"ip", "-j", "-4", "rule"}, "")
+	if err != nil {
+		return err
 	}
-	rows = nil
-	_ = json.Unmarshal([]byte(raw), &rows)
-	for _, item := range []struct {
-		pref int
-		args []string
-	}{{16070, []string{"lookup", "main", "suppress_prefixlength", "0"}}, {16079, []string{"not", "fwmark", "0x100cf", "lookup", "65743"}}} {
-		exists := false
-		for _, r := range rows {
-			if num(r["priority"]) == float64(item.pref) {
-				exists = true
-				if item.pref == 16070 && str(r["table"]) != "main" || item.pref == 16079 && strOrNumber(r["table"]) != "65743" {
-					return errors.New("主机隔离规则优先级被占用")
+	var rules []M
+	if err := json.Unmarshal([]byte(raw), &rules); err != nil {
+		return err
+	}
+	const priority = 16078
+	// ip rule del matches some omitted selectors loosely. Leave ambiguous priorities untouched.
+	counts := map[int]int{}
+	for _, rule := range rules {
+		counts[int(num(rule["priority"]))]++
+	}
+	selector := []string{"pref", strconv.Itoa(priority), "oif", "CloudflareWARP", "lookup", "65743"}
+	var present bool
+	for _, rule := range rules {
+		if num(rule["priority"]) != priority {
+			continue
+		}
+		if present || str(rule["oif"]) != "CloudflareWARP" || strOrNumber(rule["table"]) != "65743" || !unrestrictedWarpRule(rule, "oif") {
+			return errors.New("WARP 专用路由规则优先级 16078 已被占用")
+		}
+		present = true
+	}
+	if !present {
+		if _, err := run(append([]string{"ip", "-4", "rule", "add"}, selector...), ""); err != nil {
+			return err
+		}
+	}
+	// Remove only the two exact rules written by earlier FoXray versions.
+	for _, priority := range []int{16079, 16070} {
+		if counts[priority] != 1 {
+			continue
+		}
+		for _, rule := range rules {
+			if num(rule["priority"]) != float64(priority) {
+				continue
+			}
+			var old []string
+			switch priority {
+			case 16079:
+				_, inverted := rule["not"]
+				mark, err := strconv.ParseUint(strOrNumber(rule["fwmark"]), 0, 32)
+				mask := strOrNumber(rule["fwmask"])
+				if inverted && err == nil && mark == 65743 && (rule["fwmask"] == nil || mask == "0xffffffff" || mask == "4294967295") && strOrNumber(rule["table"]) == "65743" && unrestrictedWarpRule(rule, "not", "fwmark", "fwmask") {
+					old = []string{"not", "fwmark", "0x100cf/0xffffffff", "lookup", "65743"}
+				}
+			case 16070:
+				prefix, ok := rule["suppress_prefixlen"].(float64)
+				if ok && prefix == 0 && (strOrNumber(rule["table"]) == "main" || strOrNumber(rule["table"]) == "254") && unrestrictedWarpRule(rule, "suppress_prefixlen") {
+					old = []string{"lookup", "main", "suppress_prefixlength", "0"}
 				}
 			}
-		}
-		if !exists {
-			args := append([]string{"ip", "-4", "rule", "add", "pref", strconv.Itoa(item.pref)}, item.args...)
-			if _, e = adminRun(args, ""); e != nil {
-				return e
+			if len(old) != 0 {
+				args := []string{"ip", "-4", "rule", "del", "pref", strconv.Itoa(priority), "from", "all", "to", "all"}
+				if _, err := run(append(args, old...), ""); err != nil {
+					return err
+				}
 			}
 		}
 	}
 	return nil
 }
+
+func unrestrictedWarpRule(rule M, selectors ...string) bool {
+	for key, value := range rule {
+		switch key {
+		case "priority", "table", "protocol":
+			continue
+		case "src", "dst":
+			if text := str(value); text == "all" || text == "0.0.0.0/0" {
+				continue
+			}
+		}
+		if !slices.Contains(selectors, key) {
+			return false
+		}
+	}
+	return true
+}
+
 func strOrNumber(v any) string {
 	if s := str(v); s != "" {
 		return s
