@@ -262,7 +262,8 @@ function SummaryHeader({
             );
             metric.style.setProperty("--summary-disk-inset", `${2 + 200 / diameter}%`);
             const smallestDiameter = Math.max(1, Math.min(...fit.diameters));
-            fitText(metric, diameter * 0.8, diameter, diameter / smallestDiameter);
+            const fontScale = 1 + (diameter / smallestDiameter - 1) * 0.65;
+            fitText(metric, diameter * 0.8, diameter, fontScale);
           });
       } else {
         const rows = [
@@ -299,7 +300,10 @@ function SummaryHeader({
         const leftAnchor =
           grid?.classList.contains("overview-layout-sidebar") &&
           grid.dataset.overviewAnchor === "service-wireguard";
-        const diameter = Math.min(427,
+        // Cap screen pixels as well as CSS pixels: browser/display scaling can
+        // otherwise turn a 427px circle into roughly 569px at 133% scaling.
+        const screenPixelRatio = Math.max(1, window.devicePixelRatio || 1);
+        const diameter = Math.min(427 / screenPixelRatio,
           requested > 0
             ? Math.min(requested, available)
             : leftAnchor
@@ -370,6 +374,7 @@ function SummaryHeader({
     };
     measure();
     const observer = new ResizeObserver(measure);
+    window.addEventListener("resize", measure);
     observer.observe(card);
     const identity = heading.current?.querySelector(
       ".service-overview-identity-row",
@@ -399,6 +404,7 @@ function SummaryHeader({
       });
     return () => {
       observer.disconnect();
+      window.removeEventListener("resize", measure);
       classes.disconnect();
       appearance.disconnect();
     };
