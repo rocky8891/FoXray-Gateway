@@ -1,4 +1,4 @@
-export function circleLayout(width: number, height: number, style: string) {
+export function circleLayout(width: number, height: number, style: string, matchHeartDiameter = false) {
   const padding = 6,
     gap = Math.max(12, Math.min(width, height) * 0.055);
   const w = Math.max(1, width - padding * 2),
@@ -11,7 +11,19 @@ export function circleLayout(width: number, height: number, style: string) {
     layout: string,
     columns = 2,
     diameters = [diameter, diameter, diameter, diameter],
-  ) => ({ diameter, diameters, centers, layout, columns });
+  ) => {
+    const sizes = diameters.map(size => Math.max(1, Math.floor(size)));
+    return {
+      diameter: Math.max(1, Math.floor(diameter)),
+      diameters: sizes,
+      centers: centers.map(([x, y], index) => {
+        const radius = sizes[index] / 2;
+        return [Math.round(x - radius) + radius, Math.round(y - radius) + radius];
+      }),
+      layout,
+      columns,
+    };
+  };
   const line = (vertical: boolean) => {
     const major = vertical ? h : w,
       minor = vertical ? w : h;
@@ -30,7 +42,10 @@ export function circleLayout(width: number, height: number, style: string) {
   if (style === "radial-vertical") return line(true);
   if (style === "radial") return line(false);
   if (style === "radial-square") {
-    const d = Math.max(1, Math.min((w - gap) / 2, (h - gap) / 2)),
+    const reference = matchHeartDiameter
+      ? circleLayout(width, height, "radial-diamond-compact").diameter
+      : Infinity;
+    const d = Math.max(1, Math.min((w - gap) / 2, (h - gap) / 2, reference)),
       offset = (d + gap) / 2;
     return result(
       d,

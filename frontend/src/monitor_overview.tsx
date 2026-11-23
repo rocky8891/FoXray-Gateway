@@ -238,13 +238,13 @@ function SummaryHeader({
       }
       card.dataset.adaptiveCircles = "true";
       if (!card.classList.contains("service-wireguard")) {
-        const fit = circleLayout(width, height, circleStyle);
+        const fit = circleLayout(width, height, circleStyle, !!card.closest(".overview-layout-top"));
         card.style.setProperty("--summary-ring-diameter", `${fit.diameter}px`);
         card.style.setProperty(
           "--summary-ring-stroke",
-          String(400 / fit.diameter),
+          String(200 / fit.diameter),
         );
-        card.style.setProperty("--summary-disk-inset", `${2 + 200 / fit.diameter}%`);
+        card.style.setProperty("--summary-disk-inset", `${200 / fit.diameter}%`);
         card.dataset.ringColumns = String(fit.columns);
         card.dataset.circleLayout = fit.layout;
         card
@@ -256,11 +256,12 @@ function SummaryHeader({
             metric.style.setProperty("--circle-y", `${point[1]}px`);
             const diameter = fit.diameters[slot] || fit.diameter;
             metric.style.setProperty("--circle-diameter", `${diameter}px`);
+            metric.style.setProperty("--summary-ring-radius", String(50 - 100 / diameter));
             metric.style.setProperty(
               "--summary-ring-stroke",
-              String(400 / diameter),
+              String(200 / diameter),
             );
-            metric.style.setProperty("--summary-disk-inset", `${2 + 200 / diameter}%`);
+            metric.style.setProperty("--summary-disk-inset", `${200 / diameter}%`);
             const smallestDiameter = Math.max(1, Math.min(...fit.diameters));
             const fontScale = 1 + (diameter / smallestDiameter - 1) * 0.65;
             fitText(metric, diameter * 0.8, diameter, fontScale);
@@ -310,7 +311,7 @@ function SummaryHeader({
               : grid?.classList.contains("overview-layout-grid")
                 ? Math.min(available, circleLayout(width, height, "radial-mixed").diameter)
                 : available;
-        card.style.setProperty("--summary-tunnel-diameter", `${diameter}px`);
+        card.style.setProperty("--summary-tunnel-diameter", `${Math.max(1, Math.floor(diameter))}px`);
         const center =
           card.classList.contains("wg-circle-center") && diameter >= 180;
         card.dataset.wgNamePosition = center ? "center" : "top";
@@ -461,6 +462,8 @@ function SummaryMetric({
   return (
     <div
       className={"summary-metric metric-" + tone}
+      role="group"
+      aria-label={label}
       data-summary-metric={metricKey}
       data-summary-slot={slot}
       style={slot == null ? undefined : { order: slot }}
@@ -878,6 +881,8 @@ export function ServiceOverviewCards({
                   ready = wgOn && !!row.active;
                 return (
                   <div
+                    role="group"
+                    aria-label={String(row.name) + " 接口指标"}
                     className={
                       "service-tunnel-row" +
                       (!row.active ? " disconnected" : "")

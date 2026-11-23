@@ -1519,3 +1519,26 @@ html:has(main>.overview-page) .overview-node-table>.table-wrap {overflow-y:auto}
   outline-color:transparent!important;
   box-shadow:none!important;
 }
+
+/* A circle keeps one visible boundary and the same accessible group box on hover. */
+.overview-page .summary-v417.service-overview-card[data-adaptive-circles=true][class]:not(.service-wireguard) .summary-metric,
+.overview-page .summary-v417.service-overview-card.service-wireguard[data-adaptive-circles=true][class] .service-tunnel-row {
+  box-sizing:border-box!important;
+  border-radius:var(--radius-pill)!important;
+  outline:none!important;
+  outline-offset:0!important;
+  box-shadow:none!important;
+}
+.overview-page .summary-v417.service-overview-card[data-adaptive-circles=true][class]:not(.service-host,.service-wireguard) .summary-metric,
+.overview-page .summary-v417.service-overview-card.service-wireguard[data-adaptive-circles=true][class] .service-tunnel-row {
+  border:2px solid var(--overview-detail-edge,var(--line))!important;
+}
+.overview-page .summary-v417.service-overview-card.service-host[data-adaptive-circles=true][class] .summary-metric {
+  border:0!important;
+}
+.overview-page .summary-v417.service-overview-card.service-host[data-adaptive-circles=true][class] .summary-percent-ring circle {
+  r:var(--summary-ring-radius,49);
+}
+.overview-page .summary-v417.service-overview-card.service-host[data-adaptive-circles=true][class] .summary-ring-track {
+  stroke:var(--overview-detail-edge,var(--line));
+}
