@@ -1520,7 +1520,7 @@ html:has(main>.overview-page) .overview-node-table>.table-wrap {overflow-y:auto}
   box-shadow:none!important;
 }
 
-/* A circle keeps one visible boundary and the same accessible group box on hover. */
+/* Shared circle geometry; hover may hide the paint without changing the box. */
 .overview-page .summary-v417.service-overview-card[data-adaptive-circles=true][class]:not(.service-wireguard) .summary-metric,
 .overview-page .summary-v417.service-overview-card.service-wireguard[data-adaptive-circles=true][class] .service-tunnel-row {
   box-sizing:border-box!important;
@@ -1541,4 +1541,14 @@ html:has(main>.overview-page) .overview-node-table>.table-wrap {overflow-y:auto}
 }
 .overview-page .summary-v417.service-overview-card.service-host[data-adaptive-circles=true][class] .summary-ring-track {
   stroke:var(--overview-detail-edge,var(--line));
+}
+@media(hover:hover) {
+  .overview-page .summary-v417.service-overview-card[data-adaptive-circles=true][class]:not(.service-host,.service-wireguard) .summary-metric:hover,
+  .overview-page .summary-v417.service-overview-card.service-wireguard[data-adaptive-circles=true][class] .service-tunnel-row:hover {
+    border-color:transparent!important;
+    background:color-mix(in srgb,var(--overview-detail-paint,var(--panel)) 94%,var(--text) 6%)!important;
+  }
+  .overview-page .summary-v417.service-overview-card.service-host[data-adaptive-circles=true][class] .summary-metric:hover .summary-ring-track {
+    stroke:transparent!important;
+  }
 }

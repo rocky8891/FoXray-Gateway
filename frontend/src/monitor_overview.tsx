@@ -237,8 +237,14 @@ function SummaryHeader({
         return;
       }
       card.dataset.adaptiveCircles = "true";
+      let circleTypeScale = 1;
       if (!card.classList.contains("service-wireguard")) {
         const fit = circleLayout(width, height, circleStyle, !!card.closest(".overview-layout-top"));
+        const waveDiameter = circleLayout(width, height, "radial-wave").diameter;
+        // Wave and mixed styles interpret user font settings at a 200px circle;
+        // mixed large circles use the wave-circle type size for the same surface.
+        const responsiveType = fit.layout === "mixed" || circleStyle === "radial-wave";
+        circleTypeScale = responsiveType ? Math.max(0.5, fit.diameter / 200) : 1;
         card.style.setProperty("--summary-ring-diameter", `${fit.diameter}px`);
         card.style.setProperty(
           "--summary-ring-stroke",
@@ -262,9 +268,10 @@ function SummaryHeader({
               String(200 / diameter),
             );
             metric.style.setProperty("--summary-disk-inset", `${200 / diameter}%`);
-            const smallestDiameter = Math.max(1, Math.min(...fit.diameters));
-            const fontScale = 1 + (diameter / smallestDiameter - 1) * 0.65;
-            fitText(metric, diameter * 0.8, diameter, fontScale);
+            const typeDiameter = fit.layout === "mixed" && diameter === fit.diameter
+              ? Math.min(diameter, waveDiameter)
+              : diameter;
+            fitText(metric, typeDiameter * 0.8, typeDiameter, responsiveType ? Math.max(0.5, typeDiameter / 200) : 1);
           });
       } else {
         const rows = [
@@ -341,26 +348,25 @@ function SummaryHeader({
         });
       }
       alignInterfaceNames();
-      // Mixed layouts intentionally give large and small circles different type sizes.
-      // Each size is fitted against a stable representative, never a live value.
+      // Mixed circles keep their own geometry-based fit; live values never size type.
       if (card.dataset.circleLayout === "mixed") return;
       const metrics = [
         ...card.querySelectorAll<HTMLElement>(".summary-metric"),
       ];
       const commonValue = Math.min(
-        requestedValue,
+        requestedValue * circleTypeScale,
         ...metrics.map(
           (metric) =>
             parseFloat(metric.style.getPropertyValue("--circle-value-size")) ||
-            requestedValue,
+            requestedValue * circleTypeScale,
         ),
       );
       const commonLabel = Math.min(
-        requestedLabel,
+        requestedLabel * circleTypeScale,
         ...metrics.map(
           (metric) =>
             parseFloat(metric.style.getPropertyValue("--circle-label-size")) ||
-            requestedLabel,
+            requestedLabel * circleTypeScale,
         ),
       );
       metrics.forEach((metric) => {
@@ -368,7 +374,7 @@ function SummaryHeader({
         metric.style.setProperty("--circle-label-size", `${commonLabel}px`);
         metric.style.setProperty(
           "--circle-icon-size",
-          `${Math.min(14, commonLabel + 1)}px`,
+          `${Math.min(14 * circleTypeScale, commonLabel + 1)}px`,
         );
       });
     };
