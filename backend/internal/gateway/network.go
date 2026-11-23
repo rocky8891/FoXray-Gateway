@@ -231,7 +231,7 @@ func (n *Network) Preview(data M) (*NetworkPlan, error) {
 	n.mu.Lock()
 	sourceRevision := fingerprint(n.managed)
 	n.mu.Unlock()
-	if op != "add" && op != "replace" && op != "delete" && op != "start" && op != "stop" && op != "restart" && op != "enable" && op != "disable" && op != "adopt" && !(op == "remark" && kind == "wireguard") {
+	if op != "add" && op != "replace" && op != "delete" && op != "start" && op != "stop" && op != "restart" && op != "enable" && op != "disable" && op != "adopt" && !((op == "remark" || op == "peer-enable" || op == "peer-disable") && kind == "wireguard") {
 		return nil, errors.New("网络操作无效")
 	}
 	if kind == "routes" || kind == "rules" || kind == "firewall" {
@@ -417,7 +417,7 @@ func (n *Network) wireguard() []M {
 			for _, v := range peers {
 				values = append(values, v)
 			}
-			row["peers"] = values
+			row["peers"] = mergeWGPeerRows(row["peers"], values)
 			addresses, _ := a.commandJSON("ip", "-j", "address", "show", "dev", name)
 			row["addresses"] = addresses
 			local := []string{}

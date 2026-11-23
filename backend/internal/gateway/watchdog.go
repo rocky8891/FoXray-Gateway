@@ -248,7 +248,10 @@ func runRollbackStep(runner Runner, step Step) error {
 	switch step.Args[0] {
 	case "ip", "systemctl", "firewall-cmd", "nft", "iptables", "ip6tables", "nmcli":
 	default:
-		return errors.New("回退命令不在允许列表")
+		exe, err := os.Executable()
+		if err != nil || step.Args[0] != exe || len(step.Args) != 5 || step.Args[1] != "--wireguard-peer" || !wgKey(step.Args[2]) || step.Args[3] != "--interface" || iface(step.Args[4]) != nil {
+			return errors.New("回退命令不在允许列表")
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

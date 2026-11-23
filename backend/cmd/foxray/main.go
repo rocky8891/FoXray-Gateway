@@ -16,6 +16,7 @@ import (
 func main() {
 	managerUpdate := flag.Bool("apply-manager-update", false, "apply a verified manager release without changing component services")
 	warpProbe := flag.String("warp-probe", "", "internal isolated WARP measurement")
+	wgPeer := flag.String("wireguard-peer", "", "synchronize one peer from its saved enabled state")
 	wgNetwork := flag.String("wireguard-network", "", "apply interface-scoped network rules: up or down")
 	wgInterface := flag.String("interface", "", "WireGuard interface")
 	base := flag.String("base", "/opt/foxray", "runtime directory")
@@ -92,6 +93,16 @@ func main() {
 			os.Exit(1)
 		}
 		if err := gateway.EnsureModule(*base, *ensureModule, *acceptTerms); err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+		return
+	}
+	if *wgPeer != "" {
+		if *readonly || *checkMigration {
+			os.Exit(1)
+		}
+		if err := gateway.WireGuardPeerState(*wgInterface, *wgPeer); err != nil {
 			log.Print(err)
 			os.Exit(1)
 		}

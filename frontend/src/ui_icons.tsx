@@ -1,3 +1,4 @@
+import { AllFirewallRulesIcon } from "./all_firewall_rules_icon";
 import { CrossZoneIcon } from "./cross_zone_icon";
 import { AdoptIcon } from "./action_icons";
 import { FirewallIcon, UnknownRulesIcon } from "./firewall_icons";
@@ -236,6 +237,7 @@ const definitions: [RegExp, LucideIcon][] = [
   [/版本/, Info],
 ];
 export function labelIcon(label: string, size = 16) {
+  if (/^(查看)?全部规则$/.test(label)) return <AllFirewallRulesIcon size={size}/>;
   if (label === "跨区域规则") return <CrossZoneIcon size={size}/>;
   if (/升序|降序|排序/.test(label)) return <SortIcon size={size} />;
   if (label === "卡片外观") return <AppearanceIcon size={size} />;

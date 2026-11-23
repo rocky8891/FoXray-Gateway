@@ -282,6 +282,13 @@ export function NetworkPage({
           </span>
         ),
       },
+      { key: "addresses", label: "接口 IP", render: (r) => {
+        const current = Array.isArray(r.addresses) ? r.addresses.flatMap(a => Array.isArray(record(a).addr_info) ? (record(a).addr_info as Dict[]).map(ip => String(ip.local || "") + "/" + String(ip.prefixlen ?? "")) : []) : [];
+        const addresses = current.length ? current : Array.isArray(r.configured_addresses) ? r.configured_addresses.map(String) : [];
+        return addresses.length ? addresses.map(ip=><div key={ip}>{ip}</div>) : "—";
+      } },
+      { key: "peer_addresses", label: "Peer IP / AllowedIPs", render: r => list(r.peers).map((p,i)=><div key={i}><small>Peer {i+1}{p.disabled ? " · 已停用" : ""}</small>{(Array.isArray(p.allowed_ips) ? p.allowed_ips.map(String) : String(p.allowed_ips||"").split(/[\s,]+/)).filter(Boolean).map(ip=><div key={ip}>{ip}</div>)}</div>) },
+      { key: "endpoint", label: "Endpoint", render: r => list(r.peers).map((p,i)=><div key={i}><small>Peer {i+1}</small>{p.endpoint && p.endpoint!=="(none)" ? String(p.endpoint) : "未配置／等待对端"}</div>) },
       { key: "port", label: "监听端口", render: (r) => text(r.listen_port) },
       {
         key: "peers",
@@ -291,7 +298,7 @@ export function NetworkPage({
             {list(r.peers).length} 个
             {list(r.peers).map((p, i) => (
               <small key={i}>
-                Peer {i + 1}：{timestamp(p.handshake)}
+                Peer {i + 1}：{p.disabled ? "已停用" : timestamp(p.handshake)}
               </small>
             ))}
           </>
@@ -358,6 +365,7 @@ export function NetworkPage({
             }}
             items={[
               { label: "详情", onClick: () => setDetails(r) },
+              { label: "管理 Peer", disabled: !r.configured, onClick: () => begin("peers", r) },
               { label: "编辑备注", disabled: !r.configured, onClick: () => begin("remark", {name:r.name,remark:r.remark||""}) },
               {
                 label: r.active ? "停止" : "启动",
@@ -813,13 +821,21 @@ export function NetworkPage({
           rowKey={(r) => String(r.id || r.name || JSON.stringify(r))}
         />
       </Panel>
-      {form && (
+      {form && operation === "peers" && (
+        <WireGuardPeerManager
+          name={String(form.name)}
+          peers={list(form.peers)}
+          onClose={() => setForm(null)}
+          onToggle={peer => begin(peer.disabled ? "peer-enable" : "peer-disable", { name: form.name, public_key: peer.public_key })}
+        />
+      )}
+      {form && operation !== "peers" && (
         <Modal
           description={
             kind === "wireguard" ? (
               <>
                 私钥不通过查询接口返回，不进入操作日志或
-                GitHub。修改地址与路由配置前需先停止该接口；保存不会自动启动。
+                GitHub。运行中编辑地址或路由会重启此接口；单独启停 Peer 不重启接口。
               </>
             ) : undefined
           }
@@ -836,6 +852,8 @@ export function NetworkPage({
               restart: "重启",
               enable: "开启自启",
               disable: "关闭自启",
+              "peer-enable": "启用 Peer",
+              "peer-disable": "停用 Peer",
             }[operation] || operation)
           }
           onClose={() => setForm(null)}
@@ -938,6 +956,31 @@ export function NetworkPage({
     </>
   );
 }
+function WireGuardPeerManager({ name, peers, onClose, onToggle }: {
+  name: string;
+  peers: Dict[];
+  onClose: () => void;
+  onToggle: (peer: Dict) => void;
+}) {
+  return (
+    <Modal title={name + " · Peer 管理"} onClose={onClose} wide>
+      <p className="hint">单独启停 Peer，保留配置；不停止接口或其他 Peer。已停止的接口仅保存状态，下次启动时生效。</p>
+      {!peers.length && <p className="muted">此接口尚未配置 Peer。</p>}
+      {peers.map((peer, i) => (
+        <section className="peer-card" key={String(peer.public_key)}>
+          <strong>Peer {i + 1} · {peer.disabled ? "已停用" : "已启用"}</strong>
+          <p>AllowedIPs：{Array.isArray(peer.allowed_ips) ? peer.allowed_ips.join(", ") : String(peer.allowed_ips || "—")}</p>
+          <p>Endpoint：{String(peer.endpoint || "未配置／等待对端")}</p>
+          {peer.configured === false && <p className="hint">仅运行时存在，尚未写入此接口配置，暂不支持保存启停状态。</p>}
+          <Button variant={peer.disabled ? "primary" : "danger"} disabled={peer.configured === false} onClick={() => onToggle(peer)}>
+            {peer.disabled ? "启用此 Peer" : "停用此 Peer"}
+          </Button>
+        </section>
+      ))}
+    </Modal>
+  );
+}
+
 function WireGuardRemarkField({value,onChange}:{value:string;onChange:(value:string)=>void}) {
   return <Field label="备注" hint="可选，最多200字；用于说明接口用途，不影响接口名称、角色或路由。"><input aria-label="WireGuard接口备注" value={value} maxLength={200} placeholder="例如：回家 VPN、办公网络" onChange={e=>onChange(e.target.value)}/></Field>;
 }
@@ -962,6 +1005,8 @@ function NetworkForm({
         ? { ...value, name: v, key_id: undefined, public_key: undefined }
         : { ...value, [k]: v },
     );
+  if (kind === "wireguard" && ["peer-enable","peer-disable"].includes(operation)) return <p>{operation === "peer-disable" ? "停用" : "启用"}接口 <strong>{String(value.name)}</strong> 中选定的 Peer；保留配置，接口和其他 Peer 保持运行。</p>;
+  if (kind === "wireguard" && operation === "peers") return <p>请在接口表格的 Peer 管理中操作。</p>;
   if (kind === "wireguard" && operation === "remark") return <><p>接口：<strong>{String(value.name)}</strong></p><WireGuardRemarkField value={String(value.remark||"")} onChange={v=>set("remark",v)}/><p className="hint">仅修改用途备注，无需停止或重启接口，不改变受保护状态。</p></>;
   if (!["add", "replace"].includes(operation))
     return (
@@ -1418,6 +1463,7 @@ function PeerEditor({
       </div>
       {peers.map((peer, i) => (
         <section className="peer-card" key={i}>
+          <p className="hint">Peer {i+1} · {peer.disabled ? "已停用（保留配置）" : "已启用"}；单独启停请使用接口操作中的“管理 Peer”。</p>
           <div className="form-grid">
             <Field label={"Peer " + (i + 1) + " 公钥"}>
               <input
@@ -1494,10 +1540,10 @@ export function NetworkPending({ act, inline = false, readOnly = false }: { act:
     try { const ok = await act("/api/network/"+operation,{id:p.id}); if(!ok) setFailure("操作未完成，请核对状态后重试；变更仍按服务端期限自动回退。"); await refresh(); }
     catch(e) {setFailure(errorMessage(e));} finally {setBusy("");}
   };
-  return pending.length ? <>{notice&&<Modal title="网络变更待确认" onClose={()=>setDismissed(notice.id)}><div className="network-confirm-content"><p>{notice.summary}</p><p className="network-confirm-countdown" role="timer">{remainingPlanSeconds(notice.expires,Date.now()/1000-offset)} 秒后自动回退</p><p>请确认管理连接、VPN 和业务访问正常，再保留本次变更。</p><ErrorLine error={failure||resourceError||""}/><div className="modal-actions"><Button variant="danger" disabled={readOnly||!!busy} onClick={()=>void run(notice,"rollback")}>立即回退</Button><Button variant="primary" disabled={readOnly||!!busy||remainingPlanSeconds(notice.expires,Date.now()/1000-offset)===0||!!resourceError} onClick={()=>void run(notice,"confirm")}>确认保留</Button></div></div></Modal>}<section className={inline?"network-pending-banner":"network-pending"} aria-label="网络变更待确认" role="region">
+  return pending.length ? <>{notice&&<Modal title="网络变更待确认" onClose={()=>setDismissed(notice.id)}><div className="network-confirm-content"><p>{notice.summary}</p><p className="network-confirm-countdown" role="timer">{remainingPlanSeconds(notice.expires,Date.now()/1000-offset)} 秒后自动回退</p><p>请确认管理连接、VPN 和业务访问正常，再保留本次变更。</p><ErrorLine error={failure||resourceError||""}/><div className="modal-actions"><Button variant="danger" disabled={readOnly||!!busy} onClick={()=>void run(notice,"rollback")}>立即回退</Button><Button variant="primary" disabled={readOnly||!!busy||remainingPlanSeconds(notice.expires,Date.now()/1000-offset)===0||!!resourceError} onClick={()=>void run(notice,"confirm")}>确认保留</Button></div></div></Modal>}{!notice&&<section className={inline?"network-pending-banner":"network-pending"} aria-label="网络变更待确认" role="region">
     {pending.map(p=>{const remaining=remainingPlanSeconds(p.expires,Date.now()/1000-offset);return <div className="network-pending-item" key={p.id}>
       <div className="network-pending-description"><strong><AlertTriangle size={17}/>有 {pending.length} 项网络变更待确认</strong><p>{p.summary}</p><small role="timer" aria-live="off">{remaining>0?remaining+"秒后自动回退":"确认期限已到，正在核对自动回退状态"}</small>{readOnly&&<small>只读预览：请在正式服务确认或回退。</small>}</div>
       <div className="actions"><Button variant="primary" disabled={readOnly||!!busy||remaining===0||!!resourceError} onClick={()=>void run(p,"confirm")}>{busy===p.id+"confirm"?"正在确认…":"确认保留"}</Button><Button variant="danger" disabled={readOnly||!!busy} onClick={()=>void run(p,"rollback")}>{busy===p.id+"rollback"?"正在回退…":"立即回退"}</Button></div>
     </div>})}<ErrorLine error={failure||resourceError||""}/>
-  </section></> : null;
+  </section>}</> : null;
 }

@@ -18,6 +18,40 @@ import (
 
 type namespaceRunner struct{ name, binary string }
 
+func TestKernelWGPeerSuspendKeepsOtherPeerAndInterface(t *testing.T) {
+	a, runner := kernelFixture(t)
+	name := "wg-peer-test"
+	if _, err := a.command(5, "", "ip", "link", "add", name, "type", "wireguard"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.command(5, "", "ip", "link", "set", name, "up"); err != nil {
+		t.Fatal(err)
+	}
+	key, other := peerTestKey(1), peerTestKey(2)
+	profile := &WGProfile{Peers: []WGPeer{{PublicKey: key, AllowedIPs: []string{"192.0.2.2/32"}}, {PublicKey: other, AllowedIPs: []string{"192.0.2.3/32"}}}}
+	for _, peer := range profile.Peers {
+		if err := syncWGPeer(a.ctx, runner, name, peer.PublicKey, profile); err != nil {
+			t.Fatal(err)
+		}
+	}
+	profile.Peers[0].Disabled = true
+	if err := syncWGPeer(a.ctx, runner, name, key, profile); err != nil {
+		t.Fatal(err)
+	}
+	peers, err := a.command(5, "", "wg", "show", name, "peers")
+	if err != nil || strings.Contains(peers, key) || !strings.Contains(peers, other) {
+		t.Fatal("targeted suspend changed unrelated peer or interface")
+	}
+	profile.Peers[0].Disabled = false
+	if err := syncWGPeer(a.ctx, runner, name, key, profile); err != nil {
+		t.Fatal(err)
+	}
+	peers, err = a.command(5, "", "wg", "show", name, "peers")
+	if err != nil || !strings.Contains(peers, key) || !strings.Contains(peers, other) {
+		t.Fatal("targeted resume failed")
+	}
+}
+
 func (n namespaceRunner) Run(ctx context.Context, args []string, input string) (string, error) {
 	copyArgs := append([]string{}, args...)
 	if args[0] == "ip" && len(args) > 1 && args[1] != "netns" || args[0] == "nft" || args[0] == "wg" {

@@ -13,6 +13,7 @@ import (
 )
 
 type WGPeer struct {
+	Disabled        bool     `json:"disabled"`
 	PublicKey       string   `json:"public_key"`
 	AllowedIPs      []string `json:"allowed_ips"`
 	Endpoint        string   `json:"endpoint"`
@@ -55,6 +56,10 @@ func parseWG(name, raw string) (*WGProfile, error) {
 	peer := -1
 	for _, line := range strings.Split(raw, "\n") {
 		line = strings.TrimSpace(line)
+		disabledLine := strings.HasPrefix(line, wgDisabledPeerPrefix)
+		if disabledLine {
+			line = strings.TrimSpace(strings.TrimPrefix(line, wgDisabledPeerPrefix))
+		}
 		if strings.HasPrefix(line, wgMetadataPrefix) {
 			var v WGNetwork
 			if json.Unmarshal([]byte(strings.TrimPrefix(line, wgMetadataPrefix)), &v) == nil {
@@ -68,7 +73,7 @@ func parseWG(name, raw string) (*WGProfile, error) {
 		if strings.HasPrefix(line, "[") {
 			section = strings.ToLower(line)
 			if section == "[peer]" {
-				p.Peers = append(p.Peers, WGPeer{AllowedIPs: []string{}})
+				p.Peers = append(p.Peers, WGPeer{AllowedIPs: []string{}, Disabled: disabledLine})
 				peer = len(p.Peers) - 1
 			}
 			continue
@@ -159,7 +164,16 @@ func (p *WGProfile) render() string {
 	for _, line := range p.extras {
 		b.WriteString(line + "\n")
 	}
+	header := b.String()
+	for _, peer := range p.Peers {
+		if peer.Disabled {
+			header = string(wgStopConfiguration([]byte(header)))
+			break
+		}
+	}
+	peerBlocks := []string{}
 	for _, v := range p.Peers {
+		var b strings.Builder
 		b.WriteString("\n[Peer]\nPublicKey = " + v.PublicKey + "\n")
 		if v.PresharedKey != "" {
 			b.WriteString("PresharedKey = " + v.PresharedKey + "\n")
@@ -171,8 +185,13 @@ func (p *WGProfile) render() string {
 		if v.Keepalive > 0 {
 			fmt.Fprintf(&b, "PersistentKeepalive = %d\n", v.Keepalive)
 		}
+		block := b.String()
+		if v.Disabled {
+			block = commentWGPeer(block)
+		}
+		peerBlocks = append(peerBlocks, block)
 	}
-	return b.String()
+	return header + strings.Join(peerBlocks, "")
 }
 func wgKey(s string) bool {
 	b, e := base64.StdEncoding.DecodeString(s)
@@ -196,6 +215,9 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 	}
 	if name == "wg-home" && !yes(d["allow_protected"]) {
 		return errors.New("wg-home 为内置保护接口，须明确确认本次接口操作")
+	}
+	if op == "peer-enable" || op == "peer-disable" {
+		return n.planWGPeerState(plan, name, str(item["public_key"]), op == "peer-disable")
 	}
 	a := n.app
 	path := "/etc/wireguard/" + name + ".conf"
@@ -379,7 +401,7 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 	seen := map[string]bool{}
 	for _, v := range arr(item["peers"]) {
 		m := obj(v)
-		peer := WGPeer{PublicKey: str(m["public_key"]), Endpoint: str(m["endpoint"]), Keepalive: int(num(m["keepalive"]))}
+		peer := WGPeer{Disabled: yes(m["disabled"]), PublicKey: str(m["public_key"]), Endpoint: str(m["endpoint"]), Keepalive: int(num(m["keepalive"]))}
 		if !wgKey(peer.PublicKey) || seen[peer.PublicKey] {
 			return errors.New("Peer 公钥无效或重复")
 		}
