@@ -1,6 +1,7 @@
 import { record,list,type Dict,type Plan } from "./api";
 import { Field,NumberInput,SettingInfo } from "./ui";
 import { firewallTargetLabel } from "./firewall_view_state";
+import { FirewallServiceSelect } from "./firewall_service_select";
 
 export function ZoneSourceEditor({value,onChange,zones,sources}:{value:Dict;onChange:(k:string,v:unknown)=>void;zones:string[];sources:string[]}){
  const release=value.binding_action==="unbind";
@@ -33,7 +34,7 @@ export function RichRuleEditor({value,onChange,services}:{value:Dict;onChange:(k
  <Field label="匹配类型"><select aria-label="高级规则匹配类型" value={match} onChange={e=>onChange("rich_match",e.target.value)}><option value="port">协议／端口</option><option value="service">预定义服务</option><option value="all">全部流量</option></select></Field>
  <Field label="来源IP／网段" info="留空表示当前区域内所有来源，并非整个系统所有流量。"><input aria-label="高级规则来源" value={String(value.source||"")} placeholder="192.168.1.0/24" onChange={e=>onChange("source",e.target.value)}/></Field>
  {match==="port"&&<><Field label="协议"><select aria-label="高级规则协议" value={String(value.protocol||"tcp")} onChange={e=>onChange("protocol",e.target.value)}><option value="tcp">TCP</option><option value="udp">UDP</option><option value="tcpudp">TCP＋UDP</option></select></Field><Field label="端口／范围"><input aria-label="高级规则端口" value={String(value.port||"")} placeholder="443 或 8000-8100" onChange={e=>onChange("port",e.target.value)}/></Field></>}
- {match==="service"&&<Field label="预定义服务"><input aria-label="高级规则服务" list="rich-rule-services" value={String(value.service||"")} onChange={e=>onChange("service",e.target.value)}/><datalist id="rich-rule-services">{services.map(name=><option key={name}>{name}</option>)}</datalist></Field>}
+ {match==="service"&&<Field label="预定义服务"><FirewallServiceSelect label="高级规则服务" value={String(value.service||"")} services={services} onChange={name=>onChange("service",name)}/></Field>}
  <Field label="动作"><select aria-label="高级规则动作" value={String(value.action||"accept")} onChange={e=>onChange("action",e.target.value)}><option value="accept">允许</option><option value="drop">丢弃</option><option value="reject">拒绝并回应</option></select></Field>
  </div><details className="advanced-form"><summary>高级选项 · 地址族、优先级与日志</summary><div className="form-grid"><Field label="地址族"><select aria-label="高级规则地址族" value={String(value.family||"ipv4")} onChange={e=>onChange("family",e.target.value)}><option value="ipv4">IPv4</option><option value="ipv6">IPv6</option></select></Field><Field label="优先级" hint="-32768至32767；0使用firewalld默认顺序"><NumberInput min={-32768} max={32767} value={Number(value.priority||0)} onChange={e=>onChange("priority",Number(e.target.value))}/></Field></div><label className="check"><input type="checkbox" checked={!!value.logging} onChange={e=>onChange("logging",e.target.checked)}/>记录匹配日志</label>{value.logging===true&&<Field label="日志速率限制"><input aria-label="高级规则日志速率" value={String(value.log_rate||"5/m")} onChange={e=>onChange("log_rate",e.target.value)}/></Field>}</details>
  <div className="firewall-human-summary">{value.source?String(value.source):"当前区域全部来源"} → {match==="port"?String(value.protocol||"tcp").toUpperCase()+" / "+String(value.port||"未填写端口"):match==="service"?"服务 "+String(value.service||"未选择"):"全部流量"} → {({accept:"允许",drop:"丢弃",reject:"拒绝并回应"} as Record<string,string>)[String(value.action||"accept")]}</div></>;

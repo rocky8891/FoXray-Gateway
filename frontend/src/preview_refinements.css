@@ -1546,6 +1546,16 @@ html:has(main>.overview-page) .overview-node-table>.table-wrap {overflow-y:auto}
 .host-status .gauge-ring circle {
   stroke-width:4.5px;
 }
+.firewall-service-select { width:100%;min-width:0; }
+.firewall-service-select>.icon-select-trigger { width:100%;justify-content:space-between;font-weight:400; }
+.firewall-service-select>.icon-select-trigger>span { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.firewall-service-menu { display:flex;flex-direction:column;gap:6px;overflow:hidden; }
+.firewall-service-menu>.multi-select-search { flex:none;margin:0; }
+.firewall-service-menu>.multi-select-search>input { width:100%;min-width:0;flex:1; }
+.firewall-service-options { overflow-y:auto;min-height:0; }
+.firewall-service-options>button { display:block;width:100%;padding:9px 10px;border:0;border-radius:var(--radius-xs);background:none;color:var(--text);font:inherit;text-align:left;cursor:pointer;overflow-wrap:anywhere; }
+.firewall-service-options>button:hover,.firewall-service-options>button:focus-visible { background:var(--button); }
+.firewall-service-options>button[aria-selected=true] { background:var(--accent-bg); }
 @media(hover:hover) {
   .overview-page .summary-v417.service-overview-card[data-adaptive-circles=true][class]:not(.service-host,.service-wireguard) .summary-metric:hover,
   .overview-page .summary-v417.service-overview-card.service-wireguard[data-adaptive-circles=true][class] .service-tunnel-row:hover {

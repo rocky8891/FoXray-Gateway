@@ -1,4 +1,5 @@
 import { ZoneRulesIcon } from "./workspace_icons";
+import { FirewallServiceSelect } from "./firewall_service_select";
 import { AdaptiveSearch } from "./adaptive_search";
 import { ZoneSourceEditor,ZonePolicyEditor,RichRuleEditor,FirewallChangeDetails,FirewallRuleSummary } from "./firewall_editors";
 import { FirewallWorkspace } from "./firewall_workspace";
@@ -195,7 +196,7 @@ export function FirewallPage({ act }: { act: Act }) {
     priority: 0,
     logging: false,
     log_rate: "5/m",
-    service: "ssh",
+    service: "",
   });
   const heading = (key: string, label: string) => (
     <SortHeading
@@ -780,6 +781,7 @@ export function FirewallPage({ act }: { act: Act }) {
             <Button
               variant="primary"
               disabled={
+                ((form.kind === "service-rule" || (form.kind === "rich" && form.rich_match === "service")) && !String(form.service || "").trim()) ||
                 (form.kind === "zone-interface" && (!Array.isArray(form.interfaces) || !form.interfaces.length)) ||
                 (["service", "zone-interface", "zone-source", "zone-policy", "masquerade", "rich"].includes(String(form.kind)) && !ack) ||
                 (targetDraftChanged && (form.target_ack !== true || (form.target_apply === "immediate" && form.reload_ack !== true)))
@@ -901,16 +903,7 @@ function FirewallForm({
         </Field>
         {kind === "service-rule" ? (
           <Field label="预定义服务">
-            <input
-              list="firewall-services"
-              value={String(value.service || "")}
-              onChange={(e) => onChange("service", e.target.value)}
-            />
-            <datalist id="firewall-services">
-              {services.map((name) => (
-                <option key={name}>{name}</option>
-              ))}
-            </datalist>
+            <FirewallServiceSelect value={String(value.service || "")} services={services} onChange={name => onChange("service", name)}/>
           </Field>
         ) : (
           <>
