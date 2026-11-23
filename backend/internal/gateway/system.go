@@ -17,11 +17,14 @@ func adminRun(args []string, input string) (string, error) {
 	return (SystemRunner{}).Run(ctx, args, input)
 }
 func VPNGuard(refresh bool) error {
+	if _, err := CheckTopology(); err != nil {
+		return err
+	}
 	company := ""
 	if _, e := os.Stat("/sys/fs/cgroup/system.slice/vone-linux.service"); e == nil {
 		company = " socket cgroupv2 level 2 \"system.slice/vone-linux.service\" meta mark set 0x100cf ct mark set 0x100cf ip dscp set 0\n"
 	}
-	rule := "table inet foxray_vpn_guard {\n chain output {\n type route hook output priority -165; policy accept;\n" + company + " udp sport 8045 meta mark set 0x100cf ct mark set 0x100cf\n }\n chain prerouting {\n type filter hook prerouting priority -165; policy accept;\n iifname \"ens16\" udp dport 8045 ct mark set 0x100cf meta mark set 0x100cf\n iifname \"CloudflareWARP\" ip saddr 10.254.253.2 meta mark set 0x100cf ct mark set 0x100cf\n }\n chain nat {\n type nat hook postrouting priority 99; policy accept;\n oifname \"ens16\" ip saddr 10.254.253.2 masquerade\n }\n}\n"
+	rule := "table inet foxray_vpn_guard {\n chain output {\n type route hook output priority -165; policy accept;\n" + company + " udp sport 8045 meta mark set 0x100cf ct mark set 0x100cf\n }\n chain prerouting {\n type filter hook prerouting priority -165; policy accept;\n iifname " + strconv.Quote(uplink()) + " udp dport 8045 ct mark set 0x100cf meta mark set 0x100cf\n iifname \"CloudflareWARP\" ip saddr 10.254.253.2 meta mark set 0x100cf ct mark set 0x100cf\n }\n chain nat {\n type nat hook postrouting priority 99; policy accept;\n oifname " + strconv.Quote(uplink()) + " ip saddr 10.254.253.2 masquerade\n }\n}\n"
 	if _, e := adminRun([]string{"nft", "list", "table", "inet", "foxray_vpn_guard"}, ""); e == nil {
 		rule = "delete table inet foxray_vpn_guard\n" + rule
 	}
@@ -54,6 +57,9 @@ func VPNGuard(refresh bool) error {
 	return e
 }
 func SetupWarpNetwork() error {
+	if _, err := CheckTopology(); err != nil {
+		return err
+	}
 	if _, e := os.Stat("/run/netns/foxray-warp"); e != nil {
 		if _, e = adminRun([]string{"ip", "netns", "add", "foxray-warp"}, ""); e != nil {
 			return e
@@ -175,7 +181,7 @@ func InitializeModules(base string, xray, warp, wireguard, komari bool) error {
 			selected = "warp"
 			endpoints = append(endpoints, M{"id": "warp", "name": "Cloudflare WARP", "kind": "warp", "enabled": true, "priority": 30, "port": 0})
 		}
-		if e := writeJSON(filepath.Join(base, "config.json"), M{"enabled": false, "mode": "manual", "selected": selected, "endpoints": endpoints}); e != nil {
+		if e := writeJSON(filepath.Join(base, "config.json"), M{"enabled": false, "capture_lan": false, "mode": "manual", "selected": selected, "endpoints": endpoints}); e != nil {
 			return e
 		}
 	}

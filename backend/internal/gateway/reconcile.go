@@ -29,10 +29,10 @@ func (a *App) refreshWGGuard() error {
 	}
 	ports = uniq(ports)
 	sort.Strings(ports)
-	if len(ports) == 0 {
+	if len(ports) == 0 || uplink() == "" {
 		return nil
 	}
-	text := "table inet foxray_wireguard_guard {\n chain output {\n type route hook output priority -166; policy accept;\n udp sport { " + strings.Join(ports, ", ") + " } meta mark set 0x100cf ct mark set 0x100cf\n }\n chain prerouting {\n type filter hook prerouting priority -166; policy accept;\n iifname \"ens16\" udp dport { " + strings.Join(ports, ", ") + " } meta mark set 0x100cf ct mark set 0x100cf\n }\n}\n"
+	text := "table inet foxray_wireguard_guard {\n chain output {\n type route hook output priority -166; policy accept;\n udp sport { " + strings.Join(ports, ", ") + " } meta mark set 0x100cf ct mark set 0x100cf\n }\n chain prerouting {\n type filter hook prerouting priority -166; policy accept;\n iifname " + strconv.Quote(uplink()) + " udp dport { " + strings.Join(ports, ", ") + " } meta mark set 0x100cf ct mark set 0x100cf\n }\n}\n"
 	if _, e := a.command(3, "", "nft", "list", "table", "inet", "foxray_wireguard_guard"); e == nil {
 		text = "delete table inet foxray_wireguard_guard\n" + text
 	}

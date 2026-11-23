@@ -21,7 +21,7 @@ func (n *Network) planDeleteInterface(p *NetworkPlan, data M) error {
 	if !yes(data["allow_protected"]) {
 		return errors.New("请确认删除接口及其对端的影响")
 	}
-	if name == "ens16" || name == "lo" || strings.HasPrefix(name, "wg-") {
+	if name == uplink() || name == "lo" || strings.HasPrefix(name, "wg-") {
 		return errors.New("系统或 VPN 接口不能删除")
 	}
 	kind := str(owned["type"])

@@ -88,6 +88,7 @@ func TestLANDNSCustomRulesForceAndFailureResults(t *testing.T) {
 	}
 }
 func TestLANDNSWireBoundsAndCaptureScope(t *testing.T) {
+	useTopologyFixture(t)
 	for _, raw := range [][]byte{nil, {1}, {0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0xc0, 0x0c}} {
 		if _, err := parseDNSQuestion(raw); err == nil {
 			t.Fatal("invalid DNS encoding accepted")
@@ -112,7 +113,7 @@ func TestLANDNSWireBoundsAndCaptureScope(t *testing.T) {
 	}
 	c := M{"capture_lan": true, "lan_dns_intercept": true}
 	rules := lanDNSCaptureRules(c)
-	if !strings.Contains(rules, "192.168.1.0/24") || !strings.Contains(rules, "th dport 53 redirect to :1053") || !strings.Contains(rules, "th dport 1053 drop") {
+	if !strings.Contains(rules, "172.18.0.0/16") || !strings.Contains(rules, "th dport 53 redirect to :1053") || !strings.Contains(rules, "th dport 1053 drop") {
 		t.Fatal(rules)
 	}
 	c["capture_lan"] = false

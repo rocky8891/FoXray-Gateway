@@ -104,7 +104,7 @@ func New(base, ui string, readonly bool) (*App, error) {
 	a.components = M{"xray": true, "wireguard": true, "warp": warpInstalled == nil, "komari": false, "komari_url": ""}
 	_ = readJSON(filepath.Join(base, "components.json"), &a.components)
 	if yes(a.components["komari"]) && str(a.components["komari_url"]) == "" {
-		a.components["komari_url"] = "http://192.168.1.8:25774/"
+		a.components["komari_url"] = "http://127.0.0.1:25774/"
 	}
 	a.geo = M{}
 	_ = readJSON(filepath.Join(base, "geo-cache.json"), &a.geo)

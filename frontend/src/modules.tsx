@@ -91,7 +91,7 @@ export function ModuleSettings({ state }: { state: State; act: Act }) {
                           setURL(e.target.value);
                           setCheck("");
                         }}
-                        placeholder="http://192.168.1.8:25774/"
+                        placeholder="http://监控服务器:25774/"
                       />
                     </Field>
                     <Button

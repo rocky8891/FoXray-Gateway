@@ -47,7 +47,7 @@ func (n *Network) InterfaceSnapshot() M {
 				r["admin_up"] = true
 			}
 		}
-		r["protected"] = name == "ens16" || name == "lo" || name == "vone0" || strings.HasPrefix(name, "wg-") || name == "CloudflareWARP" || name == "vpm-tun"
+		r["protected"] = name == uplink() || name == "lo" || name == "vone0" || strings.HasPrefix(name, "wg-") || name == "CloudflareWARP" || name == "vpm-tun"
 		r["managed_by_vpn"] = name == "vone0" || strings.HasPrefix(name, "wg-") || name == "CloudflareWARP" || name == "vpm-tun"
 		r["managed"] = n.ownedItem("interfaces", name) != nil
 		r["can_delete"] = yes(r["managed"]) && !yes(r["protected"]) && !yes(r["admin_up"]) && len(arr(r["addr_info"])) == 0
@@ -121,7 +121,7 @@ func (n *Network) planNewInterface(p *NetworkPlan, item M) error {
 		if err := iface(value); err != nil {
 			return err
 		}
-		if value == "lo" || value == "ens16" || value == "vone0" || value == "CloudflareWARP" || value == "vpm-tun" || value == "fw-uplink" || strings.HasPrefix(value, "wg-") {
+		if value == "lo" || value == uplink() || value == "vone0" || value == "CloudflareWARP" || value == "vpm-tun" || value == "fw-uplink" || strings.HasPrefix(value, "wg-") {
 			return errors.New("名称由系统或VPN保留")
 		}
 		return nil

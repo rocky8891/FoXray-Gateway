@@ -53,7 +53,7 @@ func (a *App) prepareScoutProbe() (scoutProbeEnvironment, func(), error) {
 }
 func scoutScanArgs(env scoutProbeEnvironment, protocol, target, report string, latency bool) []string {
 	host, port, _ := net.SplitHostPort(target)
-	args := []string{"setpriv", "--reuid", env.uid, "--regid", env.gid, "--clear-groups", "--inh-caps=+net_raw", "--ambient-caps=+net_raw", env.binary, "scan", "--proto", protocol, "--target", host, "--port", port, "--interface", "ens16", "--account", env.account, "--tunnel-jobs", "1", "--timeout", "2", "--plain", "--output", report}
+	args := []string{"setpriv", "--reuid", env.uid, "--regid", env.gid, "--clear-groups", "--inh-caps=+net_raw", "--ambient-caps=+net_raw", env.binary, "scan", "--proto", protocol, "--target", host, "--port", port, "--interface", uplink(), "--account", env.account, "--tunnel-jobs", "1", "--timeout", "2", "--plain", "--output", report}
 	if latency {
 		args = append(args, "--tun-ping-count", "10")
 	}

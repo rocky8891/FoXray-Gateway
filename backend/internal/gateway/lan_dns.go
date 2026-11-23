@@ -119,8 +119,8 @@ func (d *LANResolver) start() error {
 	return nil
 }
 func lanDNSClientAllowed(ip net.IP) bool {
-	v := ip.To4()
-	return ip.IsLoopback() || v != nil && v[0] == 192 && v[1] == 168 && v[2] == 1
+	_, prefix, err := net.ParseCIDR(currentTopology().LAN)
+	return ip.IsLoopback() || err == nil && prefix.Contains(ip)
 }
 func (d *LANResolver) serveUDP(conn *net.UDPConn) {
 	for {
@@ -444,7 +444,7 @@ func configureLANResolverEngine(engine M, selected string) {
 		}
 	}
 	if !direct {
-		outbounds = append(outbounds, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": M{"interface": "ens16", "mark": 65743}}})
+		outbounds = append(outbounds, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": outboundSocket(false)}})
 	}
 	engine["outbounds"] = outbounds
 	routing := obj(engine["routing"])
@@ -455,14 +455,15 @@ func lanDNSCaptureRules(c M, engineUID ...string) string {
 		return ""
 	}
 	text := ""
-	lan := yes(c["capture_lan"])
+	topology := currentTopology()
+	lan := yes(c["capture_lan"]) && topology.Interface != "" && topology.LAN != ""
 	for _, v := range arr(customVPNExclusions(c)["interfaces"]) {
-		if str(v) == "ens16" {
+		if str(v) == topology.Interface {
 			lan = false
 		}
 	}
 	if lan {
-		text += fmt.Sprintf(" chain dns_prerouting { type nat hook prerouting priority -100; policy accept; iifname \"ens16\" ip saddr 192.168.1.0/24 meta l4proto { tcp, udp } th dport 53 redirect to :%d; }\n", lanDNSPort)
+		text += fmt.Sprintf(" chain dns_prerouting { type nat hook prerouting priority -100; policy accept; iifname %q ip saddr %s meta l4proto { tcp, udp } th dport 53 redirect to :%d; }\n", topology.Interface, topology.LAN, lanDNSPort)
 	}
 	if yes(c["capture_host"]) && len(engineUID) > 0 {
 		if _, err := strconv.Atoi(engineUID[0]); err == nil {
@@ -481,7 +482,7 @@ func lanDNSCaptureRules(c M, engineUID ...string) string {
 	}
 	allowLAN := ""
 	if lan {
-		allowLAN = fmt.Sprintf("iifname \"ens16\" ip saddr 192.168.1.0/24 meta l4proto { tcp, udp } th dport %d accept; ", lanDNSPort)
+		allowLAN = fmt.Sprintf("iifname %q ip saddr %s meta l4proto { tcp, udp } th dport %d accept; ", topology.Interface, topology.LAN, lanDNSPort)
 	}
 	text += fmt.Sprintf(" chain dns_input { type filter hook input priority -5; policy accept; iifname \"lo\" meta nfproto ipv4 meta l4proto { tcp, udp } th dport %d accept; %smeta nfproto ipv4 meta l4proto { tcp, udp } th dport %d drop; }\n", lanDNSPort, allowLAN, lanDNSPort)
 	return text

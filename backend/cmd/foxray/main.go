@@ -36,7 +36,16 @@ func main() {
 	withWireguard := flag.Bool("with-wireguard", false, "select WireGuard module")
 	withWarp := flag.Bool("with-warp", false, "select WARP component")
 	withKomari := flag.Bool("with-komari", false, "select Komari component")
+	checkTopology := flag.Bool("check-topology", false, "inspect and validate network topology without applying changes")
 	flag.Parse()
+	if *checkTopology {
+		topology, err := gateway.CheckTopology()
+		if err != nil {
+			log.Fatal(err)
+		}
+		_ = json.NewEncoder(os.Stdout).Encode(topology)
+		return
+	}
 	if *managerUpdate {
 		if *readonly || *checkMigration {
 			log.Print("只读或迁移检查模式不允许应用版本更新")

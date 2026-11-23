@@ -468,7 +468,7 @@ func (a *App) scoutSOCKS(ctx context.Context, protocol, target, binary, account,
 	}
 	p := listener.Addr().(*net.TCPAddr).Port
 	_ = listener.Close()
-	args := []string{"setpriv", "--reuid", uid, "--regid", gid, "--clear-groups", "--inh-caps=+net_raw", "--ambient-caps=+net_raw", binary, "socks", "--proto", protocol, "--endpoint", target, "--listen", "127.0.0.1", "--port", strconv.Itoa(p), "--interface", "ens16", "--account", account, "--timeout", "4"}
+	args := []string{"setpriv", "--reuid", uid, "--regid", gid, "--clear-groups", "--inh-caps=+net_raw", "--ambient-caps=+net_raw", binary, "socks", "--proto", protocol, "--endpoint", target, "--listen", "127.0.0.1", "--port", strconv.Itoa(p), "--interface", uplink(), "--account", account, "--timeout", "4"}
 	args = append(args, scoutMASQUEArgs(protocol)...)
 	child, cancel := context.WithTimeout(ctx, time.Duration(seconds+20)*time.Second)
 	done := make(chan struct{})

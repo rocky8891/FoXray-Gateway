@@ -46,8 +46,9 @@ func TestScoutSpeedFailureIsRecordedWithoutErasingSuccess(t *testing.T) {
 	}
 }
 func TestScoutScanUsesPinnedMASQUEConfiguration(t *testing.T) {
+	useTopologyFixture(t)
 	args := strings.Join(scoutScanArgs(scoutProbeEnvironment{binary: "tool", account: "account", uid: "1", gid: "2"}, "masque-h2", "162.159.198.87:443", "report", true), " ")
-	for _, want := range []string{"--masque-sni " + scoutMASQUESNI, "--interface ens16", "--tun-ping-count 10", "--target 162.159.198.87 --port 443"} {
+	for _, want := range []string{"--masque-sni " + scoutMASQUESNI, "--interface ens3", "--tun-ping-count 10", "--target 162.159.198.87 --port 443"} {
 		if !strings.Contains(args, want) {
 			t.Fatal(args)
 		}

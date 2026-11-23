@@ -729,7 +729,7 @@ function RoutingForm({
             </>
           ) : (
             <>
-              {input("iif", "入接口（可选）", "ens16")}
+              {input("iif", "入接口（可选）", "例如 eth0")}
               {input("oif", "出接口（可选）", "wg-work")}
               {input("uidrange", "本机进程 UID 范围", "1000-1999")}
               <label className="check">

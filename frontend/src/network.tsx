@@ -189,7 +189,7 @@ export function NetworkPage({
               role: "client",
               route_mode: "auto",
               snat: false,
-              lan_interface: "ens16",
+              lan_interface: "",
               lan_sources: [],
               routes: [],
               advertised_routes: [],
@@ -1316,9 +1316,9 @@ function WGNetworkEditor({
               ? "例如 192.168.1.0/24；只影响此隧道出口"
               : "填写 VPN 客户端网段，例如 10.20.0.0/24",
           )}
-          <Field label="LAN 接口" hint="用于限定转发范围，例如 ens16">
+          <Field label="LAN 接口" hint="用于限定转发范围，填写连接测试 LAN 的实际接口">
             <input
-              value={String(value.lan_interface || "ens16")}
+              value={String(value.lan_interface || "")}
               onChange={(e) => change("lan_interface", e.target.value)}
             />
           </Field>

@@ -14,15 +14,18 @@ func directResolver() *net.Resolver {
 			var e error
 			if err := raw.Control(func(fd uintptr) {
 				e = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_MARK, 65743)
-				if e == nil {
-					e = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, "ens16")
+				if device := uplink(); e == nil && device != "" && !isLoopbackAddress(address) {
+					e = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, device)
 				}
 			}); err != nil {
 				return err
 			}
 			return e
 		}}
-		return d.DialContext(ctx, "udp", "192.168.1.1:53")
+		if dns := currentTopology().DNS; dns != "" {
+			address = net.JoinHostPort(dns, "53")
+		}
+		return d.DialContext(ctx, network, address)
 	}}
 }
 
@@ -31,8 +34,8 @@ func directDialer() *net.Dialer {
 		var e error
 		if err := raw.Control(func(fd uintptr) {
 			e = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_MARK, 65743)
-			if e == nil {
-				e = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, "ens16")
+			if device := uplink(); e == nil && device != "" && !isLoopbackAddress(address) {
+				e = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, device)
 			}
 		}); err != nil {
 			return err
@@ -59,4 +62,9 @@ func warpDialer() *net.Dialer {
 		return makeDial().DialContext(ctx, "udp", "1.1.1.1:53")
 	}}
 	return d
+}
+
+func isLoopbackAddress(address string) bool {
+	host, _, err := net.SplitHostPort(address)
+	return err == nil && net.ParseIP(host).IsLoopback()
 }

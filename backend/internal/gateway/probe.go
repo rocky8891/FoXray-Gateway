@@ -271,7 +271,7 @@ func (a *App) measureICMP(ctx context.Context, host string) M {
 	seconds := count*int(num(policy["timeout"])) + 5
 	child, cancel := context.WithTimeout(ctx, time.Duration(seconds)*time.Second)
 	defer cancel()
-	args := []string{"ping", "-4", "-n", "-q", "-c", intstr(policy["count"]), "-s", intstr(policy["size"]), "-W", intstr(policy["timeout"]), "-m", "65743", "-I", "ens16", ip.String()}
+	args := []string{"ping", "-4", "-n", "-q", "-c", intstr(policy["count"]), "-s", intstr(policy["size"]), "-W", intstr(policy["timeout"]), "-m", "65743", "-I", uplink(), ip.String()}
 	raw, _ := a.runner.Run(child, args, "")
 	m := pingCount.FindStringSubmatch(raw)
 	if len(m) != 3 {

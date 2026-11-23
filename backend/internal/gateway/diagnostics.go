@@ -91,7 +91,7 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 	target := ips[0].String()
 	args := []string{"ip", "-j", "-4", "route", "get", target}
 	if scope == "lan" && source != "" {
-		args = append(args, "from", source, "iif", "ens16")
+		args = append(args, "from", source, "iif", uplink())
 	}
 	raw, _ := a.command(5, "", args...)
 	a.jobDetail(j, "目标："+host+" → "+target)

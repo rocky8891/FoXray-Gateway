@@ -897,7 +897,7 @@ function WarpPolicy({
 }
 export function Komari({ url }: { url: string }) {
   const [height, setHeight] = useState(1100);
-  const src = url || "http://192.168.1.8:25774/";
+  const src = url || `${window.location.protocol}//${window.location.hostname}:25774/`;
   const origin = new URL(src).origin;
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {

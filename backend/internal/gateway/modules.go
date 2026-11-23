@@ -171,7 +171,7 @@ func (a *App) changeModule(ctx context.Context, j *Job, data M) error {
 				raw = str(next["komari_url"])
 			}
 			if raw == "" {
-				raw = "http://192.168.1.8:25774/"
+				raw = "http://127.0.0.1:25774/"
 			}
 			a.stage(j, "检测 Komari URL，不安装或修改 Komari 服务")
 			check, e := probeKomari(ctx, raw)

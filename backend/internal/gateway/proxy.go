@@ -23,7 +23,7 @@ import (
 func canonicalOutbound(o M, tag string) (M, error) {
 	o = clone(o)
 	kind := str(o["type"])
-	stream := M{"network": "raw", "sockopt": M{"interface": "ens16", "mark": 65743, "domainStrategy": "UseIPv4"}}
+	stream := M{"network": "raw", "sockopt": outboundSocket(true)}
 	tls := obj(o["tls"])
 	host := str(o["server"])
 	port := o["server_port"]
@@ -182,7 +182,7 @@ func (a *App) buildEngine(c, native M, selected string) (M, error) {
 		rules = append(rules, M{"type": "field", "inboundTag": []string{"probe-" + identity}, "outboundTag": tag})
 	}
 	if selected == "direct" {
-		outs = append(outs, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": M{"interface": "ens16", "mark": 65743}}})
+		outs = append(outs, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": outboundSocket(false)}})
 	}
 	dnsServers, err := directDNSServers(c)
 	if err != nil {
@@ -194,7 +194,7 @@ func (a *App) buildEngine(c, native M, selected string) (M, error) {
 	if len(dnsServers) > 0 && !yes(c["dns_force_proxy"]) {
 		rules = append(rules, M{"type": "field", "inboundTag": []string{"tun"}, "ip": dnsServers, "port": "53", "network": "tcp,udp", "outboundTag": "out-direct"})
 		if selected != "direct" {
-			outs = append(outs, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": M{"interface": "ens16", "mark": 65743}}})
+			outs = append(outs, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": outboundSocket(false)}})
 		}
 	}
 	if str(c["route_profile"]) == "gfwlist" {
@@ -204,7 +204,7 @@ func (a *App) buildEngine(c, native M, selected string) (M, error) {
 		}
 		obj(ins[0])["sniffing"] = M{"enabled": true, "destOverride": []string{"http", "tls", "quic"}, "routeOnly": true}
 		if (len(dnsServers) == 0 || yes(c["dns_force_proxy"])) && selected != "direct" {
-			outs = append(outs, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": M{"interface": "ens16", "mark": 65743, "domainStrategy": "UseIPv4"}}})
+			outs = append(outs, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": outboundSocket(true)}})
 		}
 		for _, k := range []string{"direct", "proxy"} {
 			domains := []string{}
@@ -234,7 +234,7 @@ func (a *App) buildEngine(c, native M, selected string) (M, error) {
 			tags[str(obj(v)["tag"])] = true
 		}
 		if !tags["out-direct"] {
-			outs = append(outs, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": M{"interface": "ens16", "mark": 65743}}})
+			outs = append(outs, M{"tag": "out-direct", "protocol": "freedom", "settings": M{"domainStrategy": "UseIPv4"}, "streamSettings": M{"sockopt": outboundSocket(false)}})
 		}
 		if !tags["out-block"] {
 			outs = append(outs, M{"tag": "out-block", "protocol": "blackhole", "settings": M{}})
@@ -363,6 +363,9 @@ func (a *App) captureRulesWithNative(c, native M) (string, error) {
 }
 func (a *App) captureRulesForEngine(c, native M, uid string) (string, error) {
 	excluded := append([]string{}, defaultCaptureExclusions...)
+	if lan := currentTopology().LAN; lan != "" {
+		excluded = append(excluded, lan)
+	}
 	exclusion := customVPNExclusions(c)
 	for _, v := range arr(exclusion["cidrs"]) {
 		if ip, _, err := net.ParseCIDR(str(v)); err == nil && ip.To4() != nil {
@@ -410,8 +413,8 @@ func (a *App) captureRulesForEngine(c, native M, uid string) (string, error) {
 	dns := "ip daddr != { " + strings.Join(uniq(excluded), ", ") + " } meta l4proto { tcp, udp } th dport 53 counter ip dscp set 1 meta mark set 0x100cf return\n"
 	mark := "  meta l4proto { tcp, udp } counter ip dscp set 1 meta mark set 0x100cf\n"
 	pre := "  return\n"
-	if yes(c["capture_lan"]) {
-		pre = "  iifname != \"ens16\" return\n  ip saddr != 192.168.1.0/24 return\n  fib daddr oifname { " + deviceSet + " } return\n  " + dns + skip + mark
+	if topology := currentTopology(); yes(c["capture_lan"]) && topology.Interface != "" && topology.LAN != "" {
+		pre = fmt.Sprintf("  iifname != %q return\n  ip saddr != %s return\n  fib daddr oifname { %s } return\n  ", topology.Interface, topology.LAN, deviceSet) + dns + skip + mark
 	}
 	out := ""
 	if yes(c["capture_lan"]) || yes(c["capture_host"]) {
@@ -503,6 +506,9 @@ func (a *App) proxyControlConfigLocked(data M, prepared M, uiAction ...string) e
 	}
 	target := str(c["selected"])
 	if yes(c["enabled"]) {
+		if _, err := CheckTopology(); err != nil {
+			return err
+		}
 		if target == "warp" || target == "direct" {
 			return errors.New("启用 Xray 请先选择原生节点")
 		}
