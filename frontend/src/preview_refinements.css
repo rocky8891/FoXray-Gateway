@@ -968,57 +968,77 @@ body .overview-footer > .data-freshness {
   outline-offset: -2px;
 }
 .home-tools-dock {
+  --dock-top: calc(var(--header-height) + var(--group-gap) + 12px);
   position: fixed;
   z-index: 65;
-  right: 0;
-  top: calc(var(--header-height) + 12px);
-  width: 66px;
-  max-height: calc(100dvh - var(--header-height) - 24px);
-  overflow: hidden;
+  inset: var(--dock-top) 0 auto auto;
+  width: 64px;
+  max-height: calc(100dvh - var(--dock-top) - 8px);
+  overflow: clip;
   pointer-events: none;
 }
 .home-tools-dock > .overview-side-tools[data-auto-hide="true"] {
   position: relative;
-  top: 0;
-  right: 0;
+  inset: auto;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   gap: 6px;
-  width: 66px;
+  width: 100%;
   box-sizing: border-box;
   margin: 0;
   padding: 8px 8px 8px 16px;
-  transform: translateX(calc(100% - 8px));
-  transition: transform 0.18s ease;
-  pointer-events: auto;
+  transform: translateX(calc(100% - 9px));
+  transition: transform 220ms cubic-bezier(0.2, 0.75, 0.25, 1), visibility 0s 220ms;
+  pointer-events: none;
+  visibility: hidden;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  max-height: calc(100dvh - var(--header-height) - 24px);
-  overflow-y: auto;
-  overflow-x: hidden;
+  border-radius: var(--radius) 0 0 var(--radius);
+  max-height: calc(100dvh - var(--dock-top) - 8px);
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
 }
-.home-tools-dock
-  > .overview-side-tools[data-auto-hide="true"]:is(
-    :hover,
-    :has(:focus-visible),
-    :has(.home-tools-handle:focus),
-    :has([aria-expanded="true"])
-  ) {
+.home-tools-dock :is(.overview-view-picker, .overview-random-theme-tools, .overview-time-tool, .overview-node-filter, .icon-select) {
+  width: var(--button-height-regular);
+  min-width: var(--button-height-regular);
+  max-width: var(--button-height-regular);
+  flex: none;
+}
+.home-tools-dock[data-pinned="true"] > .overview-side-tools[data-auto-hide="true"],
+.home-tools-dock > .overview-side-tools[data-auto-hide="true"]:is(
+  :hover,
+  :has(:focus-visible),
+  :has(.home-tools-handle:focus),
+  :has([aria-expanded="true"]:not(.home-header-toggle))
+) {
   transform: translateX(0);
+  pointer-events: auto;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.home-tools-dock[data-pinned="true"] > .overview-side-tools[data-auto-hide="true"] {
+  padding-block: 0;
+  background: transparent;
+  border-color: transparent;
+  pointer-events: none;
+}
+.home-tools-dock[data-pinned="true"] .overview-side-tools button {
+  pointer-events: auto;
 }
 .home-tools-handle {
   position: absolute;
   left: 0;
   top: 0;
-  bottom: 0;
   width: 8px;
-  min-height: 42px;
+  height: 42px;
   padding: 0;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-xs) 0 0 var(--radius-xs);
   background: color-mix(in srgb, var(--accent) 35%, var(--line));
+  pointer-events: auto;
+  visibility: visible;
   cursor: pointer;
 }
 .modal-detail-tools {
@@ -1055,8 +1075,8 @@ body .overview-footer > .data-freshness {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-.home-tools-dock {
-  top: calc(var(--header-edge, var(--header-height)) + 12px);
+main[data-home-tools-auto-hide="true"]:has(> .overview-page) {
+  width: var(--content-width, 80%) !important;
 }
 /* Narrow utility edges, evenly distributed data columns. */
 .table-wrap table.balanced-columns {

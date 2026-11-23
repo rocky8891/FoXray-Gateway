@@ -77,6 +77,15 @@ export function NetworkPage({
     [query, setQuery] = useState(""),
     [family, setFamily] = useState("4"),
     [section, setSection] = useState("managed");
+  const originalWireGuardForm = useRef<Dict | null>(null);
+  const onlyWireGuardRemarkChanged = (() => {
+    const original = originalWireGuardForm.current;
+    if (kind !== "wireguard" || operation !== "replace" || !form || !original) return false;
+    const { remark, ...config } = form;
+    const { remark: originalRemark, ...originalConfig } = original;
+    return String(remark ?? "").trim() !== String(originalRemark ?? "").trim()
+      && JSON.stringify(config) === JSON.stringify(originalConfig);
+  })();
   useEffect(() => {
     setForm(null);
     setPlan(null);
@@ -85,6 +94,7 @@ export function NetworkPage({
     setQuery("");
   }, [kind]);
   const begin = (op: string, item: Dict) => {
+    originalWireGuardForm.current = kind === "wireguard" && op === "replace" ? item : null;
     setOperation(op);
     setForm(item);
     setAllowProtected(false);
@@ -837,7 +847,7 @@ export function NetworkPage({
             value={form}
             onChange={setForm}
           />
-          {operation !== "remark" && (form.name === "wg-home" ||
+          {operation !== "remark" && !onlyWireGuardRemarkChanged && (form.name === "wg-home" ||
             operation === "delete" ||
             (kind === "routes" && form.dst === "default") ||
             kind === "wireguard" ||
@@ -860,6 +870,10 @@ export function NetworkPage({
                 kind === "wireguard" && operation === "add" && !form.key_id
               }
               onClick={() => {
+                if (onlyWireGuardRemarkChanged) {
+                  void preview("remark", { name: form.name, remark: form.remark });
+                  return;
+                }
                 let item = { ...form };
                 if (
                   kind === "wireguard" &&

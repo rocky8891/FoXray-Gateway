@@ -1,24 +1,29 @@
 import { useContext, type ReactNode } from "react";
 import { HomeHeaderContext } from "./home_header";
 import { createPortal } from "react-dom";
+export function shouldAutoHideHomeTools(width: unknown) {
+  return Number(width) >= 99;
+}
+
 export function HomeTools({
-  fullWidth,
+  autoHide,
   view,
   children,
 }: {
-  fullWidth: boolean;
+  autoHide: boolean;
   view: string;
   children: ReactNode;
 }) {
   const header = useContext(HomeHeaderContext);
+  const pinned = autoHide && header.hidden && header.expanded;
   const tools = (
     <aside
       className="overview-side-tools"
       data-overview-view={view}
-      data-auto-hide={fullWidth || undefined}
+      data-auto-hide={autoHide || undefined}
       aria-label="主页快捷工具"
     >
-      {fullWidth && (
+      {autoHide && !pinned && (
         <button
           type="button"
           className="home-tools-handle"
@@ -39,9 +44,9 @@ export function HomeTools({
       {children}
     </aside>
   );
-  return fullWidth
+  return autoHide
     ? createPortal(
-        <div className="home-tools-dock">{tools}</div>,
+        <div className="home-tools-dock" data-pinned={pinned || undefined}>{tools}</div>,
         document.body,
       )
     : tools;

@@ -153,7 +153,7 @@ export function PageWidthSettings({ act }: { act: Act }) {
         <div className="form-grid">
           <Field
             label="页面显示宽度（%）"
-            info="80%保留两侧留白；100%铺满可用宽度，首页右侧工具条自动收起，悬停或聚焦右边缘可展开。"
+            info="80% 保留两侧留白。设为 99% 或 100% 时，首页工具栏收在右上角，悬停、点击或聚焦边缘把手即可展开。"
           >
             <NumberInput
               aria-label="页面显示宽度（%）"

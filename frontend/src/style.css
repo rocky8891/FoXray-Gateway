@@ -6838,13 +6838,8 @@ html::-webkit-scrollbar-thumb:hover{background:var(--muted);background-clip:padd
 
 /* temporary home theme with a timed restore action. */
 .overview-random-theme-tools{display:flex;flex-direction:column;gap:6px}
-.overview-random-button>.button,.overview-random-restore>.button{width:36px;height:36px;min-height:36px;padding:7px;border-radius:var(--radius-xs)}
+.overview-random-theme-tools>.button,.overview-random-restore>.button{width:36px;height:36px;min-height:36px;padding:7px;border-radius:var(--radius-xs)}
 .overview-random-restore>.button{color:var(--metric-blue);border-color:var(--metric-blue);background:color-mix(in srgb,var(--metric-blue) 18%,var(--card))}
-
-/* help card below the home quick tools. */
-.overview-random-help{position:absolute;top:calc(100% + 8px);right:0;width:240px;max-width:calc(100vw - 24px);padding:12px;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:var(--radius-xs);background:var(--card);color:var(--text);box-shadow:0 6px 20px #0003;font-size:12px;line-height:1.6;white-space:normal;z-index:40}
-.overview-random-help>strong{font-size:13px}
-.overview-random-help>span{color:var(--muted)}
 
 /* Shared hover and keyboard feedback for every home shortcut. */
 .overview-side-tools :is(button.button,button.icon-select-trigger){transition:background-color .15s,color .15s,border-color .15s}

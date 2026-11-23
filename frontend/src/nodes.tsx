@@ -1,4 +1,4 @@
-import { HomeTools } from "./home_tools";
+import { HomeTools, shouldAutoHideHomeTools } from "./home_tools";
 import { AdaptiveSearch } from "./adaptive_search";
 import { ResetFilters } from "./list_controls";
 import { SelectAllIcon } from "./action_icons";
@@ -10,7 +10,7 @@ import {
 import { ListFilter, SortHeading } from "./list_controls";
 import type { HomeRandomTheme } from "./overview_random_theme";
 import { RandomThemeIcon, RestoreThemeIcon } from "./requirement_icons";
-import { useId, useRef, useLayoutEffect } from "react";
+import { useRef, useLayoutEffect } from "react";
 import { ConnectedTime } from "./connected_time";
 import { AllNodesIcon } from "./log_icons";
 import { TrueLatencyIcon } from "./requirement_icons";
@@ -1031,55 +1031,6 @@ export function sortOverviewNodes(nodes: Node[], sort: NodeTableSort | null) {
     })
     .map((row) => row.node);
 }
-function RandomThemeButton({
-  failed,
-  localOnly,
-  onClick,
-}: {
-  failed: boolean;
-  localOnly?: boolean;
-  onClick: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const id = useId();
-  return (
-    <div
-      className="overview-random-button"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)}
-      onBlur={() => setOpen(false)}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.stopPropagation();
-          setOpen(false);
-        }
-      }}
-    >
-      <button
-        type="button"
-        className="button"
-        aria-label="随机主题"
-        data-control-icon="true"
-        aria-describedby={open ? id : undefined}
-        onClick={onClick}
-      >
-        <RandomThemeIcon size={18} />
-      </button>
-      {open && (
-        <div id={id} role="tooltip" className="overview-random-help">
-          <strong>随机主题</strong>
-          <span>
-            {localOnly ? "只读预览：随机效果仅在当前页面试用，不自动保存；可恢复原布局，刷新后恢复正式设置。" : failed
-              ? "保存失败，已保留恢复操作；可恢复随机前布局，或再次随机重新计时。"
-              : "随机切换卡片排列和各模块样式。1分钟无新随机操作将自动保存当前主页布局，恢复按钮随之消失；连续点击随机会重新计时。恢复可撤销本轮随机。"}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function Home({
   state,
   page = "dashboard",
@@ -1308,7 +1259,7 @@ export function Home({
     >
       {!preview && (
         <HomeTools
-          fullWidth={Number(presentation.content_width_percent || 80) === 100}
+          autoHide={shouldAutoHideHomeTools(presentation.content_width_percent)}
           view={page}
         >
           {navigation}
@@ -1328,16 +1279,20 @@ export function Home({
               className="overview-random-theme-tools"
               data-random-deadline={randomTheme.deadline || undefined}
             >
-              <RandomThemeButton
-                failed={randomTheme.failed}
-                localOnly={randomTheme.localOnly}
+              <button
+                type="button"
+                className="button"
+                aria-label="随机主题"
+                data-control-icon="true"
                 onClick={() => {
                   randomTheme.shuffle(presentation);
                   setEditing(false);
                   setEditDraft({});
                   editOriginal.current = {};
                 }}
-              />
+              >
+                <RandomThemeIcon size={18} />
+              </button>
               {randomTheme.pending && (
                 <div className="overview-random-restore">
                   <Button
