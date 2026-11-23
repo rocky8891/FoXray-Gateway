@@ -248,9 +248,9 @@ function SummaryHeader({
         card.style.setProperty("--summary-ring-diameter", `${fit.diameter}px`);
         card.style.setProperty(
           "--summary-ring-stroke",
-          String(200 / fit.diameter),
+          String(400 / fit.diameter),
         );
-        card.style.setProperty("--summary-disk-inset", `${200 / fit.diameter}%`);
+        card.style.setProperty("--summary-disk-inset", `${400 / fit.diameter}%`);
         card.dataset.ringColumns = String(fit.columns);
         card.dataset.circleLayout = fit.layout;
         card
@@ -262,12 +262,12 @@ function SummaryHeader({
             metric.style.setProperty("--circle-y", `${point[1]}px`);
             const diameter = fit.diameters[slot] || fit.diameter;
             metric.style.setProperty("--circle-diameter", `${diameter}px`);
-            metric.style.setProperty("--summary-ring-radius", String(50 - 100 / diameter));
+            metric.style.setProperty("--summary-ring-radius", String(50 - 200 / diameter));
             metric.style.setProperty(
               "--summary-ring-stroke",
-              String(200 / diameter),
+              String(400 / diameter),
             );
-            metric.style.setProperty("--summary-disk-inset", `${200 / diameter}%`);
+            metric.style.setProperty("--summary-disk-inset", `${400 / diameter}%`);
             const typeDiameter = fit.layout === "mixed" && diameter === fit.diameter
               ? Math.min(diameter, waveDiameter)
               : diameter;

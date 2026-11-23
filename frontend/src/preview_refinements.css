@@ -1537,10 +1537,14 @@ html:has(main>.overview-page) .overview-node-table>.table-wrap {overflow-y:auto}
   border:0!important;
 }
 .overview-page .summary-v417.service-overview-card.service-host[data-adaptive-circles=true][class] .summary-percent-ring circle {
-  r:var(--summary-ring-radius,49);
+  r:var(--summary-ring-radius,48);
 }
 .overview-page .summary-v417.service-overview-card.service-host[data-adaptive-circles=true][class] .summary-ring-track {
-  stroke:var(--overview-detail-edge,var(--line));
+  stroke:color-mix(in srgb,var(--text) 10%,transparent);
+}
+.host-runtime-panel .gauge-ring circle,
+.host-status .gauge-ring circle {
+  stroke-width:4.5px;
 }
 @media(hover:hover) {
   .overview-page .summary-v417.service-overview-card[data-adaptive-circles=true][class]:not(.service-host,.service-wireguard) .summary-metric:hover,
