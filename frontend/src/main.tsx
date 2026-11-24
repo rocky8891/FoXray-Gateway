@@ -150,21 +150,25 @@ function App() {
   const [headerClosing, setHeaderClosing] = useState(false);
   const showNavFox = headerAutoHide && (headerExpanded || headerClosing);
   const collapseInNav = hideHomeHeader && headerExpanded && page === "overview";
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!headerClosing) return;
-    const timer = window.setTimeout(() => setHeaderClosing(false), 600);
-    return () => window.clearTimeout(timer);
+    let cancelled = false;
+    const transitions = header.current?.getAnimations() ?? [];
+    void Promise.allSettled(transitions.map(transition => transition.finished)).then(() => {
+      if (!cancelled) setHeaderClosing(false);
+    });
+    return () => { cancelled = true; };
   }, [headerClosing]);
   const moveHeaderFocus = useRef(false);
   const animateHeaderNavigation = useRef(false);
   useLayoutEffect(() => {
-    if (!moveHeaderFocus.current) return;
+    if (headerClosing || !moveHeaderFocus.current) return;
     moveHeaderFocus.current = false;
     const selector = collapseInNav
       ? ".nav-home-collapse"
       : ".home-tools-dock .home-tools-handle, .home-tools-dock .home-header-toggle";
     document.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true });
-  }, [collapseInNav]);
+  }, [collapseInNav, headerClosing]);
   useLayoutEffect(() => {
     if (!animateHeaderNavigation.current) return;
     animateHeaderNavigation.current = false;
@@ -453,7 +457,7 @@ function App() {
         ? `管理服务在线，有告警：${managerWarning}`
         : "管理服务正常";
   return (
-    <HomeHeaderContext.Provider value={{hidden: hideHomeHeader, expanded: headerExpanded, collapseInNav, toggle: (button, keyboard) => {
+    <HomeHeaderContext.Provider value={{hidden: hideHomeHeader, expanded: headerExpanded, collapseInNav: collapseInNav || headerClosing, toggle: (button, keyboard) => {
       moveHeaderFocus.current = page === "overview" && keyboard;
       const box = button.getBoundingClientRect();
       setHeaderOrigin(`${box.x + box.width / 2}px ${box.y + box.height / 2}px`);

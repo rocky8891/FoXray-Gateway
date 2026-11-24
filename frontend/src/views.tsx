@@ -1798,6 +1798,7 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
                         <option value="path">转发路径诊断</option>
                       </select>
                     </Field>
+                    <Button onClick={() => setKind("")}>重置</Button>
                   </ListFilter>
                 </span>
               ),
