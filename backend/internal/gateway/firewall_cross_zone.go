@@ -328,11 +328,36 @@ func crossCommand(name string, permanent bool, option string) []string {
 	return append(args, "--policy="+name, option)
 }
 
+type crossZonePlanSnapshot struct {
+	live, saved map[string]crossZonePolicy
+	zones       []string
+}
+
+func (n *Network) crossZonePlanSnapshot() (*crossZonePlanSnapshot, error) {
+	live, err := n.readCrossZonePolicies(false)
+	if err != nil {
+		return nil, err
+	}
+	saved, err := n.readCrossZonePolicies(true)
+	if err != nil {
+		return nil, err
+	}
+	zones, err := n.app.command(20, "", "firewall-cmd", "--get-zones")
+	if err != nil {
+		return nil, errors.New("区域列表读取失败")
+	}
+	return &crossZonePlanSnapshot{live: live, saved: saved, zones: strings.Fields(zones)}, nil
+}
+
 func (n *Network) planCrossZone(p *NetworkPlan, d M) error {
+	return n.planCrossZoneWithSnapshot(p, d, nil)
+}
+
+func (n *Network) planCrossZoneWithSnapshot(p *NetworkPlan, d M, snapshot *crossZonePlanSnapshot) error {
 	if !yes(d["allow_protected"]) {
 		return errors.New("请确认跨区域规则对管理连接和转发的影响")
 	}
-	if str(n.app.service("firewalld")["state"]) != "active" {
+	if snapshot == nil && str(n.app.service("firewalld")["state"]) != "active" {
 		return errors.New("firewalld未运行")
 	}
 	item, err := normalizeCrossZone(obj(d["item"]))
@@ -351,14 +376,13 @@ func (n *Network) planCrossZone(p *NetworkPlan, d M) error {
 		return errors.New("只能修改本应用管理的跨区域规则")
 	}
 	name := crossZoneName(item)
-	live, err := n.readCrossZonePolicies(false)
-	if err != nil {
-		return err
+	if snapshot == nil {
+		snapshot, err = n.crossZonePlanSnapshot()
+		if err != nil {
+			return err
+		}
 	}
-	saved, err := n.readCrossZonePolicies(true)
-	if err != nil {
-		return err
-	}
+	live, saved := snapshot.live, snapshot.saved
 	runtime, runtimeExists := live[name]
 	permanent, savedExists := saved[name]
 	if op == "add" && (runtimeExists || savedExists) {
@@ -381,12 +405,8 @@ func (n *Network) planCrossZone(p *NetworkPlan, d M) error {
 			return errors.New("运行时策略包含表单以外内容，不支持覆盖")
 		}
 	}
-	zones, err := n.app.command(20, "", "firewall-cmd", "--get-zones")
-	if err != nil {
-		return errors.New("区域列表读取失败")
-	}
 	for _, zone := range []string{str(item["ingress_zone"]), str(item["egress_zone"])} {
-		if !slices.Contains(strings.Fields(zones), zone) {
+		if !slices.Contains(snapshot.zones, zone) {
 			return errors.New("入口或出口区域不存在")
 		}
 	}

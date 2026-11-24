@@ -418,3 +418,48 @@ func TestCrossZonePostconditionAndBatchGuards(t *testing.T) {
 		t.Fatal("batch cross-zone allowed")
 	}
 }
+
+func TestBatchCrossZoneAppliesAndRestoresOnlySelectedPolicies(t *testing.T) {
+	a, _, runner := crossFixture(t)
+	var rows []any
+	var selection []any
+	for _, identity := range []string{id(), id(), id()} {
+		rule, err := normalizeCrossZone(obj(crossRequest(true)["item"]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		rule["id"] = identity
+		rows = append(rows, rule)
+		name := crossZoneName(rule)
+		policy := crossZonePolicy{Priority: -1, Target: "CONTINUE", Ingress: []string{"public"}, Egress: []string{"home-vpn"}, Rules: crossZoneRules(rule)}
+		runner.live[name], runner.saved[name] = policy, clone(policy)
+		selection = append(selection, M{"id": identity})
+	}
+	a.network.managed["firewall"] = rows
+	request := M{"kind": "firewall", "scope": "cross-zone", "operation": "disable", "apply_mode": "immediate", "items": selection[:2], "allow_protected": true}
+	plan, err := a.network.Preview(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.undoEnds) != len(plan.steps) || len(arr(plan.persist["changes"])) != 2 {
+		t.Fatal("incomplete rollback or persistence plan")
+	}
+	if err = a.network.Apply(plan.ID); err != nil {
+		t.Fatal(err)
+	}
+	for i, value := range rows {
+		name := crossZoneName(obj(value))
+		if keep := i == 2; (len(runner.live[name].Rules) > 0) != keep || (len(runner.saved[name].Rules) > 0) != keep {
+			t.Fatalf("unexpected policy state %d live=%v saved=%v planned=%v", i, runner.live[name], runner.saved[name], plan.Preview)
+		}
+	}
+	if err = rollbackFile(a.network.specPath(plan), runner); err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range rows {
+		name := crossZoneName(obj(value))
+		if len(runner.live[name].Rules) == 0 || len(runner.saved[name].Rules) == 0 {
+			t.Fatal("policy not restored")
+		}
+	}
+}

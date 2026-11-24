@@ -1,0 +1,79 @@
+name: Package offline release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: FoXray release tag
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: offline-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        rocky: [9, 10]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ROCKY_MAJOR: ${{ matrix.rocky }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check existing release assets
+        id: assets
+        shell: bash
+        run: |
+          [[ $RELEASE_TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          archive="FoXray-Gateway-${RELEASE_TAG}-offline-rocky${ROCKY_MAJOR}-amd64.tar.gz"
+          assets=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          if grep -Fxq "$archive" <<< "$assets" && grep -Fxq "OFFLINE-ROCKY${ROCKY_MAJOR}-SHA256SUMS.txt" <<< "$assets"; then
+            echo 'complete=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'complete=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download and verify online package
+        if: steps.assets.outputs.complete != 'true'
+        shell: bash
+        run: |
+          [[ $RELEASE_TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          bundle="FoXray-Gateway-${RELEASE_TAG}-linux-amd64.zip"
+          mkdir offline-build
+          cd offline-build
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$bundle" --pattern SHA256SUMS.txt
+          sha256sum --strict --ignore-missing -c SHA256SUMS.txt
+          unzip -p "$bundle" "prepare_offline_${RELEASE_TAG}.sh" > prepare.sh
+          test -s prepare.sh
+      - name: Assemble Rocky Linux offline package
+        if: steps.assets.outputs.complete != 'true'
+        shell: bash
+        working-directory: offline-build
+        run: |
+          bundle="FoXray-Gateway-${RELEASE_TAG}-linux-amd64.zip"
+          directory="foxray-offline-${RELEASE_TAG#v}"
+          docker run --rm --platform linux/amd64 -v "$PWD:/work" -w /work "quay.io/rockylinux/rockylinux:${ROCKY_MAJOR}" \
+            bash -euc 'dnf -y install dnf-plugins-core createrepo_c jq unzip && bash prepare.sh "$1" SHA256SUMS.txt "$2"' _ "$bundle" "$directory"
+          sudo tar -czf "FoXray-Gateway-${RELEASE_TAG}-offline-rocky${ROCKY_MAJOR}-amd64.tar.gz" "$directory"
+          archive="FoXray-Gateway-${RELEASE_TAG}-offline-rocky${ROCKY_MAJOR}-amd64.tar.gz"
+          gzip -t "$archive"
+          tar -xOzf "$archive" "$directory/PLATFORM" | grep -Fxq "rocky:${ROCKY_MAJOR}:x86_64:${RELEASE_TAG#v}"
+          tar -tzf "$archive" > members.txt
+          for required in OFFLINE-SHA256SUMS PLATFORM repodata/repomd.xml Xray-linux-64.zip warpscout_0.16.1_linux_amd64.tar.gz "foxray-${RELEASE_TAG#v}/install_${RELEASE_TAG}.sh"; do
+            grep -Fxq "$directory/$required" members.txt
+          done
+          sha256sum "$archive" > "OFFLINE-ROCKY${ROCKY_MAJOR}-SHA256SUMS.txt"
+      - name: Publish offline package
+        if: steps.assets.outputs.complete != 'true'
+        shell: bash
+        working-directory: offline-build
+        run: |
+          archive="FoXray-Gateway-${RELEASE_TAG}-offline-rocky${ROCKY_MAJOR}-amd64.tar.gz"
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            "$archive#Offline installer (Rocky Linux ${ROCKY_MAJOR} x86_64)" "OFFLINE-ROCKY${ROCKY_MAJOR}-SHA256SUMS.txt"

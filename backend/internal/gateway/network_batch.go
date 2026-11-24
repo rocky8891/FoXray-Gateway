@@ -21,6 +21,9 @@ func (n *Network) batchPreview(data M) (*NetworkPlan, error) {
 	if len(items) < 1 || len(items) > 50 {
 		return nil, errors.New("每批选择1至50项")
 	}
+	if kind == "firewall" && str(data["scope"]) == "cross-zone" {
+		return n.batchCrossZonePreview(data, items)
+	}
 	n.mu.Lock()
 	revision := fingerprint(n.managed)
 	n.mu.Unlock()

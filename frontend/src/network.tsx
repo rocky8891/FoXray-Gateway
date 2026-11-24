@@ -1371,6 +1371,7 @@ function WGNetworkEditor({
           </>
         )}
       </div>
+      <div className="wg-forward-controls">
       <label className="check">
         <input type="checkbox" checked={value.lan_forward == null ? !!value.snat : value.lan_forward === true}
           onChange={event => change("lan_forward", event.target.checked)} />
@@ -1384,6 +1385,7 @@ function WGNetworkEditor({
         />
         启用 SNAT（使用出接口地址）
       </label>
+      </div>
       {(!!value.snat || value.lan_forward === true) && (
         <div className="form-grid">
           <Field label="LAN 转发／SNAT 来源网段" hint="多个网段用逗号分隔">

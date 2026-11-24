@@ -31,6 +31,7 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
   const [available, setAvailable] = useState(0);
   const drag = useRef<{ key: string; x: number; width: number; pointer: number } | null>(null);
   const manual = saved.key === key ? saved.widths : {};
+  const fixedEdge = (column: Column<T>) => column === columns[0] || column === columns.at(-1);
   useEffect(() => { if (enabled) setSaved({ key, widths: load(key) }); drag.current = null; }, [key, enabled]);
   useEffect(() => {
     if (!enabled || saved.key !== key) return;
@@ -55,7 +56,7 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
         const column = columns[index], heading = th.querySelector<HTMLElement>(".adaptive-column-heading");
         if (!column || !heading) return;
         const css = getComputedStyle(th), padding = parseFloat(css.paddingLeft) + parseFloat(css.paddingRight);
-        const min = Math.ceil(naturalWidth(heading) + padding + 14);
+        const min = Math.ceil(naturalWidth(heading) + padding + (fixedEdge(column) ? 0 : 14));
         const max = Math.max(min, column.maxWidth || 480);
         let content = min;
         table.current?.querySelectorAll<HTMLTableRowElement>("tbody tr").forEach(row => {
@@ -64,7 +65,7 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
           const body = cell.querySelector<HTMLElement>(".adaptive-cell-content");
           if (body) content = Math.max(content, naturalWidth(body) + padding);
         });
-        const size = { min, max: column.fitContent ? Math.max(max, Math.ceil(content)) : max, auto: 0 };
+        const size = { min, max: fixedEdge(column) || column.fitContent ? Math.max(max, Math.ceil(content)) : max, auto: 0 };
         size.auto = clamp(Math.ceil(content), size); next[column.key] = size;
       });
       setSizes(old => JSON.stringify(old) === JSON.stringify(next) ? old : next);
@@ -76,7 +77,7 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
     return () => { disposed = true; observer.disconnect(); };
   }, [enabled, columns, rows, pageKey, key, table]);
   const size = (column: Column<T>): Size => sizes[column.key] || { min: 64, max: column.maxWidth || 480, auto: 140 };
-  const fitted = fitColumnWidths(columns.map(c => ({key:c.key,...size(c),manual:manual[c.key],fitContent:c.fitContent})), available);
+  const fitted = fitColumnWidths(columns.map(c => ({key:c.key,...size(c),manual:fixedEdge(c) ? undefined : manual[c.key],fitContent:fixedEdge(c) || c.fitContent})), available);
   const width = (column: Column<T>) => fitted[column.key];
   const setWidth = (column: Column<T>, value?: number) => setSaved(old => {
     const widths = { ...(old.key === key ? old.widths : {}) };
@@ -84,6 +85,7 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
     return { key, widths };
   });
   const handle = (column: Column<T>) => {
+    if (fixedEdge(column)) return null;
     const bounds = size(column);
     return <span className="column-resize-handle" role="separator" aria-orientation="vertical" tabIndex={0}
       aria-label={column.label + "列宽"} aria-valuemin={bounds.min} aria-valuemax={bounds.max} aria-valuenow={width(column)}
@@ -101,5 +103,5 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
         else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); setWidth(column); }
       }} />;
   };
-  return { enabled, width, handle, reset: () => setSaved({ key, widths: {} }), manual: Object.keys(manual).some(k => columns.some(c => c.key === k)), total: columns.reduce((sum, c) => sum + width(c), 0) };
+  return { enabled, width, handle, reset: () => setSaved({ key, widths: {} }), manual: Object.keys(manual).some(k => columns.some(c => c.key === k && !fixedEdge(c))), total: columns.reduce((sum, c) => sum + width(c), 0) };
 }

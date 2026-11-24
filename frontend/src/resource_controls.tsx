@@ -330,9 +330,10 @@ export function CopyButton({
   );
 }
 
-export function useRowSelection<T>(rows: T[], key: (row: T) => string) {
+export function useRowSelection<T>(rows: T[], key: (row: T) => string, selectable: (row:T) => boolean = () => true) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const chosen = rows.filter((row) => selected.has(key(row)));
+  const eligible = rows.filter(selectable);
+  const chosen = eligible.filter((row) => selected.has(key(row)));
   const toggle = (row: T, on: boolean) =>
     setSelected((old) => {
       const next = new Set(old);
@@ -347,13 +348,14 @@ export function useRowSelection<T>(rows: T[], key: (row: T) => string) {
         type="checkbox"
         aria-label="全选"
         title="选择全部筛选结果，包含其他分页"
-        checked={rows.length > 0 && chosen.length === rows.length}
+        disabled={!eligible.length}
+        checked={eligible.length > 0 && chosen.length === eligible.length}
         ref={(el) => {
           if (el)
-            el.indeterminate = chosen.length > 0 && chosen.length < rows.length;
+            el.indeterminate = chosen.length > 0 && chosen.length < eligible.length;
         }}
         onChange={(e) =>
-          setSelected(e.target.checked ? new Set(rows.map(key)) : new Set())
+          setSelected(e.target.checked ? new Set(eligible.map(key)) : new Set())
         }
       />
     ),
@@ -361,6 +363,7 @@ export function useRowSelection<T>(rows: T[], key: (row: T) => string) {
       <input
         type="checkbox"
         aria-label={"选择 " + key(row)}
+        disabled={!selectable(row)}
         checked={selected.has(key(row))}
         onChange={(e) => toggle(row, e.target.checked)}
       />

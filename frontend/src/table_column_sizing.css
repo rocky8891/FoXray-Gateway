@@ -29,3 +29,8 @@
 
 .table-width-slot { display:inline-flex; flex:none; align-items:center; }
 .table-width-slot:empty { display:none; }
+
+.table-wrap table.adaptive-columns th:is(:first-child,:last-child) { padding-right:10px!important; }
+.table-wrap table.adaptive-columns :is(th,td):first-child:not([colspan]) { text-align:left; }
+.table-wrap table.adaptive-columns :is(th,td):last-child:not(:first-child):not([colspan]) { text-align:right; }
+.table-wrap table.adaptive-columns td:last-child:not(:first-child) .row-action-menu { justify-content:flex-end; }

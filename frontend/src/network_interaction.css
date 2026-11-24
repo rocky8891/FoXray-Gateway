@@ -27,3 +27,6 @@ button.network-stat-card:hover{border-color:var(--line);background:var(--status-
 .network-stat-card:is(.network-family-card,.interface-kind-card)>svg{color:var(--metric-purple)}
 
 .field > textarea.wg-resizable-text { min-height: 0; height: var(--button-height-regular, 38px); resize: vertical; }
+
+.wg-forward-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px 24px; margin:12px 0; }
+.wg-forward-controls > .check { margin:0; }
