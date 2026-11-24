@@ -79,7 +79,7 @@ func crossPolicyText(source map[string]crossZonePolicy) string {
 	var out strings.Builder
 	for _, name := range names {
 		p := source[name]
-		fmt.Fprintf(&out, "%s\n  priority: -1\n  target: %s\n  ingress-zones: %s\n  egress-zones: %s\n  rich rules:\n", name, p.Target, strings.Join(p.Ingress, " "), strings.Join(p.Egress, " "))
+		fmt.Fprintf(&out, "%s\n  priority: %d\n  target: %s\n  ingress-zones: %s\n  egress-zones: %s\n  rich rules:\n", name, p.Priority, p.Target, strings.Join(p.Ingress, " "), strings.Join(p.Egress, " "))
 		for _, rule := range p.Rules {
 			fmt.Fprintf(&out, "    %s\n", rule)
 		}
@@ -169,7 +169,7 @@ func (r *crossRunner) Run(ctx context.Context, args []string, input string) (str
 		if strings.HasPrefix(arg, "--new-policy=") {
 			mutate = true
 			if !r.ignore {
-				target[strings.TrimPrefix(arg, "--new-policy=")] = crossZonePolicy{Target: "CONTINUE"}
+				target[strings.TrimPrefix(arg, "--new-policy=")] = crossZonePolicy{Priority: -1, Target: "CONTINUE"}
 			}
 		}
 		if strings.HasPrefix(arg, "--delete-policy=") {
@@ -182,6 +182,13 @@ func (r *crossRunner) Run(ctx context.Context, args []string, input string) (str
 			continue
 		}
 		p := target[name]
+		if value, ok := strings.CutPrefix(arg, "--set-priority="); ok {
+			mutate = true
+			if !r.ignore {
+				fmt.Sscanf(value, "%d", &p.Priority)
+				target[name] = p
+			}
+		}
 		for _, field := range []struct {
 			key    string
 			values *[]string
@@ -267,7 +274,9 @@ func TestCrossZonePermanentAndImmediateDurableRollback(t *testing.T) {
 	for _, immediate := range []bool{false, true} {
 		t.Run(fmt.Sprint(immediate), func(t *testing.T) {
 			a, f, r := crossFixture(t)
-			p, err := a.network.Preview(crossRequest(immediate))
+			request := crossRequest(immediate)
+			obj(request["item"])["priority"] = -15
+			p, err := a.network.Preview(request)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -366,7 +375,7 @@ func TestCrossZoneDeleteDisableAndExternalDrift(t *testing.T) {
 }
 func TestCrossZoneSnapshotReadOnlyAndReloadGuards(t *testing.T) {
 	a, f, r := crossFixture(t)
-	r.saved["external"] = crossZonePolicy{Target: "ACCEPT", Ingress: []string{"public"}, Egress: []string{"home-vpn"}}
+	r.saved["external"] = crossZonePolicy{Priority: -1, Target: "ACCEPT", Ingress: []string{"public"}, Egress: []string{"home-vpn"}}
 	snapshot := a.network.CrossZoneSnapshot()
 	rows := snapshot["items"].([]M)
 	if !yes(snapshot["complete"]) || len(rows) != 1 || yes(obj(rows[0])["managed"]) || yes(obj(rows[0])["runtime"]) {
@@ -385,7 +394,7 @@ func TestCrossZoneSnapshotReadOnlyAndReloadGuards(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.live["external"] = crossZonePolicy{Target: "ACCEPT"}
+	r.live["external"] = crossZonePolicy{Priority: -1, Target: "ACCEPT"}
 	if p.precondition() == nil {
 		t.Fatal("stale preview accepted")
 	}

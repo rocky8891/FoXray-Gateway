@@ -48,7 +48,7 @@ func normalizeFirewall(item M) (M, error) {
 		return normalizeCrossZone(item)
 	}
 	r := M{}
-	for _, key := range []string{"id", "driver", "name", "kind", "zone", "port", "protocol", "source", "destination", "action", "target_ip", "target_port", "enabled", "family", "storage", "priority", "logging", "log_rate", "service", "to_source", "out_interface", "rich_match"} {
+	for _, key := range []string{"id", "driver", "name", "kind", "zone", "port", "protocol", "source", "destination", "action", "target_ip", "target_port", "enabled", "family", "storage", "priority", "hook_priority", "logging", "log_rate", "service", "to_source", "out_interface", "rich_match"} {
 		if value, ok := item[key]; ok {
 			r[key] = value
 		}
@@ -84,6 +84,13 @@ func normalizeFirewall(item M) (M, error) {
 		return nil, e
 	}
 	r["priority"] = priority
+	if firewallDriver(r) == "nftables" && r["hook_priority"] != nil {
+		hookPriority, err := integer(r["hook_priority"], -32768, 32767)
+		if err != nil {
+			return nil, errors.New("nftables 链优先级无效")
+		}
+		r["hook_priority"] = hookPriority
+	}
 	if yes(r["logging"]) {
 		rate := firstNonempty(str(r["log_rate"]), "5/m")
 		if !regexp.MustCompile(`^[1-9][0-9]{0,4}/[smhd]$`).MatchString(rate) {

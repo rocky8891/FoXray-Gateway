@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 )
 
 type crossZonePolicy struct {
+	Priority               int
 	Target                 string
 	Ingress, Egress, Rules []string
 	Extra                  bool
@@ -30,7 +32,7 @@ func parseCrossZonePolicies(raw string) (map[string]crossZonePolicy, error) {
 			if !firewallZoneName.MatchString(name) {
 				return nil, errors.New("跨区域策略名称无法解析")
 			}
-			result[name] = crossZonePolicy{}
+			result[name] = crossZonePolicy{Priority: -1}
 			rich = false
 			continue
 		}
@@ -61,9 +63,11 @@ func parseCrossZonePolicies(raw string) (map[string]crossZonePolicy, error) {
 						p.Extra = true
 					}
 				case "priority":
-					if value != "-1" {
-						p.Extra = true
+					priority, err := strconv.Atoi(value)
+					if err != nil {
+						return nil, errors.New("跨区域策略优先级无法解析")
 					}
+					p.Priority = priority
 				case "ports", "services", "protocols", "source-ports", "forward-ports", "icmp-blocks", "helpers":
 					if value != "" {
 						p.Extra = true
@@ -105,13 +109,33 @@ func parseCrossZonePolicies(raw string) (map[string]crossZonePolicy, error) {
 	return result, nil
 }
 
+func crossRuntimeMatchesBaseline(runtime crossZonePolicy, baseline string) bool {
+	if fingerprint(runtime) == baseline {
+		return true
+	}
+	if runtime.Priority != -1 {
+		return false
+	}
+	legacy := struct {
+		Target                 string
+		Ingress, Egress, Rules []string
+		Extra, Disabled        bool
+	}{runtime.Target, runtime.Ingress, runtime.Egress, runtime.Rules, runtime.Extra, runtime.Disabled}
+	return fingerprint(legacy) == baseline
+}
+
 func normalizeCrossZone(item M) (M, error) {
 	r := M{"kind": "cross-zone", "driver": "firewalld", "enabled": true}
-	for _, key := range []string{"id", "name", "ingress_zone", "egress_zone", "source", "destination", "family", "protocol", "port", "action", "enabled", "apply_mode", "runtime_baseline"} {
+	for _, key := range []string{"id", "name", "ingress_zone", "egress_zone", "source", "destination", "family", "protocol", "port", "action", "enabled", "apply_mode", "runtime_baseline", "priority"} {
 		if value, ok := item[key]; ok {
 			r[key] = value
 		}
 	}
+	priority, err := integer(first(r["priority"], -1), -32768, 32767)
+	if err != nil || priority == 0 {
+		return nil, errors.New("跨区域优先级须为 -32768 至 32767 的非零整数")
+	}
+	r["priority"] = priority
 	if firewallDriver(item) != "firewalld" {
 		return nil, errors.New("跨区域规则仅支持firewalld")
 	}
@@ -270,7 +294,7 @@ func (n *Network) CrossZoneSnapshot(contexts ...context.Context) M {
 		owned[name] = true
 		runtime, runtimeExists := live[name]
 		permanent, savedExists := saved[name]
-		expected := crossZonePolicy{Target: "CONTINUE", Ingress: []string{str(row["ingress_zone"])}, Egress: []string{str(row["egress_zone"])}, Rules: crossZoneRules(row)}
+		expected := crossZonePolicy{Priority: int(num(row["priority"])), Target: "CONTINUE", Ingress: []string{str(row["ingress_zone"])}, Egress: []string{str(row["egress_zone"])}, Rules: crossZoneRules(row)}
 		row["policy_name"], row["managed"], row["runtime"], row["permanent"] = name, true, runtimeExists && fingerprint(runtime) == fingerprint(expected), savedExists && fingerprint(permanent) == fingerprint(expected)
 		row["drift"] = !runtimeExists || !savedExists || fingerprint(runtime) != fingerprint(expected) || fingerprint(permanent) != fingerprint(expected)
 		row["runtime_raw"], row["permanent_raw"] = runtime, permanent
@@ -288,7 +312,7 @@ func (n *Network) CrossZoneSnapshot(contexts ...context.Context) M {
 	for name, p := range live {
 		if !owned[name] {
 			_, permanent := saved[name]
-			rows = append(rows, M{"id": "external-" + name, "policy_name": name, "name": name, "managed": false, "ingress_zone": strings.Join(p.Ingress, ", "), "egress_zone": strings.Join(p.Egress, ", "), "runtime": runtimeNames[name], "permanent": permanent, "runtime_raw": live[name], "permanent_raw": saved[name], "enabled": !p.Disabled && (len(p.Rules) > 0 || p.Target != "CONTINUE" || p.Extra)})
+			rows = append(rows, M{"id": "external-" + name, "policy_name": name, "name": name, "managed": false, "priority": p.Priority, "ingress_zone": strings.Join(p.Ingress, ", "), "egress_zone": strings.Join(p.Egress, ", "), "runtime": runtimeNames[name], "permanent": permanent, "runtime_raw": live[name], "permanent_raw": saved[name], "enabled": !p.Disabled && (len(p.Rules) > 0 || p.Target != "CONTINUE" || p.Extra)})
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool { return str(rows[i]["policy_name"]) < str(rows[j]["policy_name"]) })
@@ -346,14 +370,14 @@ func (n *Network) planCrossZone(p *NetworkPlan, d M) error {
 		if e != nil {
 			return e
 		}
-		expected := crossZonePolicy{Target: "CONTINUE", Ingress: []string{str(previous["ingress_zone"])}, Egress: []string{str(previous["egress_zone"])}, Rules: crossZoneRules(previous)}
+		expected := crossZonePolicy{Priority: int(num(previous["priority"])), Target: "CONTINUE", Ingress: []string{str(previous["ingress_zone"])}, Egress: []string{str(previous["egress_zone"])}, Rules: crossZoneRules(previous)}
 		if savedExists && fingerprint(permanent) != fingerprint(expected) {
 			return errors.New("策略永久配置被外部修改，请先核对详情，不覆盖外部规则")
 		}
 		shell := expected
 		shell.Ingress = nil
 		shell.Egress = nil
-		if runtimeExists && fingerprint(runtime) != fingerprint(expected) && fingerprint(runtime) != str(previous["runtime_baseline"]) && fingerprint(runtime) != fingerprint(shell) {
+		if runtimeExists && fingerprint(runtime) != fingerprint(expected) && !crossRuntimeMatchesBaseline(runtime, str(previous["runtime_baseline"])) && fingerprint(runtime) != fingerprint(shell) {
 			return errors.New("运行时策略包含表单以外内容，不支持覆盖")
 		}
 	}
@@ -367,12 +391,16 @@ func (n *Network) planCrossZone(p *NetworkPlan, d M) error {
 		}
 	}
 	immediate := item["apply_mode"] == "immediate"
-	reload := immediate && !runtimeExists && op != "delete"
+	priorityReload := runtimeExists && runtime.Priority != int(num(item["priority"]))
+	reload := immediate && (!runtimeExists || priorityReload) && op != "delete"
+	if reload && priorityReload && (!savedExists || fingerprint(runtime) != fingerprint(permanent)) {
+		return errors.New("策略运行时与永久配置不同，请先同步或仅保存永久配置")
+	}
 	baseline := ""
 	var protection []crossZoneProtection
 	if reload {
 		if !yes(obj(d["item"])["reload_ack"]) {
-			return errors.New("新策略立即生效需要确认全局重载；也可仅保存永久配置")
+			return errors.New("新增策略或修改优先级立即生效需要确认全局重载；也可仅保存永久配置")
 		}
 		baseline, protection, err = n.crossZoneReloadBaseline(name)
 		if err != nil {
@@ -387,10 +415,13 @@ func (n *Network) planCrossZone(p *NetworkPlan, d M) error {
 	// Permanent creation is safe until a checked reload activates the new policy.
 	if !savedExists && op != "delete" {
 		appendStep([]string{"firewall-cmd", "--permanent", "--new-policy=" + name}, []string{"firewall-cmd", "--permanent", "--delete-policy=" + name})
-		permanent = crossZonePolicy{Target: "CONTINUE"}
+		permanent = crossZonePolicy{Target: "CONTINUE", Priority: -1}
 	}
-	desired := crossZonePolicy{Target: "CONTINUE", Ingress: []string{str(item["ingress_zone"])}, Egress: []string{str(item["egress_zone"])}, Rules: crossZoneRules(item)}
+	desired := crossZonePolicy{Priority: int(num(item["priority"])), Target: "CONTINUE", Ingress: []string{str(item["ingress_zone"])}, Egress: []string{str(item["egress_zone"])}, Rules: crossZoneRules(item)}
 	reconcile := func(before crossZonePolicy, perm bool, deleting bool) {
+		if perm && !deleting && before.Priority != desired.Priority {
+			appendStep(crossCommand(name, true, "--set-priority="+strconv.Itoa(desired.Priority)), crossCommand(name, true, "--set-priority="+strconv.Itoa(before.Priority)))
+		}
 		for _, rule := range before.Rules {
 			if deleting || !slices.Contains(desired.Rules, rule) {
 				appendStep(crossCommand(name, perm, "--remove-rich-rule="+rule), crossCommand(name, perm, "--add-rich-rule="+rule))
@@ -420,7 +451,7 @@ func (n *Network) planCrossZone(p *NetworkPlan, d M) error {
 			}
 		}
 	}
-	if immediate && runtimeExists {
+	if immediate && runtimeExists && !reload {
 		reconcile(runtime, false, op == "delete")
 	}
 	if savedExists || op != "delete" {
@@ -435,6 +466,9 @@ func (n *Network) planCrossZone(p *NetworkPlan, d M) error {
 		for _, zone := range permanent.Ingress {
 			p.undo = append(p.undo, Step{Args: crossCommand(name, true, "--add-ingress-zone="+zone)})
 		}
+		if permanent.Priority != -1 {
+			p.undo = append(p.undo, Step{Args: crossCommand(name, true, "--set-priority="+strconv.Itoa(permanent.Priority))})
+		}
 		p.undo = append(p.undo, Step{Args: []string{"firewall-cmd", "--permanent", "--new-policy=" + name}})
 		p.undoEnds = append(p.undoEnds, len(p.undo))
 	}
@@ -447,7 +481,7 @@ func (n *Network) planCrossZone(p *NetworkPlan, d M) error {
 			p.undoStates = append(p.undoStates, append([]Step(nil), p.undo[:end]...))
 		}
 		p.steps = append(p.steps, Step{Args: []string{"firewall-cmd", "--reload"}})
-		p.undo = crossReloadUndo(policyUndo, protection, name, permanent, savedExists)
+		p.undo = crossReloadUndo(policyUndo, protection, name, permanent, savedExists && !runtimeExists)
 		p.undoStates = append(p.undoStates, append([]Step(nil), p.undo...))
 		for _, rule := range protection {
 			p.steps = append(p.steps, Step{Args: protectionCommand(rule, false)})

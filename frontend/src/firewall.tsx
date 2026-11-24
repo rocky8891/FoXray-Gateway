@@ -91,7 +91,7 @@ export function FirewallPage({ act }: { act: Act }) {
     [failure, setFailure] = useState(""),
     [detail, setDetail] = useState<unknown>(null),
     [ack, setAck] = useState(false),
-    [sort, setSort] = useState({ key: "port", direction: 1 });
+    [sort, setSort] = useState({ key: "priority", direction: 1 });
   const view = firewallViewState(resource.data, driver, zone, resource.error || "");
   const all = (view.current && !resource.error ? list(resource.data?.entries) : []).filter(r=>configScope==="runtime" ? !!(r.runtime||r.partial_runtime) : configScope==="permanent" ? !!(r.permanent||r.partial_permanent) : configScope==="difference" ? !!(r.drift||r.partial_runtime||r.partial_permanent||!!r.runtime!==!!r.permanent) : true),
     zones = Array.isArray(resource.data?.zones) ? resource.data.zones.map(String) : [zone],
@@ -115,6 +115,10 @@ export function FirewallPage({ act }: { act: Act }) {
         .sort((a, b) => {
           const x = a[sort.key],
             y = b[sort.key];
+          if (sort.key === "priority") {
+            if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
+            return (Number(x) - Number(y)) * sort.direction;
+          }
           if (sort.key === "port")
             return (
               ((parseInt(String(x)) || 0) - (parseInt(String(y)) || 0)) *
@@ -215,6 +219,18 @@ export function FirewallPage({ act }: { act: Act }) {
   const toggle = (r: Dict) => {
     void preview("replace", { ...r, enabled: !r.enabled });
   };
+  const showPriority = category === "rich" || all.some(row => row.priority != null && (native || row.storage === "rich-rule" || row.storage === "direct-rule"));
+  const canPrioritize = (row: Dict) => driver !== "ufw" && row.kind !== "service-rule" && (native || row.storage === "rich-rule" || row.storage === "direct-rule" || row.kind === "ip" || row.kind === "rich");
+  const movePriority = (row: Dict, offset: number) => {
+    const field = driver === "nftables" ? "hook_priority" : "priority";
+    const current = Number(row[field] ?? 0);
+    const scope = rows.filter(item => item.id !== row.id && item[field] != null && (!native || item.kind === row.kind));
+    const neighbor = scope.map(item => Number(item[field])).filter(value => offset < 0 ? value <= current : value >= current)
+      .sort((a,b) => offset < 0 ? b-a : a-b)[0];
+    const priority = (neighbor ?? current) + offset;
+    if (priority < -32768 || priority > 32767) { setFailure("已达到优先级范围边界"); return; }
+    start("replace", {...row, [field]:priority});
+  };
   const actions = (r: Dict) => (
     <div className="actions firewall-row-actions">
       <Button variant="ghost" title="查看规则详情" onClick={() => setDetail(r)}>
@@ -230,6 +246,10 @@ export function FirewallPage({ act }: { act: Act }) {
           >
             <Settings2 size={14} />
           </Button>
+          {showPriority && canPrioritize(r) && <>
+            <Button variant="ghost" disabled={!writable} onClick={()=>movePriority(r,-1)}>提高优先级</Button>
+            <Button variant="ghost" disabled={!writable} onClick={()=>movePriority(r,1)}>降低优先级</Button>
+          </>}
           <Button
             variant="ghost"
             title={r.enabled ? "停用" : "启用"}
@@ -341,7 +361,10 @@ export function FirewallPage({ act }: { act: Act }) {
         />
       ),
     },
-    { key: "serial", label: "序号", render: (_, i) => i + 1 },
+    showPriority ? {
+      key: "priority", label: "优先级", heading: heading("priority","优先级"),
+      render: row => row.priority != null && (native || canPrioritize(row)) ? text(row.priority) : "—",
+    } : { key: "serial", label: "序号", render: (_, i) => i + 1 },
   ];
   if (category === "all") columns.push(
     {key:"name",label:"名称／类型",heading:heading("kind","名称／类型"),render:r=><><strong>{text(r.service || (r.kind === "system" ? [r.family, r.table, r.chain].filter(Boolean).join(" / ") : "") || r.port || r.source || (r.kind === "masquerade" ? "地址转换" : "规则"))}</strong><small>{r.kind === "system" ? "系统规则（只读）" : r.editable===false ? "未知规则（只读）" : categories.find(([id])=>id===r.kind)?.[1] || String(r.kind || "系统规则")}</small></>},
@@ -429,13 +452,6 @@ export function FirewallPage({ act }: { act: Act }) {
         </span>
       ),
     });
-  if (!native && category !== "service-rule" && category !== "all")
-    columns.push({
-      key: "priority",
-      label: "优先级",
-      heading: heading("priority", "优先级"),
-      render: (r) => Number(r.priority || 0),
-    });
   if (native)
     columns.push({
       key: "packets",
@@ -494,6 +510,7 @@ export function FirewallPage({ act }: { act: Act }) {
                     aria-selected={category === id}
                     onClick={() => {
                       setCategory(id);
+                      setSort({key:"priority",direction:1});
                       setSelected(new Set());
                       setProtocol("all");setRuleAction("all");
                     }}
@@ -520,14 +537,6 @@ export function FirewallPage({ act }: { act: Act }) {
         />
       {crossZone ? <CrossZoneRules act={act} resource={crossResource} filter={crossFilter} resetFilter={()=>setCrossFilter("all")} /> : <Panel className="firewall-main-panel management-panel">
         <ErrorLine error={resource.error || failure} />
-        {!!resource.data?.ruleset_raw && (
-          <details className="advanced-form">
-            <summary>完整系统规则（只读）</summary>
-            <pre className="command-preview">
-              {text(resource.data.ruleset_raw)}
-            </pre>
-          </details>
-        )}
         {!!resource.data?.error && (
           <p className="hint">{text(resource.data.error)}</p>
         )}
@@ -1043,17 +1052,17 @@ function FirewallForm({
                 </Field>
               </>
             )}
-            {!native && (
+            {value.driver !== "ufw" && (
               <Field
                 label="优先级（越小越先匹配）"
-                hint="-32768 至 32767；0 使用 firewalld 默认顺序"
+                hint={value.driver === "iptables" ? "仅在同一 FoXray 管理链组内排序" : value.driver === "nftables" ? "同一 hook 中数值越小越早执行" : "范围为 -32768 至 32767"}
               >
                 <NumberInput
                   type="number"
                   min={-32768}
                   max={32767}
-                  value={Number(value.priority || 0)}
-                  onChange={(e) => onChange("priority", Number(e.target.value))}
+                  value={Number(value.driver === "nftables" ? value.hook_priority ?? (kind === "forward" ? -110 : kind === "masquerade" ? 100 : -10) : value.priority ?? 0)}
+                  onChange={(e) => onChange(value.driver === "nftables" ? "hook_priority" : "priority", Number(e.target.value))}
                 />
               </Field>
             )}

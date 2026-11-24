@@ -16,6 +16,7 @@ func nativeInventoryRow(driver, family, table, chain, raw string) M {
 func iptablesInventory(raw, family string, owned map[string]bool) []M {
 	rows := []M{}
 	table := ""
+	positions := map[string]int{}
 	for _, line := range textLines(raw) {
 		if strings.HasPrefix(line, "*") {
 			table = strings.TrimPrefix(line, "*")
@@ -29,10 +30,16 @@ func iptablesInventory(raw, family string, owned map[string]bool) []M {
 			continue
 		}
 		fields := iptablesToken.FindAllString(line, -1)
-		if len(fields) < 3 || owned[fields[1]] {
+		if len(fields) < 3 {
+			continue
+		}
+		chainKey := table + "|" + fields[1]
+		positions[chainKey]++
+		if owned[fields[1]] {
 			continue
 		}
 		row := nativeInventoryRow("iptables", family, table, fields[1], line)
+		row["priority"] = positions[chainKey]
 		negate := false
 		for i := 2; i < len(fields); i++ {
 			if fields[i] == "!" {
@@ -86,6 +93,13 @@ func nftablesInventory(raw string, owned map[string]bool, counters map[string]M)
 	if data.Entries == nil {
 		return nil, errors.New("缺少 nftables 规则列表")
 	}
+	chainPriorities := map[[3]string]any{}
+	for _, entry := range data.Entries {
+		var chain M
+		if raw, found := entry["chain"]; found && json.Unmarshal(raw, &chain) == nil && chain["prio"] != nil {
+			chainPriorities[[3]string{str(chain["family"]), str(chain["table"]), str(chain["name"])}] = chain["prio"]
+		}
+	}
 	rows := []M{}
 	for _, entry := range data.Entries {
 		ruleJSON, ok := entry["rule"]
@@ -99,6 +113,7 @@ func nftablesInventory(raw string, owned map[string]bool, counters map[string]M)
 		table := str(rule["table"])
 		row := nativeInventoryRow("nftables", str(rule["family"]), table, str(rule["chain"]), string(ruleJSON))
 		row["handle"] = rule["handle"]
+		row["priority"] = chainPriorities[[3]string{str(rule["family"]), table, str(rule["chain"])}]
 		for _, expression := range arr(rule["expr"]) {
 			expr := obj(expression)
 			if counter := obj(expr["counter"]); len(counter) > 0 {

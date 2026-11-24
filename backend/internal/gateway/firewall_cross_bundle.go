@@ -44,7 +44,7 @@ func crossPolicyFromSettings(settings M) (crossZonePolicy, error) {
 		}
 		sort.Strings(*values)
 	}
-	p.Extra = num(settings["priority"]) != -1
+	p.Priority = int(num(settings["priority"]))
 	for key, value := range settings {
 		switch key {
 		case "description", "short", "version", "target", "priority", "ingress_zones", "egress_zones", "rich_rules", "disable":

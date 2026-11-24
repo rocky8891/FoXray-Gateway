@@ -19,3 +19,23 @@ func TestNativeRuleInventoryKeepsSystemRulesReadOnly(t *testing.T) {
 		t.Fatal(rows, counters, err)
 	}
 }
+
+func TestIPTablesPriorityUsesPositionAmongManagedJumps(t *testing.T) {
+	a, runner := fixture(t)
+	firstRule := M{"id": "rule-one", "driver": "iptables", "priority": -20}
+	secondRule := M{"id": "rule-two", "driver": "iptables", "priority": 10}
+	a.network.managed["firewall"] = []any{firstRule, secondRule}
+	runner.responses = map[string]string{
+		"iptables -w 3 -t filter -S INPUT": "-P INPUT ACCEPT\n-A INPUT -j " + nativeChainName(firstRule) + "\n-A INPUT -j EXTERNAL\n-A INPUT -j " + nativeChainName(secondRule),
+	}
+	move := clone(firstRule)
+	move["priority"] = 20
+	position, err := a.network.nativeIPJumpIndex(move, false, true)
+	if err != nil || position != 3 {
+		t.Fatalf("expected insertion after the lower numeric priority and intervening external jump, got %d: %v", position, err)
+	}
+	position, err = a.network.nativeIPJumpIndex(firstRule, true, false)
+	if err != nil || position != 1 {
+		t.Fatalf("rollback must restore original position: %d, %v", position, err)
+	}
+}

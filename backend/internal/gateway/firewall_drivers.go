@@ -3,7 +3,9 @@ package gateway
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -118,6 +120,10 @@ func (n *Network) FirewallView(driver, zone string, contexts ...context.Context)
 		}
 		r = clone(r)
 		r["managed"], r["editable"], r["permanent"] = true, true, true
+		if driver == "nftables" {
+			r["hook_priority"] = nativeHookPriority(r)
+			r["priority"] = r["hook_priority"]
+		}
 		if c := counters[nativeRuleName(r)]; c != nil {
 			r["packets"], r["bytes"] = c["packets"], c["bytes"]
 		}
@@ -159,17 +165,90 @@ func nativeIPTable(r M) string {
 	return "filter"
 }
 func nativeChainName(r M) string { return "FX" + fingerprint(str(r["id"]))[:20] }
+func nativeHookPriority(r M) int {
+	if r["hook_priority"] != nil {
+		return int(num(r["hook_priority"]))
+	}
+	switch str(r["kind"]) {
+	case "forward":
+		return -110
+	case "masquerade":
+		return 100
+	default:
+		return -10
+	}
+}
+
+func nativeIPParent(r M) string {
+	switch str(r["kind"]) {
+	case "forward":
+		return "PREROUTING"
+	case "masquerade":
+		return "POSTROUTING"
+	default:
+		return "INPUT"
+	}
+}
+
+func (n *Network) nativeIPJumpIndex(r M, remove, replacing bool) (int, error) {
+	cmd := "iptables"
+	ipv6 := str(r["family"]) == "ipv6"
+	if ipv6 {
+		cmd = "ip6tables"
+	}
+	parent, table, chain := nativeIPParent(r), nativeIPTable(r), nativeChainName(r)
+	raw, err := n.app.command(5, "", cmd, "-w", "3", "-t", table, "-S", parent)
+	if err != nil {
+		return 0, errors.New("无法核对 iptables 链顺序")
+	}
+	n.mu.Lock()
+	managed := clone(arr(n.managed["firewall"]))
+	n.mu.Unlock()
+	priorities := map[string]float64{}
+	for _, value := range managed {
+		item := obj(value)
+		if firewallDriver(item) == "iptables" && nativeIPTable(item) == table && nativeIPParent(item) == parent && (str(item["family"]) == "ipv6") == ipv6 {
+			priorities[nativeChainName(item)] = num(item["priority"])
+		}
+	}
+	index, after := 1, 1
+	for _, line := range textLines(raw) {
+		args := strings.Fields(line)
+		if len(args) < 3 || args[0] != "-A" || args[1] != parent {
+			continue
+		}
+		if len(args) == 4 && args[2] == "-j" {
+			if args[3] == chain {
+				if remove {
+					return index, nil
+				}
+				if replacing {
+					continue
+				}
+			}
+			if priority, owned := priorities[args[3]]; owned {
+				if !remove && priority > num(r["priority"]) {
+					return index, nil
+				}
+				after = index + 1
+			}
+		}
+		index++
+	}
+	return after, nil
+}
+
 func nativeNFTScript(r M) string {
 	name := nativeRuleName(r)
 	kind := str(r["kind"])
 	chain := "input"
-	hook := "type filter hook input priority -10; policy accept;"
+	hook := fmt.Sprintf("type filter hook input priority %d; policy accept;", nativeHookPriority(r))
 	if kind == "forward" {
 		chain = "prerouting"
-		hook = "type nat hook prerouting priority -110; policy accept;"
+		hook = fmt.Sprintf("type nat hook prerouting priority %d; policy accept;", nativeHookPriority(r))
 	} else if kind == "masquerade" {
 		chain = "postrouting"
-		hook = "type nat hook postrouting priority 100; policy accept;"
+		hook = fmt.Sprintf("type nat hook postrouting priority %d; policy accept;", nativeHookPriority(r))
 	}
 	family := "ip"
 	if str(r["family"]) == "ipv6" {
@@ -251,7 +330,7 @@ func nativeIPSpecs(r M) [][]string {
 	}
 	return rows
 }
-func (n *Network) nativeSteps(r M, adding bool) ([]Step, []Step, error) {
+func (n *Network) nativeSteps(r M, adding bool, replacing ...bool) ([]Step, []Step, error) {
 	driver := firewallDriver(r)
 	steps, undo := []Step{}, []Step{}
 	pair := func(s, u Step) { steps = append(steps, s); undo = append(undo, u) }
@@ -271,18 +350,17 @@ func (n *Network) nativeSteps(r M, adding bool) ([]Step, []Step, error) {
 		}
 		base := []string{cmd, "-w", "3", "-t", nativeIPTable(r)}
 		chain := nativeChainName(r)
-		parent := "INPUT"
-		if str(r["kind"]) == "forward" {
-			parent = "PREROUTING"
-		} else if str(r["kind"]) == "masquerade" {
-			parent = "POSTROUTING"
+		parent := nativeIPParent(r)
+		position, err := n.nativeIPJumpIndex(r, !adding, len(replacing) > 0 && replacing[0])
+		if err != nil {
+			return nil, nil, err
 		}
 		makeStep := func(args ...string) Step { return Step{Args: append(append([]string{}, base...), args...)} }
 		pair(makeStep("-N", chain), makeStep("-X", chain))
 		for _, spec := range nativeIPSpecs(r) {
 			pair(makeStep(append([]string{"-A", chain}, spec...)...), makeStep(append([]string{"-D", chain}, spec...)...))
 		}
-		pair(makeStep("-I", parent, "1", "-j", chain), makeStep("-D", parent, "-j", chain))
+		pair(makeStep("-I", parent, strconv.Itoa(position), "-j", chain), makeStep("-D", parent, "-j", chain))
 		if !adding {
 			nextS, nextU := []Step{}, []Step{}
 			for i := len(steps) - 1; i >= 0; i-- {
@@ -310,7 +388,7 @@ func (n *Network) planNativeFirewall(p *NetworkPlan, d M) error {
 	}
 	item["driver"] = driver
 	item["zone"] = "host"
-	if str(item["kind"]) == "service-rule" || num(item["priority"]) != 0 || yes(item["logging"]) {
+	if str(item["kind"]) == "service-rule" || yes(item["logging"]) {
 		return errors.New("预定义服务、规则优先级与限速日志目前由 firewalld 模式提供")
 	}
 	if str(item["kind"]) == "masquerade" && !yes(d["allow_protected"]) {
@@ -336,13 +414,33 @@ func (n *Network) planNativeFirewall(p *NetworkPlan, d M) error {
 		return errors.New("不能跨防火墙类型修改规则")
 	}
 	appendRule := func(r M, adding bool) error {
-		s, u, err := n.nativeSteps(r, adding)
+		s, u, err := n.nativeSteps(r, adding, adding && old != nil && n.nativeFirewallPresent(old))
 		if err != nil {
 			return err
 		}
 		p.steps = append(p.steps, s...)
 		p.undo = append(p.undo, u...)
 		return nil
+	}
+	if driver == "iptables" {
+		capture := func() (string, error) {
+			cmd := "iptables"
+			if str(item["family"]) == "ipv6" {
+				cmd = "ip6tables"
+			}
+			return n.app.command(5, "", cmd, "-w", "3", "-t", nativeIPTable(item), "-S", nativeIPParent(item))
+		}
+		before, err := capture()
+		if err != nil {
+			return errors.New("无法核对 iptables 链顺序")
+		}
+		p.precondition = func() error {
+			current, err := capture()
+			if err != nil || current != before {
+				return errors.New("iptables 链顺序已变化，请重新预览")
+			}
+			return nil
+		}
 	}
 	if old != nil && n.nativeFirewallPresent(old) {
 		if e = appendRule(old, false); e != nil {
