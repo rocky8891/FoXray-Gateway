@@ -108,7 +108,12 @@
 .firewall-workspace .field-title>.firewall-heading-icon,.firewall-workspace .firewall-detail-heading>h3>.firewall-heading-icon{align-self:center;color:var(--metric-green)}
 
 /* Shared typography: scope titles match section titles; policy labels match stat captions. */
-.firewall-workspace .firewall-scope-bar .field>.field-title{font-size:20px;font-weight:700;color:var(--text)}
+.firewall-workspace .firewall-scope-bar .field > .field-title {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
 .firewall-workspace .firewall-policy-grid>div>span{font-size:12px;line-height:18px;font-weight:650;color:var(--text)}
 .firewall-workspace .firewall-policy-grid strong,.firewall-workspace .firewall-policy-grid code,.firewall-workspace .firewall-policy-grid small,.firewall-workspace .firewall-rule-jump{font-family:inherit;font-size:13px;line-height:22px;font-weight:400;color:var(--muted);text-decoration:none}
 .firewall-workspace .firewall-rule-jump:disabled{color:var(--muted)}
@@ -128,12 +133,25 @@
 .firewall-diagnostic-probe { min-width: 0; font-size: inherit; }
 .firewall-diagnostic-probe > input { flex: none; }
 
-.firewall-workspace :is(.firewall-service-title > h2, .firewall-detail-heading > h3, .firewall-scope-fields .field-title),
+.firewall-workspace :is(.firewall-service-title > h2, .firewall-detail-heading > h3),
+.firewall-workspace .firewall-scope-bar .field > .field-title:has(> .firewall-heading-icon),
 .firewall-main-panel .firewall-rules-heading > h3,
 .firewall-diagnosis-panel > .page-heading h2 {
-  font-size: 20px;
-  line-height: 28px;
+  font-size: var(--card-title-size);
+  line-height: var(--card-title-line-height);
   font-weight: 700;
+  text-align: start;
+  gap: var(--card-title-gap);
+}
+.firewall-workspace .firewall-scope-fields .field-title:has(> .firewall-heading-icon) {
+  align-items: center !important;
+}
+.firewall-workspace .firewall-scope-fields .field-title > .setting-info { align-self: flex-start; }
+.firewall-workspace :is(.firewall-service-title > h2, .firewall-detail-heading > h3, .firewall-scope-fields .field-title) > svg,
+.firewall-main-panel .firewall-rules-heading > h3 > svg {
+  flex: none;
+  inline-size: var(--card-title-icon-size);
+  block-size: var(--card-title-icon-size);
 }
 .firewall-diagnosis-panel > .page-heading {
   margin: 0 0 12px;

@@ -58,11 +58,9 @@ const descriptions: Record<NetworkKind, string> = {
 export function NetworkPage({
   kind,
   act,
-  serviceOnly = false,
 }: {
   kind: NetworkKind;
   act: Act;
-  serviceOnly?: boolean;
 }) {
   const { data, error, refresh } = useResource<NetSnapshot>(
     "/api/network/" + kind,
@@ -281,9 +279,13 @@ export function NetworkPage({
         fitContent: true,
         label: "状态",
         render: (r) => (
-          <span className={r.active ? "accent" : "muted"}>
-            {r.active ? "接口已启动" : "接口已停止"}
-          </span>
+          <>
+            <strong>{text(record(r.service).name || `wg-quick@${r.name}`)}</strong>
+            <small>{r.configured ? "wg-quick 配置已就绪" : "未配置 wg-quick"}</small>
+            <small className={r.active ? "accent" : "muted"}>
+              {r.active ? "接口已启动" : "接口已停止"}
+            </small>
+          </>
         ),
       },
       {
@@ -485,116 +487,6 @@ export function NetworkPage({
         ),
       },
     ];
-  if (kind === "wireguard" && serviceOnly)
-    columns = [
-      ...baseColumns,
-      {
-        key: "name",
-        label: "接口",
-        render: (r) => (
-          <>
-            <strong>{text(r.name)}</strong>
-            {!!r.remark && <small className="wg-interface-remark" title={String(r.remark)}>{String(r.remark)}</small>}
-            {r.protected && <small className="accent wg-protection-label">受保护<SettingInfo label="接口保护" text="保护来源：当前版本内置对 wg-home 接口的保护，修改或启停需要额外确认。这是保护状态，与用途备注分开；备注可在操作 → 编辑备注中修改。实际接口角色可在接口管理的操作 → 编辑 → 角色、路由与 LAN 转发中配置；改变角色不会取消接口保护。" /></small>}
-          </>
-        ),
-      },
-      {
-        key: "unit",
-        label: "服务单元",
-        render: (r) => (
-          <>
-            <strong>
-              {text(record(r.service).name || "wg-quick@" + r.name)}
-            </strong>
-            <small>
-              {r.configured ? "wg-quick 配置已就绪" : "未配置 wg-quick"}
-            </small>
-          </>
-        ),
-      },
-      {
-        key: "state",
-        label: "服务 / 接口状态",
-        render: (r) => {
-          const svc = record(r.service);
-          return (
-            <>
-              <span
-                className={
-                  svc.state === "active"
-                    ? "accent"
-                    : svc.state === "failed"
-                      ? "poor"
-                      : "muted"
-                }
-              >
-                {text(svc.state)} / {text(svc.substate)}
-              </span>
-              <small>
-                {r.active ? "接口已启动" : "接口已停止"}
-                {r.active && svc.state !== "active" ? " · 由外部管理" : ""}
-              </small>
-            </>
-          );
-        },
-      },
-      {
-        key: "pid",
-        label: "主进程",
-        render: (r) =>
-          record(r.service).pid == null
-            ? "—"
-            : Number(record(r.service).pid) > 0
-              ? text(record(r.service).pid)
-              : "无常驻进程（oneshot）",
-      },
-      {
-        key: "autostart",
-        label: "开机自启",
-        render: (r) => (
-          <span className={record(r.service).autostart ? "accent" : "muted"}>
-            {record(r.service).autostart ? "已开启" : "已关闭"}
-          </span>
-        ),
-      },
-      {
-        key: "actions",
-        label: "操作",
-        render: (r) => {
-          const managed =
-            !!r.configured &&
-            (!r.active || record(r.service).state === "active");
-          return (
-            <ActionMenu
-              label={String(r.name)}
-              primary={{
-                label: r.active ? "停止" : "启动",
-                disabled: !managed,
-                onClick: () =>
-                  begin(r.active ? "stop" : "start", { name: r.name }),
-              }}
-              items={[
-                {label:"编辑备注",disabled:!r.configured,onClick:()=>begin("remark",{name:r.name,remark:r.remark||""})},
-                {
-                  label: "重启",
-                  disabled: !managed || !r.active,
-                  onClick: () => begin("restart", { name: r.name }),
-                },
-                {
-                  label: record(r.service).autostart ? "关闭自启" : "开启自启",
-                  disabled: !managed,
-                  onClick: () =>
-                    begin(record(r.service).autostart ? "disable" : "enable", {
-                      name: r.name,
-                    }),
-                },
-              ]}
-            />
-          );
-        },
-      },
-    ];
   columns = [
     selection.column,
     ...columns.map((c) =>
@@ -634,12 +526,10 @@ export function NetworkPage({
     <>
       <Panel className="network-management management-panel">
         <PageHeader
-          title={serviceOnly ? "接口服务" : names[kind]}
+          title={names[kind]}
           description={
             <>
-              {serviceOnly
-                ? "WireGuard 在内核中转发，每个接口由独立的 wg-quick@接口名 服务管理。active / exited 且无常驻PID是正常状态。这里只操作选定接口；外部管理的接口不会被 wg-quick 接管。"
-                : descriptions[kind]}
+              {descriptions[kind]}
               {kind === "wireguard" && (
                 <p>
                   启动／停止对应 systemctl start／stop
@@ -688,16 +578,7 @@ export function NetworkPage({
           <Button onClick={() => void refresh()}>
             <RefreshCw size={15} /> 刷新
           </Button>
-          {!serviceOnly && (
-            <Button onClick={add}>
-              <Plus size={15} />{" "}
-              {kind === "wireguard"
-                ? "添加"
-                : kind === "firewall"
-                  ? "添加"
-                  : "添加"}
-            </Button>
-          )}
+          <Button onClick={add}><Plus size={15} /> 添加</Button>
 
           {kind === "wireguard" ? (
             <>
@@ -727,7 +608,7 @@ export function NetworkPage({
                 items={[
                   ["enable", "开启自启"],
                   ["disable", "关闭自启"],
-                  ...(!serviceOnly ? [["delete", "删除"]] : []),
+                  ["delete", "删除"],
                 ].map(([operation, label]) => ({
                   label,
                   disabled:
@@ -753,11 +634,7 @@ export function NetworkPage({
             <AdaptiveSearch tableWidthKey={"network-" + kind}>
               <Search size={16} />
               <input
-                placeholder={
-                  serviceOnly
-                    ? "查询接口或服务单元"
-                    : "查询接口、网段、路由表或规则"
-                }
+                placeholder={kind === "wireguard" ? "查询接口或服务单元" : "查询接口、网段、路由表或规则"}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />{" "}

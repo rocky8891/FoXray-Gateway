@@ -1,4 +1,3 @@
-import { NetworkPage } from "./network";
 import { ProductIcon } from "./product_icons";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { BookOpen, RefreshCw } from "lucide-react";
@@ -346,7 +345,6 @@ export function WireGuardServicePanel({ act }: { act: Act }) {
         />
         <VersionPanel service="wireguard" act={act} />
       </Panel>
-      <NetworkPage kind="wireguard" serviceOnly act={act} />
     </>
   );
 }

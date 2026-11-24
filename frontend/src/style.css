@@ -230,11 +230,27 @@ main {
   min-height: 44px;
   margin: 0 0 22px;
 }
+:root {
+  --card-title-size: 20px;
+  --card-title-line-height: 28px;
+  --card-title-icon-size: 20px;
+  --card-title-gap: 8px;
+}
 .page-heading h2 {
-  font-size: 20px;
-  line-height: 28px;
+  font-size: var(--card-title-size);
+  line-height: var(--card-title-line-height);
   font-weight: 700;
   margin: 0;
+  text-align: start;
+}
+.panel > .page-heading h2.metric-heading {
+  justify-content: flex-start;
+  gap: var(--card-title-gap);
+}
+.panel > .page-heading h2.metric-heading > svg {
+  flex: none;
+  inline-size: var(--card-title-icon-size);
+  block-size: var(--card-title-icon-size);
 }
 .page-heading p {
   font-size: 12px;
