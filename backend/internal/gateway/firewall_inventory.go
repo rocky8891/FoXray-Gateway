@@ -14,6 +14,8 @@ import (
 
 var richPriority = regexp.MustCompile(`priority="?(-?[0-9]+)"?`)
 var richLogRate = regexp.MustCompile(`limit value="?([1-9][0-9]*/[smhd])"?`)
+var richAction = regexp.MustCompile(` (accept|drop|reject)(?: limit value="?([1-9][0-9]{0,4}/[smhd])"?)?$`)
+var richAudit = regexp.MustCompile(` audit (?:accept|drop|reject)(?: |$)`)
 var richDestination = regexp.MustCompile(`(?:^| )destination address="?([^" ]+)"?`)
 var richFamily = regexp.MustCompile(`family="?(ipv[46])"?`)
 var richService = regexp.MustCompile(`service name="?([a-zA-Z][a-zA-Z0-9_-]{0,31})"?`)
@@ -56,9 +58,22 @@ func parseFirewallEntry(zone, storage, raw string) M {
 		if m := richPriority.FindStringSubmatch(raw); len(m) > 1 {
 			r["priority"], _ = strconv.Atoi(m[1])
 		}
-		if strings.Contains(raw, `log prefix="foxray "`) {
+		action := richAction.FindStringSubmatch(strings.TrimSpace(raw))
+		if len(action) > 0 {
+			r["action"] = action[1]
+			if action[2] != "" {
+				r["action_rate"] = action[2]
+			}
+		}
+		if richAudit.MatchString(raw) {
+			r["audit"] = true
+		}
+		if _, logging, ok := strings.Cut(raw, `log prefix="foxray "`); ok {
 			r["logging"] = true
-			if m := richLogRate.FindStringSubmatch(raw); len(m) > 1 {
+			if len(action) > 0 {
+				logging = strings.TrimSuffix(logging, action[0])
+			}
+			if m := richLogRate.FindStringSubmatch(logging); len(m) > 1 {
 				r["log_rate"] = m[1]
 			}
 		}
@@ -84,7 +99,7 @@ func parseFirewallEntry(zone, storage, raw string) M {
 			r["kind"], r["rich_match"], r["service"] = "rich", "service", m[1]
 		} else if r["source"] != nil || r["destination"] != nil {
 			r["kind"] = "ip"
-		} else if str(r["family"]) != "" && (strings.HasSuffix(strings.TrimSpace(raw), " accept") || strings.HasSuffix(strings.TrimSpace(raw), " drop") || strings.HasSuffix(strings.TrimSpace(raw), " reject")) {
+		} else if str(r["family"]) != "" && len(action) > 0 {
 			r["kind"], r["rich_match"] = "rich", "all"
 		} else {
 			r["kind"], r["editable"] = "advanced", false
@@ -204,8 +219,8 @@ func (n *Network) firewallSnapshotWithState(zone string, state M, contexts ...co
 	result["zone"] = zone
 	entries := map[string]M{}
 	var wg sync.WaitGroup
-	var runtimeDetails, permanentDetails, icmpTypes, zonesRaw string
-	var runtimeErr, permanentErr, icmpErr, zonesErr error
+	var runtimeDetails, permanentDetails, icmpTypes, zonesRaw, defaultZone string
+	var runtimeErr, permanentErr, icmpErr, zonesErr, defaultZoneErr error
 	read := func(output *string, err *error, args ...string) {
 		wg.Add(1)
 		go func() {
@@ -215,11 +230,13 @@ func (n *Network) firewallSnapshotWithState(zone string, state M, contexts ...co
 	}
 	if bundle, err := readFirewallBundle(command, zone); err == nil {
 		zonesRaw = strings.Join(bundle.Zones, " ")
+		defaultZone = bundle.DefaultZone
 		runtimeDetails = firewallZoneText(zone, bundle.Runtime)
 		permanentDetails = firewallZoneText(zone, bundle.Permanent)
 		icmpTypes = strings.Join(bundle.ICMPTypes, " ")
 	} else {
 		read(&zonesRaw, &zonesErr, "firewall-cmd", "--get-zones")
+		read(&defaultZone, &defaultZoneErr, "firewall-cmd", "--get-default-zone")
 		read(&runtimeDetails, &runtimeErr, append(zoneArgs(zone, false), "--list-all")...)
 		read(&permanentDetails, &permanentErr, append(zoneArgs(zone, true), "--list-all")...)
 		read(&icmpTypes, &icmpErr, "firewall-cmd", "--get-icmptypes")
@@ -310,6 +327,9 @@ func (n *Network) firewallSnapshotWithState(zone string, state M, contexts ...co
 	live, e1 := parseZonePolicy(runtimeDetails)
 	saved, e2 := parseZonePolicy(permanentDetails)
 	policy := M{"complete": false, "runtime": M{}, "permanent": M{}, "icmp_types": []string{}}
+	if defaultZoneErr == nil && firewallZoneName.MatchString(strings.TrimSpace(defaultZone)) {
+		policy["default_zone"] = strings.TrimSpace(defaultZone)
+	}
 	if runtimeErr == nil && permanentErr == nil && icmpErr == nil && e1 == nil && e2 == nil {
 		policy["runtime"], policy["permanent"], policy["icmp_types"], policy["complete"] = live, saved, strings.Fields(icmpTypes), true
 		policy["different"] = fingerprint(live) != fingerprint(saved)

@@ -1372,19 +1372,21 @@ function WGNetworkEditor({
         )}
       </div>
       <label className="check">
+        <input type="checkbox" checked={value.lan_forward == null ? !!value.snat : value.lan_forward === true}
+          onChange={event => change("lan_forward", event.target.checked)} />
+        {role === "client" ? "允许 LAN 设备经此 VPN 访问远端" : "允许 VPN 客户端访问 LAN"}
+      </label>
+      <label className="check">
         <input
           type="checkbox"
           checked={!!value.snat}
-          onChange={(e) => change("snat", e.target.checked)}
+          onChange={event => onChange({...value, lan_forward: value.lan_forward ?? !!value.snat, snat: event.target.checked})}
         />
-        启用 SNAT ·{" "}
-        {role === "client"
-          ? "让 LAN 设备经此 VPN 访问远端"
-          : "让 VPN 客户端访问 LAN 时使用网关地址"}
+        启用 SNAT（使用出接口地址）
       </label>
-      {!!value.snat && (
+      {(!!value.snat || value.lan_forward === true) && (
         <div className="form-grid">
-          <Field label="需要 SNAT 的来源网段" hint="多个网段用逗号分隔">
+          <Field label="LAN 转发／SNAT 来源网段" hint="多个网段用逗号分隔">
             <textarea rows={1} className="wg-resizable-text" value={lanSources} onChange={event => {
               const draft = event.target.value;
               setLanSources(draft);

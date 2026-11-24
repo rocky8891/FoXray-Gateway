@@ -149,6 +149,9 @@ func nftablesInventory(raw string, owned map[string]bool, counters map[string]M)
 			if prefix := obj(obj(match["right"])["prefix"]); len(prefix) > 0 {
 				right = str(prefix["addr"]) + "/" + strOrNumber(prefix["len"])
 			}
+			if values := arr(obj(match["right"])["range"]); len(values) == 2 && str(payload["field"]) == "dport" {
+				right = strOrNumber(values[0]) + "-" + strOrNumber(values[1])
+			}
 			if right == "" {
 				continue
 			}

@@ -158,7 +158,7 @@ func (p *WGProfile) render() string {
 	if len(p.DNS) > 0 {
 		b.WriteString("DNS = " + strings.Join(p.DNS, ", ") + "\n")
 	}
-	if p.Network != nil && (p.Network.RouteMode == "manual" || p.Network.SNAT) {
+	if p.Network != nil && (p.Network.RouteMode == "manual" || p.Network.SNAT || p.Network.allowsLANForward()) {
 		b.WriteString("PostUp = /opt/foxray/foxray --wireguard-network up --interface %i\nPreDown = /opt/foxray/foxray --wireguard-network down --interface %i\n")
 	}
 	for _, line := range p.extras {

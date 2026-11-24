@@ -11,7 +11,7 @@ import (
 var firewallZoneName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]{0,31}$`)
 var richSource = regexp.MustCompile(`source address="?([^" ]+)"?`)
 var richPort = regexp.MustCompile(`(?:^| )port port="?([0-9-]+)"? protocol="?(tcp|udp)"?`)
-var richForward = regexp.MustCompile(`forward-port port="?([0-9-]+)"? protocol="?(tcp|udp)"? to-port="?([0-9-]+)"?(?: to-addr="?([^" ]+)"?)?`)
+var richForward = regexp.MustCompile(`forward-port port="?([0-9-]+)"? protocol="?(tcp|udp)"? (?:to-port="?([0-9-]*)"? ?)?(?:to-addr="?([^" ]+)"?)?`)
 
 func portRange(value any) (string, error) {
 	s := str(value)
@@ -48,7 +48,7 @@ func normalizeFirewall(item M) (M, error) {
 		return normalizeCrossZone(item)
 	}
 	r := M{}
-	for _, key := range []string{"id", "driver", "name", "kind", "zone", "port", "protocol", "source", "destination", "action", "target_ip", "target_port", "enabled", "family", "storage", "priority", "hook_priority", "logging", "log_rate", "service", "to_source", "out_interface", "rich_match"} {
+	for _, key := range []string{"id", "driver", "name", "kind", "zone", "port", "protocol", "source", "destination", "action", "target_ip", "target_port", "enabled", "family", "storage", "priority", "hook_priority", "logging", "log_rate", "audit", "action_rate", "service", "to_source", "out_interface", "rich_match"} {
 		if value, ok := item[key]; ok {
 			r[key] = value
 		}
@@ -61,7 +61,7 @@ func normalizeFirewall(item M) (M, error) {
 	r["kind"] = kind
 	destination := str(r["destination"])
 	if destination != "" {
-		if firewallDriver(r) != "firewalld" || kind == "service-rule" || (kind == "masquerade" && strings.EqualFold(str(r["action"]), "snat")) {
+		if (firewallDriver(r) != "firewalld" && kind != "forward") || kind == "service-rule" || (kind == "masquerade" && strings.EqualFold(str(r["action"]), "snat")) {
 			return nil, errors.New("此规则类型不支持匹配目标地址")
 		}
 		address, prefix, err := canonicalSource(destination)
@@ -97,6 +97,14 @@ func normalizeFirewall(item M) (M, error) {
 			return nil, errors.New("日志频率格式为 5/m、10/s 等")
 		}
 		r["log_rate"] = rate
+	}
+	if yes(r["audit"]) || str(r["action_rate"]) != "" {
+		if firewallDriver(r) != "firewalld" || (kind != "rich" && kind != "ip" && kind != "port") {
+			return nil, errors.New("仅 firewalld 富规则支持审计与动作限流")
+		}
+		if rate := str(r["action_rate"]); rate != "" && !regexp.MustCompile(`^[1-9][0-9]{0,4}/[smhd]$`).MatchString(rate) {
+			return nil, errors.New("动作速率格式为 5/m 或 10/s")
+		}
 	}
 	if kind == "service-rule" {
 		if !firewallZoneName.MatchString(str(r["service"])) {
@@ -222,6 +230,13 @@ func normalizeFirewall(item M) (M, error) {
 		return nil, errors.New("防火墙规则类型无效")
 	}
 	proto := str(r["protocol"])
+	if kind == "forward" && firewallDriver(r) != "firewalld" && proto == "all" {
+		address := net.ParseIP(str(r["destination"]))
+		if address == nil || address.To4() == nil || net.ParseIP(str(r["target_ip"])) == nil || net.ParseIP(str(r["target_ip"])).To4() == nil || str(r["port"]) != "" || str(r["target_port"]) != "" {
+			return nil, errors.New("整地址 DNAT 须填写原目标 IPv4 与转换后的 IPv4，端口留空")
+		}
+		return r, nil
+	}
 	if proto != "tcp" && proto != "udp" && proto != "tcpudp" {
 		return nil, errors.New("协议须为 TCP、UDP 或 TCP+UDP")
 	}
@@ -234,11 +249,15 @@ func normalizeFirewall(item M) (M, error) {
 		if str(r["family"]) == "ipv6" {
 			return nil, errors.New("端口转发目前仅支持 IPv4")
 		}
-		to, e := portRange(r["target_port"])
-		if e != nil {
-			return nil, e
+		if str(r["target_port"]) != "" || str(r["target_ip"]) == "" {
+			to, e := portRange(r["target_port"])
+			if e != nil {
+				return nil, e
+			}
+			r["target_port"] = to
+		} else {
+			r["target_port"] = ""
 		}
-		r["target_port"] = to
 		if target := str(r["target_ip"]); target != "" {
 			ip := net.ParseIP(target)
 			if ip == nil || ip.To4() == nil {
@@ -277,6 +296,13 @@ func firewallSpecs(item M) [][2]string {
 	if yes(item["logging"]) {
 		logging = " log prefix=\"foxray \" level=\"warning\" limit value=\"" + str(item["log_rate"]) + "\""
 	}
+	if yes(item["audit"]) {
+		logging += " audit"
+	}
+	action := str(item["action"])
+	if rate := str(item["action_rate"]); rate != "" {
+		action += " limit value=\"" + rate + "\""
+	}
 	if kind == "masquerade" {
 		if source == "" && destination == "" && num(item["priority"]) == 0 {
 			return [][2]string{{"masquerade", ""}}
@@ -284,13 +310,13 @@ func firewallSpecs(item M) [][2]string {
 		return [][2]string{{"rich-rule", prefix + " masquerade"}}
 	}
 	if kind == "ip" {
-		return [][2]string{{"rich-rule", prefix + logging + " " + str(item["action"])}}
+		return [][2]string{{"rich-rule", prefix + logging + " " + action}}
 	}
 	if kind == "rich" && str(item["rich_match"]) == "all" {
-		return [][2]string{{"rich-rule", prefix + logging + " " + str(item["action"])}}
+		return [][2]string{{"rich-rule", prefix + logging + " " + action}}
 	}
 	if kind == "rich" && str(item["rich_match"]) == "service" {
-		return [][2]string{{"rich-rule", prefix + " service name=\"" + str(item["service"]) + "\"" + logging + " " + str(item["action"])}}
+		return [][2]string{{"rich-rule", prefix + " service name=\"" + str(item["service"]) + "\"" + logging + " " + action}}
 	}
 	protocols := []string{str(item["protocol"])}
 	if protocols[0] == "tcpudp" {
@@ -299,10 +325,10 @@ func firewallSpecs(item M) [][2]string {
 	out := [][2]string{}
 	for _, proto := range protocols {
 		port := str(item["port"])
-		if kind == "port" && source == "" && destination == "" && str(item["action"]) == "accept" && str(item["storage"]) != "rich-rule" && str(item["family"]) == "" && num(item["priority"]) == 0 && !yes(item["logging"]) {
+		if kind == "port" && source == "" && destination == "" && str(item["action"]) == "accept" && str(item["storage"]) != "rich-rule" && str(item["family"]) == "" && num(item["priority"]) == 0 && logging == "" && str(item["action_rate"]) == "" {
 			out = append(out, [2]string{"port", port + "/" + proto})
 		} else if kind == "port" || kind == "rich" {
-			out = append(out, [2]string{"rich-rule", prefix + " port port=\"" + port + "\" protocol=\"" + proto + "\"" + logging + " " + str(item["action"])})
+			out = append(out, [2]string{"rich-rule", prefix + " port port=\"" + port + "\" protocol=\"" + proto + "\"" + logging + " " + action})
 		} else {
 			value := "port=" + port + ":proto=" + proto + ":toport=" + str(item["target_port"])
 			if target := str(item["target_ip"]); target != "" {
@@ -311,7 +337,10 @@ func firewallSpecs(item M) [][2]string {
 			if source == "" && destination == "" && str(item["storage"]) != "rich-rule" && num(item["priority"]) == 0 && str(item["family"]) == "" {
 				out = append(out, [2]string{"forward-port", value})
 			} else {
-				rule := prefix + " forward-port port=\"" + port + "\" protocol=\"" + proto + "\" to-port=\"" + str(item["target_port"]) + "\""
+				rule := prefix + " forward-port port=\"" + port + "\" protocol=\"" + proto + "\""
+				if targetPort := str(item["target_port"]); targetPort != "" {
+					rule += " to-port=\"" + targetPort + "\""
+				}
 				if target := str(item["target_ip"]); target != "" {
 					rule += " to-addr=\"" + target + "\""
 				}
@@ -367,6 +396,9 @@ func (n *Network) planFirewall(p *NetworkPlan, d M) error {
 	}
 	if str(raw["kind"]) == "zone-interface" {
 		return n.planZoneInterface(p, d)
+	}
+	if str(raw["kind"]) == "zone-default" {
+		return n.planDefaultZone(p, d)
 	}
 	if str(raw["kind"]) == "zone-source" || str(raw["kind"]) == "zone-policy" {
 		if str(n.app.service("firewalld")["state"]) != "active" {

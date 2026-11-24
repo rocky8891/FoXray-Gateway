@@ -14,13 +14,14 @@ f=FirewallClient();c=f.config();z=sys.argv[1]
 a=f.getZoneSettings(z).getSettingsDict();b=c.getZoneByName(z).getSettings().getSettingsDict()
 for d in [a,b]:
  for key in ['masquerade','icmp_block_inversion','forward']:d[key]=bool(d.get(key,False))
-print(json.dumps({'zones':list(f.getZones()),'runtime':a,'permanent':b,'icmp_types':list(c.getIcmpTypeNames())}))`
+print(json.dumps({'zones':list(f.getZones()),'default_zone':str(f.getDefaultZone()),'runtime':a,'permanent':b,'icmp_types':list(c.getIcmpTypeNames())}))`
 
 type firewallBundle struct {
-	Zones     []string `json:"zones"`
-	Runtime   M        `json:"runtime"`
-	Permanent M        `json:"permanent"`
-	ICMPTypes []string `json:"icmp_types"`
+	DefaultZone string   `json:"default_zone"`
+	Zones       []string `json:"zones"`
+	Runtime     M        `json:"runtime"`
+	Permanent   M        `json:"permanent"`
+	ICMPTypes   []string `json:"icmp_types"`
 }
 
 func readFirewallBundle(command func(int, string, ...string) (string, error), zone string) (firewallBundle, error) {

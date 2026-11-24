@@ -258,6 +258,9 @@ func nativeNFTScript(r M) string {
 	if str(r["source"]) != "" {
 		source = family + " saddr " + str(r["source"]) + " "
 	}
+	if destination := str(r["destination"]); destination != "" {
+		source += family + " daddr " + destination + " "
+	}
 	prefix := ""
 	if str(r["family"]) != "" {
 		prefix = "meta nfproto " + str(r["family"]) + " "
@@ -277,13 +280,19 @@ func nativeNFTScript(r M) string {
 		rules = append(rules, prefix+source+"counter "+str(r["action"]))
 	} else {
 		for _, proto := range protocols {
-			rule := prefix + source + proto + " dport " + str(r["port"]) + " "
+			rule := prefix + source
+			if proto != "all" {
+				rule += proto + " dport " + str(r["port"]) + " "
+			}
 			if kind == "forward" {
 				to := str(r["target_ip"])
 				if to == "" {
 					rule += "redirect to :" + str(r["target_port"])
 				} else {
-					rule += "dnat ip to " + to + ":" + str(r["target_port"])
+					rule += "dnat ip to " + to
+					if port := str(r["target_port"]); port != "" {
+						rule += ":" + port
+					}
 				}
 			} else {
 				rule += "counter " + str(r["action"])
@@ -307,7 +316,10 @@ func nativeIPSpecs(r M) [][]string {
 		if str(r["source"]) != "" {
 			spec = append(spec, "-s", str(r["source"]))
 		}
-		if proto != "" {
+		if destination := str(r["destination"]); destination != "" {
+			spec = append(spec, "-d", destination)
+		}
+		if proto != "" && proto != "all" {
 			spec = append(spec, "-p", proto, "--dport", strings.ReplaceAll(str(r["port"]), "-", ":"))
 		}
 		if str(r["kind"]) == "masquerade" {
@@ -318,7 +330,11 @@ func nativeIPSpecs(r M) [][]string {
 			if str(r["target_ip"]) == "" {
 				spec = append(spec, "-j", "REDIRECT", "--to-ports", str(r["target_port"]))
 			} else {
-				spec = append(spec, "-j", "DNAT", "--to-destination", str(r["target_ip"])+":"+str(r["target_port"]))
+				target := str(r["target_ip"])
+				if port := str(r["target_port"]); port != "" {
+					target += ":" + port
+				}
+				spec = append(spec, "-j", "DNAT", "--to-destination", target)
 			}
 		} else {
 			spec = append(spec, "-j", target)

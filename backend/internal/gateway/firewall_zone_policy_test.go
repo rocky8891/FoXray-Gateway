@@ -209,7 +209,7 @@ func TestStructuredRichRulesRoundTripAndUnsupportedRemainReadonly(t *testing.T) 
 			t.Fatal("rich roundtrip lost conditions")
 		}
 	}
-	for _, raw := range []string{`rule family="ipv4" source NOT address="192.0.2.0/24" drop`, `rule family="ipv4" destination NOT address="198.51.100.1" service name="ssh" accept`, `rule family="ipv4" destination address="198.51.100.1" service name="ssh" accept limit value="1/m"`} {
+	for _, raw := range []string{`rule family="ipv4" source NOT address="192.0.2.0/24" drop`, `rule family="ipv4" destination NOT address="198.51.100.1" service name="ssh" accept`, `rule family="ipv4" destination address="198.51.100.1" service name="ssh" accept limit value="1/w"`} {
 		if yes(parseFirewallEntry("public", "rich-rule", raw)["editable"]) {
 			t.Fatal("unsupported condition editable")
 		}

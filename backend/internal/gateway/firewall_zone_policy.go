@@ -8,6 +8,7 @@ import (
 )
 
 type firewallZonePolicy struct {
+	Forward       *bool    `json:"forward,omitempty"`
 	Target        string   `json:"target"`
 	Masquerade    bool     `json:"masquerade"`
 	ICMPBlocks    []string `json:"icmp_blocks"`
@@ -50,6 +51,10 @@ func parseZonePolicy(raw string) (firewallZonePolicy, error) {
 	if !validZoneTarget(result.Target) {
 		return result, errors.New("区域默认行为无法识别，未生成变更")
 	}
+	if value := str(data["forward"]); value == "yes" || value == "no" {
+		enabled := value == "yes"
+		result.Forward = &enabled
+	}
 	result.Masquerade = str(data["masquerade"]) == "yes"
 	result.ICMPInversion = str(data["icmp-block-inversion"]) == "yes"
 	validSwitch := func(value any) bool { return str(value) == "yes" || str(value) == "no" }
@@ -65,6 +70,9 @@ func (n *Network) zonePolicySnapshot(zone string) M {
 	live, e1 := n.readZonePolicy(zone, false)
 	saved, e2 := n.readZonePolicy(zone, true)
 	raw, e3 := n.app.command(5, "", "firewall-cmd", "--get-icmptypes")
+	if defaultZone, err := n.app.command(5, "", "firewall-cmd", "--get-default-zone"); err == nil {
+		result["default_zone"] = strings.TrimSpace(defaultZone)
+	}
 	if e1 != nil || e2 != nil || e3 != nil {
 		result["error"] = "区域运行时、永久策略或ICMP类型未完整读取"
 		return result
@@ -170,6 +178,14 @@ func (n *Network) planZonePolicy(p *NetworkPlan, d M) error {
 			appendChange(append(append([]string{}, args...), verb+name), append(append([]string{}, args...), undo+name))
 		}
 		addBool("masquerade", before.Masquerade, desiredMasq)
+		afterForward := before.Forward
+		if forward, ok := item["forward"].(bool); ok {
+			if before.Forward == nil {
+				return errors.New("此 firewalld 未提供区域转发状态")
+			}
+			addBool("forward", *before.Forward, forward)
+			afterForward = &forward
+		}
 		// Remove inversion first before changing its list; apply desired inversion last.
 		icmpChanged := fingerprint(before.ICMPBlocks) != fingerprint(desired) || before.ICMPInversion != desiredInversion
 		if icmpChanged && before.ICMPInversion {
@@ -194,7 +210,7 @@ func (n *Network) planZonePolicy(p *NetworkPlan, d M) error {
 		if permanent || reload {
 			afterTarget = desiredTarget
 		}
-		changes = append(changes, M{"scope": map[bool]string{true: "永久配置", false: "运行时配置"}[permanent], "before": before, "after": firewallZonePolicy{Target: afterTarget, Masquerade: desiredMasq, ICMPBlocks: desired, ICMPInversion: desiredInversion}})
+		changes = append(changes, M{"scope": map[bool]string{true: "永久配置", false: "运行时配置"}[permanent], "before": before, "after": firewallZonePolicy{Forward: afterForward, Target: afterTarget, Masquerade: desiredMasq, ICMPBlocks: desired, ICMPInversion: desiredInversion}})
 	}
 	if targetChanged {
 		args := zoneArgs(zone, true)
@@ -283,6 +299,44 @@ func (n *Network) planZonePolicy(p *NetworkPlan, d M) error {
 	if desiredInversion {
 		p.Warnings = append(p.Warnings, "已开启ICMP反向匹配：列表中的类型成为例外，其余ICMP类型会被阻断；空列表可能阻断所有ICMP。")
 	}
+	return nil
+}
+
+func (n *Network) planDefaultZone(plan *NetworkPlan, data M) error {
+	zone := str(obj(data["item"])["zone"])
+	if !yes(data["allow_protected"]) || !firewallZoneName.MatchString(zone) || str(data["operation"]) != "add" {
+		return errors.New("需要选择有效的默认区域并确认影响")
+	}
+	read := func() (string, error) {
+		raw, err := n.app.command(5, "", "firewall-cmd", "--get-default-zone")
+		return strings.TrimSpace(raw), err
+	}
+	before, err := read()
+	if err != nil || !firewallZoneName.MatchString(before) || before == zone {
+		return errors.New("无法读取默认区域或区域未变化")
+	}
+	zones, err := n.app.command(5, "", "firewall-cmd", "--permanent", "--get-zones")
+	if err != nil || !strings.Contains(" "+strings.Join(strings.Fields(zones), " ")+" ", " "+zone+" ") {
+		return errors.New("目标区域不存在")
+	}
+	plan.steps = []Step{{Args: []string{"firewall-cmd", "--set-default-zone=" + zone}}}
+	plan.undo = []Step{{Args: []string{"firewall-cmd", "--set-default-zone=" + before}}}
+	plan.precondition = func() error {
+		value, err := read()
+		if err != nil || value != before {
+			return errors.New("默认区域已变化，请重新预览")
+		}
+		return nil
+	}
+	plan.postcondition = func() error {
+		value, err := read()
+		if err != nil || value != zone {
+			return errors.New("默认区域应用后核对失败")
+		}
+		return nil
+	}
+	plan.Summary = "修改默认区域 · " + before + " → " + zone
+	plan.Warnings = append(plan.Warnings, "会影响使用默认区域的流量。应用后 120 秒内确认，否则回退。")
 	return nil
 }
 

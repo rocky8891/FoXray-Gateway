@@ -195,7 +195,7 @@ export async function api<T>(
   const abort = () => controller.abort();
   signal?.addEventListener("abort", abort, { once: true });
   if (signal?.aborted) abort();
-  const firewallInventory = path.startsWith("/api/network/firewall?") || path === "/api/network/firewall/cross-zone";
+  const firewallInventory = path.startsWith("/api/network/firewall/diagnosis?") || path.startsWith("/api/network/firewall?") || path === "/api/network/firewall/cross-zone";
   const timeout = body !== undefined ? 45000 : firewallInventory ? 32000 : 12000;
   const timer = setTimeout(abort, timeout);
   const uiAction = body === undefined ? "" : Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, "0")).join("");

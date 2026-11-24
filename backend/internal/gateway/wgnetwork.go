@@ -18,11 +18,19 @@ type WGNetwork struct {
 	RouteMode        string   `json:"route_mode"`
 	Routes           []string `json:"routes"`
 	AdvertisedRoutes []string `json:"advertised_routes"`
+	LANForward       *bool    `json:"lan_forward,omitempty"`
 	SNAT             bool     `json:"snat"`
 	LANSources       []string `json:"lan_sources"`
 	LANInterface     string   `json:"lan_interface"`
 	ServerEndpoint   string   `json:"server_endpoint"`
 	RouteTable       string   `json:"route_table"`
+}
+
+func (v WGNetwork) allowsLANForward() bool {
+	if v.LANForward == nil {
+		return v.SNAT
+	}
+	return *v.LANForward
 }
 
 func wgTableName(name string) string { return "foxray_wg_" + fingerprint(name)[:16] }
@@ -58,8 +66,8 @@ func validateWGNetwork(v WGNetwork) (WGNetwork, error) {
 			return v, errors.New("SNAT 来源须为明确的 IPv4 LAN 网段")
 		}
 	}
-	if v.SNAT && (len(v.LANSources) == 0 || v.LANInterface == "") {
-		return v, errors.New("开启 LAN SNAT 需要填写来源网段与 LAN 接口")
+	if (v.SNAT || v.allowsLANForward()) && (len(v.LANSources) == 0 || v.LANInterface == "") {
+		return v, errors.New("允许 LAN 转发或开启 SNAT 需要填写来源网段与 LAN 接口")
 	}
 	if v.LANInterface != "" {
 		if e := iface(v.LANInterface); e != nil {
@@ -228,7 +236,7 @@ func WireGuardNetwork(action, name string) error {
 	if e != nil {
 		return e
 	}
-	if p.Network != nil && p.Network.SNAT {
+	if p.Network != nil && (p.Network.SNAT || p.Network.allowsLANForward()) {
 		raw, e := adminRun([]string{"sysctl", "-n", "net.ipv4.ip_forward"}, "")
 		if e != nil || strings.TrimSpace(raw) != "1" {
 			return errors.New("LAN 转发需要先启用 IPv4 forwarding；未自动改动全局开关")
@@ -253,7 +261,7 @@ func WireGuardNetwork(action, name string) error {
 		}
 	}
 	// firewalld rich rules are scoped to the LAN ingress zone and tunnel destinations.
-	if p.Network != nil && p.Network.SNAT {
+	if p.Network != nil && p.Network.allowsLANForward() {
 		ingress := p.Network.LANInterface
 		if p.Network.Role == "server" {
 			ingress = p.Name
@@ -262,10 +270,16 @@ func WireGuardNetwork(action, name string) error {
 		if e == nil && strings.TrimSpace(zone) == "" {
 			zone, e = adminRun([]string{"firewall-cmd", "--get-default-zone"}, "")
 		}
+		if p.Network.LANForward != nil && (e != nil || !firewallZoneName.MatchString(strings.TrimSpace(zone)) || strings.TrimSpace(zone) == "no") {
+			_ = undo()
+			return errors.New("无法核对 LAN 转发的入口区域，请检查 firewalld 与接口归属")
+		}
 		if e == nil && firewallZoneName.MatchString(strings.TrimSpace(zone)) {
 			destinations := []string{}
 			for _, peer := range p.Peers {
-				destinations = append(destinations, peer.AllowedIPs...)
+				if !peer.Disabled {
+					destinations = append(destinations, peer.AllowedIPs...)
+				}
 			}
 			if p.Network.Role == "server" {
 				destinations = p.Network.AdvertisedRoutes

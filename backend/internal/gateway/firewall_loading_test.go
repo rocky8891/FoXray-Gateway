@@ -39,7 +39,7 @@ func TestFirewallSnapshotReusesZoneQueries(t *testing.T) {
 			t.Fatal("duplicate or missing inventory query", command, calls[command])
 		}
 	}
-	if len(calls) != 6 {
+	if len(calls) != 7 {
 		t.Fatalf("unexpected extra queries: %v", calls)
 	}
 	matches := 0

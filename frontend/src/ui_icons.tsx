@@ -238,7 +238,7 @@ const definitions: [RegExp, LucideIcon][] = [
 ];
 export function labelIcon(label: string, size = 16) {
   if (/^(查看)?全部规则$/.test(label)) return <AllFirewallRulesIcon size={size}/>;
-  if (label === "跨区域规则") return <CrossZoneIcon size={size}/>;
+  if (label === "跨区域规则" || label === "域间规则") return <CrossZoneIcon size={size}/>;
   if (/升序|降序|排序/.test(label)) return <SortIcon size={size} />;
   if (label === "卡片外观") return <AppearanceIcon size={size} />;
   if (/路径探测/.test(label)) return <PathProbeIcon size={size} />;
