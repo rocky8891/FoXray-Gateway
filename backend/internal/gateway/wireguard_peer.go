@@ -102,7 +102,16 @@ func WireGuardPeerState(name, key string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	return syncWGPeer(ctx, SystemRunner{}, name, key, profile)
+	runner := SystemRunner{}
+	if err := syncWGPeer(ctx, runner, name, key, profile); err != nil {
+		return err
+	}
+	for _, peer := range profile.Peers {
+		if peer.PublicKey == key {
+			return syncWGPeerRoutes(ctx, runner, profile, peer)
+		}
+	}
+	return errors.New("Peer 不存在")
 }
 
 func syncWGPeer(ctx context.Context, runner Runner, name, key string, profile *WGProfile) error {
@@ -248,6 +257,6 @@ func (n *Network) planWGPeerStateFile(plan *NetworkPlan, name, key string, disab
 	}
 	plan.Summary = action + " WireGuard Peer · " + name
 	plan.Preview = []string{action + "选定 Peer，保留其全部配置；接口及其他 Peer 保持运行"}
-	plan.Warnings = []string{"只改变此 Peer 的通信状态；相关路由保留，停用期间不会继续转发到此 Peer。120 秒内确认，否则恢复。", "SaveConfig 自动关闭，避免接口停止时覆盖已停用 Peer 的配置。"}
+	plan.Warnings = []string{"同步此 Peer 独占的接口路由。其他 Peer 的共用路由保留。120 秒内确认，否则恢复。", "SaveConfig 自动关闭，避免接口停止时覆盖已停用 Peer 的配置。"}
 	return nil
 }

@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // WGNetwork contains no authentication material and is stored in a config comment.
@@ -123,7 +125,22 @@ func wgHelperSteps(p *WGProfile) ([]Step, error) {
 	}
 	steps := []Step{}
 	if v.RouteMode == "manual" {
+		var active, disabled []string
+		for _, peer := range p.Peers {
+			if peer.Disabled {
+				disabled = append(disabled, peer.AllowedIPs...)
+			} else {
+				active = append(active, peer.AllowedIPs...)
+			}
+		}
 		for _, dst := range v.Routes {
+			_, prefix, err := canonicalSource(dst)
+			if err != nil {
+				return nil, err
+			}
+			if wgCovers(prefix, disabled) && !wgCovers(prefix, active) {
+				continue
+			}
 			family := "-4"
 			if strings.Contains(dst, ":") {
 				family = "-6"
@@ -172,7 +189,19 @@ func WireGuardNetwork(action, name string) error {
 		failed := []Step{}
 		for i := len(state.Undo) - 1; i >= 0; i-- {
 			step := state.Undo[i]
-			if _, err := adminRun(step.Args, step.Input); err != nil {
+			var err error
+			if len(step.Args) == 11 && step.Args[0] == "ip" && step.Args[2] == "route" && step.Args[3] == "del" && step.Args[10] == "187" {
+				_, prefix, parseErr := canonicalSource(step.Args[4])
+				err = parseErr
+				if err == nil {
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					err = syncWGRoute(ctx, SystemRunner{}, step.Args[1], name, prefix, step.Args[8], "187", true)
+					cancel()
+				}
+			} else {
+				_, err = adminRun(step.Args, step.Input)
+			}
+			if err != nil {
 				failed = append([]Step{step}, failed...)
 			}
 		}

@@ -28,8 +28,8 @@ export function ZonePolicyEditor({value,onChange,policy}:{value:Dict;onChange:(k
 }
 
 export function FirewallDestinationField({value,onChange}:{value:Dict;onChange:(value:string)=>void}) {
-  return <Field label="匹配目标地址" hint="可填 IPv4／IPv6 地址或网段。留空匹配任意目标。">
-    <input aria-label="匹配目标地址" value={String(value.destination || "")} onChange={event => onChange(event.target.value)} />
+  return <Field label="目标 IP" hint="可填 IPv4／IPv6 地址或网段。留空匹配任意目标。">
+    <input aria-label="目标 IP" value={String(value.destination || "")} onChange={event => onChange(event.target.value)} />
   </Field>;
 }
 
@@ -38,7 +38,7 @@ export function RichRuleEditor({value,onChange,services}:{value:Dict;onChange:(k
  return <><p className="small muted">高级规则使用firewalld Rich Rules；按表单生成，支持端口、服务或所选来源的全部流量。无法无损解析的现有规则继续只读。</p><div className="form-grid">
  <Field label="备注名称"><input aria-label="高级规则名称" value={String(value.name||"")} onChange={e=>onChange("name",e.target.value)}/></Field>
  <Field label="匹配类型"><select aria-label="高级规则匹配类型" value={match} onChange={e=>onChange("rich_match",e.target.value)}><option value="port">协议／端口</option><option value="service">预定义服务</option><option value="all">全部流量</option></select></Field>
- <Field label="来源IP／网段" info="留空表示当前区域内所有来源，并非整个系统所有流量。"><input aria-label="高级规则来源" value={String(value.source||"")} placeholder="192.168.1.0/24" onChange={e=>onChange("source",e.target.value)}/></Field>
+ <Field label="源 IP" info="留空表示当前区域内所有来源，并非整个系统所有流量。"><input aria-label="高级规则来源" value={String(value.source||"")} placeholder="192.168.1.0/24" onChange={e=>onChange("source",e.target.value)}/></Field>
  <FirewallDestinationField value={value} onChange={destination => onChange("destination", destination)} />
  {match==="port"&&<><Field label="协议"><select aria-label="高级规则协议" value={String(value.protocol||"tcp")} onChange={e=>onChange("protocol",e.target.value)}><option value="tcp">TCP</option><option value="udp">UDP</option><option value="tcpudp">TCP＋UDP</option></select></Field><Field label="端口／范围"><input aria-label="高级规则端口" value={String(value.port||"")} placeholder="443 或 8000-8100" onChange={e=>onChange("port",e.target.value)}/></Field></>}
  {match==="service"&&<Field label="预定义服务"><FirewallServiceSelect label="高级规则服务" value={String(value.service||"")} services={services} onChange={name=>onChange("service",name)}/></Field>}

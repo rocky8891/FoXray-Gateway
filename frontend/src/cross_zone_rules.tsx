@@ -45,7 +45,7 @@ export function CrossZoneRules({act, resource, filter, resetFilter}: {
   });
   return <Panel className="firewall-main-panel management-panel">
     <div className="firewall-rules-heading" id="cross-zone-rules">
-      <h3><CrossZoneIcon size={20}/>跨区域规则<SettingInfo label="跨区域规则" text="按入口区域、出口区域、来源、目标和协议匹配转发流量。" /></h3>
+      <h3><CrossZoneIcon size={20} className="firewall-heading-icon"/>跨区域规则<SettingInfo label="跨区域规则" text="按入口区域、出口区域、来源、目标和协议匹配转发流量。" /></h3>
       <span className="muted">运行时与永久配置 · 合并展示</span>
     </div>
     <CompactFilters label="跨区域规则筛选"

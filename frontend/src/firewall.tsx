@@ -344,7 +344,7 @@ export function FirewallPage({ act }: { act: Act }) {
     { key: "serial", label: "序号", render: (_, i) => i + 1 },
   ];
   if (category === "all") columns.push(
-    {key:"name",label:"名称／类型",heading:heading("kind","名称／类型"),render:r=><><strong>{text(r.service || r.port || r.source || (r.kind === "masquerade" ? "地址转换" : "规则"))}</strong><small>{r.editable===false ? "未知规则（只读）" : categories.find(([id])=>id===r.kind)?.[1] || String(r.kind || "系统规则")}</small></>},
+    {key:"name",label:"名称／类型",heading:heading("kind","名称／类型"),render:r=><><strong>{text(r.service || (r.kind === "system" ? [r.family, r.table, r.chain].filter(Boolean).join(" / ") : "") || r.port || r.source || (r.kind === "masquerade" ? "地址转换" : "规则"))}</strong><small>{r.kind === "system" ? "系统规则（只读）" : r.editable===false ? "未知规则（只读）" : categories.find(([id])=>id===r.kind)?.[1] || String(r.kind || "系统规则")}</small></>},
     {key:"protocol",label:"协议／端口",heading:heading("protocol","协议／端口"),render:r=>r.kind==="service-rule" ? "服务定义" : [r.protocol ? String(r.protocol).toUpperCase() : "全部",r.port].filter(Boolean).join(" / ")},
   );
   if (category === "service-rule")
@@ -423,7 +423,7 @@ export function FirewallPage({ act }: { act: Act }) {
       heading: heading("action", "策略"),
       render: (r) => (
         <span className={r.action === "accept" ? "accent" : ["drop","reject"].includes(String(r.action)) ? "poor" : "muted"}>
-          {r.editable === false
+          {r.editable === false && r.kind !== "system"
             ? "高级策略"
             : strategies[String(r.action)] || ({masquerade:"地址伪装",snat:"源地址转换"} as Record<string,string>)[String(r.action)] || text(r.action)}
         </span>
@@ -952,11 +952,7 @@ function FirewallForm({
               </>
             )}
             <Field
-              label={
-                kind === "ip"
-                  ? "来源 IP／CIDR"
-                  : "来源 IP／CIDR（留空为整个区域）"
-              }
+              label="源 IP"
               hint={
                 kind === "masquerade"
                   ? "SNAT 动作或原生防火墙模式必须指定来源 IPv4／网段"

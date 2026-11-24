@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"os/exec"
 	"strings"
@@ -63,15 +62,17 @@ func (n *Network) FirewallView(driver, zone string, contexts ...context.Context)
 		result["error"] = "该防火墙工具尚未安装；切换视图不会自动安装或启停服务"
 		return result
 	}
-	var raw string
+	var raw, rawV4, rawV6 string
 	var e error
 	switch driver {
 	case "nftables":
 		raw, e = n.app.command(6, "", "nft", "-j", "list", "ruleset")
 	case "iptables":
-		raw, e = n.app.command(6, "", "iptables-save")
+		rawV4, e = n.app.command(6, "", "iptables-save")
+		raw = rawV4
 		v6, er := n.app.command(6, "", "ip6tables-save")
 		if er == nil {
+			rawV6 = v6
 			raw += "\n# IPv6\n" + v6
 		}
 	case "ufw":
@@ -83,26 +84,31 @@ func (n *Network) FirewallView(driver, zone string, contexts ...context.Context)
 	managed := clone(arr(n.managed["firewall"]))
 	n.mu.Unlock()
 	counters := map[string]M{}
-	if driver == "nftables" {
-		data := M{}
-		if json.Unmarshal([]byte(raw), &data) == nil {
-			for _, v := range arr(data["nftables"]) {
-				rule := obj(obj(v)["rule"])
-				table := str(rule["table"])
-				for _, expr := range arr(rule["expr"]) {
-					counter := obj(obj(expr)["counter"])
-					if len(counter) > 0 {
-						c := counters[table]
-						if c == nil {
-							c = M{"packets": 0., "bytes": 0.}
-							counters[table] = c
-						}
-						c["packets"] = num(c["packets"]) + num(counter["packets"])
-						c["bytes"] = num(c["bytes"]) + num(counter["bytes"])
-					}
-				}
-			}
+	owned := map[string]bool{}
+	for _, value := range managed {
+		rule := obj(value)
+		if firewallDriver(rule) != driver {
+			continue
 		}
+		if driver == "nftables" {
+			owned[nativeRuleName(rule)] = true
+		}
+		if driver == "iptables" {
+			owned[nativeChainName(rule)] = true
+		}
+	}
+	var system []M
+	if e == nil {
+		switch driver {
+		case "nftables":
+			system, e = nftablesInventory(raw, owned, counters)
+		case "iptables":
+			system = append(iptablesInventory(rawV4, "ipv4", owned), iptablesInventory(rawV6, "ipv6", owned)...)
+		}
+	}
+	if e != nil {
+		result["complete"] = false
+		result["error"] = "系统规则读取失败"
 	}
 	rows := []M{}
 	for _, v := range managed {
@@ -120,8 +126,8 @@ func (n *Network) FirewallView(driver, zone string, contexts ...context.Context)
 		r["drift"] = present != yes(r["enabled"])
 		rows = append(rows, r)
 	}
-	result["entries"] = rows
 	result["managed"] = rows
+	result["entries"] = append(append([]M{}, rows...), identifyNativeRows(system)...)
 	result["note"] = "只修改 FoXray 独立规则；完整系统规则在下方只读查看。更换视图不会切换系统防火墙。iptables 可能使用 nft 后端，工具已安装不代表存在多个独立防火墙。"
 	return result
 }
