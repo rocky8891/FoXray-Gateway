@@ -840,24 +840,26 @@ body .overview-footer > .data-freshness {
   height: var(--header-height);
   transition: height .38s cubic-bezier(.22,.8,.24,1);
 }
-header nav .nav-tab.nav-home-collapse:not(:disabled) {
-  position: relative;
+header nav .nav-tab.nav-home-icon-button {
+  flex: 0 0 var(--menu-button-height);
+  width: var(--menu-button-height);
+  min-width: var(--menu-button-height);
+  padding-inline: 0 !important;
+}
+/* Reserve space only on scrollable pages. The homepage already fits the viewport. */
+html:has(.home-header-shell[data-nav-fox="true"]):not(:has(main > .overview-page)) { scrollbar-gutter: stable; }
+header nav .nav-tab.nav-home-fox:not(:disabled) {
   background: linear-gradient(145deg,
     color-mix(in srgb, var(--metric-blue) 24%, var(--card)),
     color-mix(in srgb, var(--metric-purple) 22%, var(--card))) !important;
   border-color: var(--metric-blue) !important;
 }
-header nav .nav-home-collapse > :not(.nav-home-collapse-icon) {
-  visibility: hidden;
-}
-header nav .nav-home-collapse-icon {
-  position: absolute;
-  inset: 0;
+header nav .nav-home-fox-icon {
   display: grid;
   place-items: center;
   animation: home-collapse-arrive 420ms both;
 }
-header nav .nav-home-collapse-icon > svg { width: 23px; height: 25px; overflow: visible; }
+header nav .nav-home-fox-icon > svg { width: 27px; height: 29px; max-height: calc(var(--menu-button-height) - 4px); overflow: visible; }
 @keyframes home-collapse-arrive {
   0% { opacity: 0; transform: translate(8px, 4px) scale(.7); }
   50% { opacity: 1; transform: translate(0, -3px) scale(1.09); }
@@ -866,7 +868,7 @@ header nav .nav-home-collapse-icon > svg { width: 23px; height: 25px; overflow: 
 }
 @media (prefers-reduced-motion: reduce) {
   .home-header-shell[data-auto-hide="true"] { transition: none !important; }
-  header nav .nav-home-collapse-icon { animation: none; }
+  header nav .nav-home-fox-icon { animation: none; }
 }
 .home-header-handle {
   position: fixed;

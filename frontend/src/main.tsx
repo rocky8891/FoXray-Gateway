@@ -141,13 +141,13 @@ function App() {
     );
   }, [state?.manager_settings.status_refresh_seconds]);
   const [monitorHeaderHidden, setMonitorHeaderHidden] = useState(() => sessionStorage.getItem("foxray.monitor.header-hidden") === "true");
-  const hideHomeHeader =
-    (page === "overview" || page === "monitoring" && monitorHeaderHidden) &&
-    record(state?.manager_settings.presentation).home_header_auto_hide === true;
+  const headerAutoHide = record(state?.manager_settings.presentation).home_header_auto_hide === true;
+  const hideHomeHeader = headerAutoHide && (page === "overview" || page === "monitoring" && monitorHeaderHidden);
   const [headerExpanded, setHeaderExpanded] = useState(false);
   const [headerOrigin, setHeaderOrigin] = useState("calc(100vw - 30px) 150px");
   const headerCollapsed = hideHomeHeader && !headerExpanded;
-  const collapseInNav = hideHomeHeader && headerExpanded && page === "overview";
+  const showNavFox = headerAutoHide && headerExpanded;
+  const collapseInNav = showNavFox && page === "overview";
   const moveHeaderFocus = useRef(false);
   const animateHeaderNavigation = useRef(false);
   useLayoutEffect(() => {
@@ -168,7 +168,7 @@ function App() {
     );
     return () => animation?.cancel();
   }, [page]);
-  useEffect(() => { setHeaderExpanded(false); }, [page, hideHomeHeader]);
+  useEffect(() => { if (!headerAutoHide) setHeaderExpanded(false); }, [headerAutoHide]);
   const updates = useResource<Dict>("/api/updates", 60000);
   const [updateData, setUpdateData] = useState<Dict>({});
   useEffect(() => {
@@ -460,6 +460,7 @@ function App() {
         className="home-header-shell"
         data-auto-hide={hideHomeHeader || undefined}
         data-expanded={headerExpanded || undefined}
+        data-nav-fox={showNavFox || undefined}
         style={{"--home-header-origin": headerOrigin} as React.CSSProperties}
       >
         <header ref={header} inert={headerCollapsed}>
@@ -498,14 +499,15 @@ function App() {
           <nav aria-label="功能模块">
             {available.map(([id, label]) => {
               const collapse = id === "overview" && collapseInNav;
+              const foxIcon = id === "overview" && showNavFox;
               return (
                 <button
                   type="button"
                   key={id}
-                  className={`nav-tab${id === "monitor" ? " integrated" : ""}${collapse ? " nav-home-collapse" : ""}`}
+                  className={`nav-tab${id === "monitor" ? " integrated" : ""}${id === "overview" ? " nav-home-icon-button" : ""}${foxIcon ? " nav-home-fox" : ""}${collapse ? " nav-home-collapse" : ""}`}
                   aria-current={!collapse && page === id ? "page" : undefined}
-                  aria-label={collapse ? "收起首页标题栏" : undefined}
-                  title={collapse ? "收起首页标题栏" : undefined}
+                  aria-label={collapse ? "收起首页标题栏" : id === "overview" ? label : undefined}
+                  title={collapse ? "收起首页标题栏" : id === "overview" ? label : undefined}
                   onClick={event => {
                     if (collapse) {
                       moveHeaderFocus.current = event.detail === 0;
@@ -515,11 +517,10 @@ function App() {
                     }
                   }}
                 >
-                  <span className="nav-icon" aria-hidden="true">
-                    {labelIcon(label, 18)}
-                  </span>
-                  <span>{label}</span>
-                  {collapse && <span className="nav-home-collapse-icon"><HomeHeaderToggleIcon /></span>}
+                  {foxIcon ? <span className="nav-home-fox-icon"><HomeHeaderToggleIcon /></span> : (
+                    <span className="nav-icon" aria-hidden="true">{labelIcon(label, 18)}</span>
+                  )}
+                  {id !== "overview" && <span>{label}</span>}
                 </button>
               );
             })}

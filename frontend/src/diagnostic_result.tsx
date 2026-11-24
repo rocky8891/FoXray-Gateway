@@ -4,12 +4,14 @@ import { CheckCircle2, CircleAlert, LoaderCircle } from "lucide-react";
 import {
   api,
   errorMessage,
+  list,
+  text,
   record,
   timestamp,
   type Dict,
   type Operation,
 } from "./api";
-import { JsonDetails, PageHeader, Panel } from "./ui";
+import { Button, JsonDetails, Modal, PageHeader, Panel, Table } from "./ui";
 import type { Act } from "./nodes";
 
 export function useDiagnosticRunner(act: Act) {
@@ -119,6 +121,50 @@ export function DiagnosticProgress({
     </p>
   );
 }
+function FirewallDiagnosticFacts({ data }: { data: Dict }) {
+  const params = record(data.parameters);
+  const result = record(data.firewall);
+  const route = record(result.route), reverse = record(result.reverse_route);
+  const nat = record(result.nat);
+  const candidates = list(result.rules);
+  const [selected, setSelected] = useState<Dict | null>(null);
+  return <>
+    <dl className="diagnostic-facts">
+      <div><dt>目标</dt><dd>{text(params.destination)}{params.port ? `:${text(params.port)}` : ""}</dd></div>
+      <div><dt>解析地址</dt><dd>{text(result.resolved_ip || "未取得")}</dd></div>
+      <div><dt>入口接口与区域</dt><dd>{text(params.ingress)}{result.zone ? ` · ${text(result.zone)} · ${text(result.binding)}` : ""}</dd></div>
+      <div><dt>内核正向出口</dt><dd>{text(route.dev || "未取得")}{result.egress_zone ? ` · ${text(result.egress_zone)}` : ""}</dd></div>
+      <div><dt>网关本机回程出口</dt><dd>{text(reverse.dev || "未取得")}</dd></div>
+      <div><dt>配置接管判断</dt><dd>{text(data.expected || "未取得")}</dd></div>
+      {nat.status != null && <div><dt>地址转换推演</dt><dd>{text(nat.source)} → {text(nat.destination)}{nat.port ? ` · 端口 ${text(nat.port)}` : ""} · {text(nat.status)}</dd></div>}
+    </dl>
+    {data.gateway_probe === true && <>
+      <p><strong>网关 TCP 建连测试</strong> · 由网关发起</p>
+      <dl className="diagnostic-facts">
+        <div><dt>建连结果</dt><dd>{data.tcp_ms == null ? "未完成" : `${Number(data.tcp_ms).toFixed(2)} ms（TCP 建连）`}</dd></div>
+        <div><dt>核心事件观测路径</dt><dd>{text(data.observed_path || record(data.actual_node).note || "未取得匹配事件")}</dd></div>
+      </dl>
+    </>}
+    {params.probe === true && data.gateway_probe !== true && result.resolved_ip != null && <p className="hint">网关 TCP 建连测试仅支持 IPv4，本次已完成规则推演。</p>}
+    {Array.isArray(result.warnings) && result.warnings.map((warning, index) => <p className="hint" key={index}>{String(warning)}</p>)}
+    {result.status != null && <>
+      <h4>运行时候选规则</h4>
+      {candidates.length === 0 ? <p className="muted">没有匹配到可解析的运行时规则。</p> : <Table
+        rows={candidates}
+        rowKey={(row) => String(candidates.indexOf(row))}
+        columns={[
+          { key: "name", label: "规则", render: row => text(row.name || "未命名规则") },
+          { key: "action", label: "动作", render: row => text(row.action) },
+          { key: "range", label: "匹配范围", render: row => `${text(row.source || "任意来源")} → ${text(row.destination || "任意目标")}${row.port ? ` · ${text(row.port)}` : ""}` },
+          { key: "evidence", label: "匹配依据", render: row => text(row.evidence || "无可解析字段") },
+          { key: "details", label: "详情", render: row => <Button size="compact" onClick={() => setSelected(row)}>查看</Button> },
+        ]}
+      />}
+    </>}
+    {selected && <Modal title="候选规则详情" onClose={() => setSelected(null)}><JsonDetails data={selected} /></Modal>}
+  </>;
+}
+
 export function DiagnosticReport({
   operation,
   embedded = false,
@@ -138,18 +184,19 @@ export function DiagnosticReport({
       : String(p.protocol).startsWith("dns")
         ? passed ? "DNS应答验证通过" : "DNS查询未通过"
         : passed ? "连接测试通过" : "连接测试未通过";
+  const firewall = p.kind === "firewall";
   const body = (
     <>
       <PageHeader
-        title="诊断结果"
+        title={firewall ? "防火墙规则诊断结果" : "诊断结果"}
         icon={passed && !tcpOnly ? <CheckCircle2 size={20} /> : <CircleAlert size={20} />}
         description={timestamp(operation.time)}
       />
       <p className={passed ? tcpOnly ? "fair" : "good" : "poor"} role="status">
-        <strong>{resultTitle}</strong> ·{" "}
+        <strong>{firewall ? d.firewall ? "规则推演完成" : "规则推演未完成" : resultTitle}</strong> ·{" "}
         {operation.message}
       </p>
-      <dl className="diagnostic-facts">
+      {firewall ? <FirewallDiagnosticFacts data={d} /> : <dl className="diagnostic-facts">
         <div>
           <dt>{d.dns_routing_mode ? "请求填写的DNS目标" : "目标"}</dt>
           <dd>
@@ -210,7 +257,7 @@ export function DiagnosticReport({
             </dd>
           </div>
         )}
-      </dl>
+      </dl>}
       {(d.test_error || d.error) && (
         <p className="poor" role="alert">
           原因：{String(d.test_error || d.error)}

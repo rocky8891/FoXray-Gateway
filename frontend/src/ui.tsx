@@ -1016,6 +1016,7 @@ export function Table<T>({
             {columns.map((c) => (
               <col
                 key={c.key}
+                data-column={c.key}
                 style={sizing.enabled ? {width:sizing.width(c)} : c.width ? { width: c.width } : edgeWidth(c) ? { width: edgeWidth(c) } : undefined}
               />
             ))}

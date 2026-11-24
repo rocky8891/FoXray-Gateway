@@ -486,12 +486,14 @@ export function Operations({
         title={title}
         description="UI操作日志自动标为已读；其他日志查看详情后标为已读。阅读状态保存在当前浏览器，日志仍按服务器保留周期清理。"
         actions={<>
-          <MarkAllReadButton disabled={!rows.some(r => !isRead(logReadKeys(r)))} onClick={() => markRead(rows.flatMap(logReadKeys))} />
           <Button onClick={() => void refresh()}>刷新</Button>
+          <span data-table-width-slot={`logs-${kind || "operations"}`} />
+          <MarkAllReadButton disabled={!rows.some(r => !isRead(logReadKeys(r)))} onClick={() => markRead(rows.flatMap(logReadKeys))} />
         </>}
       />
       <ErrorLine error={error || failure} />
       <Table
+        columnSizingKey={`logs-${kind || "operations"}`}
         footerActions={
           data?.next && (
             <Button
@@ -593,12 +595,14 @@ export function Switches() {
         title="切换日志"
         description="记录最近 500 次出口切换，含自动／手动与失败原因；保存于服务器"
         actions={<>
-          <MarkAllReadButton disabled={!(data?.items || []).some(r => !isRead(switchReadKeys(r)))} onClick={() => markRead((data?.items || []).flatMap(switchReadKeys))} />
           <Button onClick={() => void refresh()}>刷新</Button>
+          <span data-table-width-slot="logs-switches" />
+          <MarkAllReadButton disabled={!(data?.items || []).some(r => !isRead(switchReadKeys(r)))} onClick={() => markRead((data?.items || []).flatMap(switchReadKeys))} />
         </>}
       />
       <ErrorLine error={error} />
       <Table
+        columnSizingKey="logs-switches"
         rows={data?.items || []}
         rowKey={(r) => String(r.time) + String(r.target)}
         columns={[
@@ -1729,12 +1733,13 @@ export function Diagnostics({ act }: { act: Act }) {
     </>
   );
 }
-export function DiagnosticLog({ act }: { act: Act }) {
+export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewallOnly?: boolean }) {
+  const widthKey = firewallOnly ? "logs-firewall-diagnostics" : "logs-diagnostics";
   const { isRead, markRead } = useReadState();
   const diagnostic = useDiagnosticRunner(act);
   const [detail, setDetail] = useState<Operation | null>(null);
   const history = useResource<{ items: Operation[] }>(
-    "/api/diagnostics/history",
+    "/api/diagnostics/history" + (firewallOnly ? "?kind=firewall" : ""),
     10000,
   );
   useEffect(() => {
@@ -1757,8 +1762,9 @@ export function DiagnosticLog({ act }: { act: Act }) {
         <PageHeader
           title="诊断日志"
           actions={<>
-            <MarkAllReadButton disabled={!rows.some(r => !isRead(logReadKeys(r)))} onClick={() => markRead(rows.flatMap(logReadKeys))} />
             <Button onClick={() => void history.refresh()}>刷新</Button>
+            <span data-table-width-slot={widthKey} />
+            <MarkAllReadButton disabled={!rows.some(r => !isRead(logReadKeys(r)))} onClick={() => markRead(rows.flatMap(logReadKeys))} />
           </>}
         />
         <DiagnosticProgress
@@ -1767,10 +1773,11 @@ export function DiagnosticLog({ act }: { act: Act }) {
         />
         <ErrorLine error={history.error} />
         <Table
+          columnSizingKey={widthKey}
           rows={rows}
           rowKey={(r) => r.id}
           columns={[
-            { key: "time", label: "时间", render: (r) => timestamp(r.time) },
+            { key: "time", label: "时间", className: "diagnostic-log-time", render: (r) => <span className="diagnostic-log-timestamp">{timestamp(r.time)}</span> },
             { key: "message", label: "内容", render: (r) => r.message },
             { key: "read", label: "阅读状态", render: (r) => <ReadBadge read={isRead(logReadKeys(r))} /> },
             {
@@ -1781,6 +1788,7 @@ export function DiagnosticLog({ act }: { act: Act }) {
             {
               key: "actions",
               label: "操作",
+              className: "diagnostic-log-actions",
               render: (r) => (
                 <div className="actions">
                   <Button onClick={() => { setDetail(r); markRead(logReadKeys(r)); }}>查看日志</Button>

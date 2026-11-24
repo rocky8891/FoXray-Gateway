@@ -2,9 +2,11 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -51,6 +53,39 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 			diagnosticError = fmt.Errorf("诊断已执行，但结果保存失败：%w", err)
 		}
 	}()
+	var firewallResult M
+	if str(data["kind"]) == "firewall" {
+		params := M{"kind": "firewall", "probe": yes(data["probe"]) && str(data["protocol"]) == "tcp"}
+		query := url.Values{}
+		for _, key := range []string{"driver", "source", "ingress", "protocol", "destination", "port"} {
+			value := strings.TrimSpace(str(data[key]))
+			query.Set(key, value)
+			params[key] = value
+		}
+		data = params
+		result["parameters"] = params
+		a.stage(j, "解析目标并读取防火墙与内核路由")
+		var err error
+		firewallResult, err = a.network.FirewallDiagnosis(ctx, query)
+		if err != nil {
+			return err
+		}
+		a.jobDetail(j, "目标："+query.Get("destination")+" → "+str(firewallResult["resolved_ip"]))
+		a.jobDetail(j, "入口："+query.Get("ingress")+" · "+str(firewallResult["zone"]))
+		a.jobDetail(j, "内核出口："+firstNonempty(str(obj(firewallResult["route"])["dev"]), "未取得"))
+		result["firewall"] = firewallResult
+		result["resolved_ip"] = firewallResult["resolved_ip"]
+		expected, _ := a.expectedDiagnosticPath("lan", query.Get("protocol"), query.Get("destination"), str(firewallResult["resolved_ip"]))
+		result["expected"] = expected
+		if !yes(params["probe"]) || query.Get("protocol") != "tcp" || net.ParseIP(str(firewallResult["resolved_ip"])).To4() == nil {
+			a.jobDetail(j, "配置接管判断："+str(result["expected"]))
+			result["ok"] = true
+			a.stage(j, diagnosticResultSummary(result))
+			return nil
+		}
+		result["gateway_probe"] = true
+		data = M{"target": query.Get("destination"), "protocol": "tcp", "port": firewallResult["input_port"], "scope": "lan", "source": query.Get("source")}
+	}
 	host := str(data["target"])
 	if host == "" {
 		host = str(data["host"])
@@ -78,49 +113,43 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 		return errors.New("来源 IP 无效")
 	}
 	a.stage(j, "解析目标并查询当前内核路径")
-	dnsStarted := time.Now()
-	ips, e := net.DefaultResolver.LookupIP(ctx, "ip4", host)
-	result["dns_ms"] = float64(time.Since(dnsStarted)) / float64(time.Millisecond)
-	result["dns_lookup_performed"] = net.ParseIP(host) == nil
-	if e != nil || len(ips) == 0 {
-		if e != nil {
-			return fmt.Errorf("目标解析失败：%w", e)
+	var target string
+	if firewallResult != nil {
+		target = str(firewallResult["resolved_ip"])
+	} else {
+		dnsStarted := time.Now()
+		ips, e := net.DefaultResolver.LookupIP(ctx, "ip4", host)
+		result["dns_ms"] = float64(time.Since(dnsStarted)) / float64(time.Millisecond)
+		result["dns_lookup_performed"] = net.ParseIP(host) == nil
+		if e != nil || len(ips) == 0 {
+			if e != nil {
+				return fmt.Errorf("目标解析失败：%w", e)
+			}
+			return errors.New("目标没有可用IPv4地址")
 		}
-		return errors.New("目标没有可用IPv4地址")
+		target = ips[0].String()
 	}
-	target := ips[0].String()
 	args := []string{"ip", "-j", "-4", "route", "get", target}
 	if scope == "lan" && source != "" {
 		args = append(args, "from", source, "iif", uplink())
 	}
-	raw, _ := a.command(5, "", args...)
+	var raw string
+	if firewallResult != nil {
+		encoded, _ := json.Marshal(firewallResult["route"])
+		raw = string(encoded)
+	} else {
+		raw, _ = a.command(5, "", args...)
+	}
 	a.jobDetail(j, "目标："+host+" → "+target)
 	a.jobDetail(j, "内核原始路由："+strings.TrimSpace(raw))
-	a.mu.RLock()
-	enabled, active := a.applied, a.active
-	capture := yes(a.cfg["capture_host"])
-	profile := str(a.cfg["route_profile"])
-	smartLAN := yes(a.cfg["lan_dns_intercept"])
-	exclusions := M{"vpn_exclusions": clone(a.cfg["vpn_exclusions"])}
-	if scope == "lan" {
-		capture = yes(a.cfg["capture_lan"])
-	}
-	a.mu.RUnlock()
-	expected := "系统原路径"
-	if enabled && capture && !defaultCaptureBypass(target) && protocol != "icmp" {
-		expected = "Xray → " + active + "（需结合分流模式 " + profile + " 与排除规则判断）"
-	}
-	if scope == "lan" && capture && enabled && smartLAN && (protocol == "dns" || protocol == "dns_tcp") {
-		expected = "LAN智能DNS接管：自定义规则优先，上游由DNS策略选择；PC填写的DNS地址不决定实际上游。本次仍为网关发起的规则模拟测试"
-	}
-	if vpnExcludedTarget(exclusions, host, target) {
-		expected = "VPN自定义排除 → 系统直连"
-	}
+	expected, smartLANDNS := a.expectedDiagnosticPath(scope, protocol, host, target)
 	a.jobDetail(j, "预计路径："+expected)
 	if scope == "lan" {
 		a.jobDetail(j, "LAN 为规则模拟；以下实际连接由网关发起，不能代替客户端实测")
 	}
-	result["parameters"] = M{"target": host, "port": p, "scope": scope, "source": source, "protocol": protocol}
+	if firewallResult == nil {
+		result["parameters"] = M{"target": host, "port": p, "scope": scope, "source": source, "protocol": protocol}
+	}
 	result["resolved_ip"], result["route"], result["expected"] = target, raw, expected
 	ok := false
 	started := time.Now()
@@ -150,7 +179,7 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 		obj(result["parameters"])["query"] = query
 		var measured M
 		var err error
-		if smartLAN && enabled && capture {
+		if smartLANDNS {
 			measured, err = a.measureDiagnosticLANDNS(ctx, target, p, query, protocol == "dns_tcp")
 			if scope != "lan" {
 				measured["dns_routing_mode"] = "本机智能DNS；实际经过网关解析器与上游"
@@ -243,10 +272,45 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 	return nil
 }
 
+func (a *App) expectedDiagnosticPath(scope, protocol, host, target string) (string, bool) {
+	a.mu.RLock()
+	enabled, active := a.applied, a.active
+	capture := yes(a.cfg["capture_host"])
+	profile := str(a.cfg["route_profile"])
+	smartLAN := yes(a.cfg["lan_dns_intercept"])
+	exclusions := M{"vpn_exclusions": clone(a.cfg["vpn_exclusions"])}
+	if scope == "lan" {
+		capture = yes(a.cfg["capture_lan"])
+	}
+	a.mu.RUnlock()
+	expected := "系统原路径"
+	if enabled && capture && !defaultCaptureBypass(target) && protocol != "icmp" {
+		expected = "Xray → " + active + "（需结合分流模式 " + profile + " 与排除规则判断）"
+	}
+	smartLANDNS := scope == "lan" && capture && enabled && smartLAN
+	if smartLANDNS && (protocol == "dns" || protocol == "dns_tcp") {
+		expected = "LAN智能DNS接管：自定义规则优先，上游由DNS策略选择；PC填写的DNS地址不决定实际上游。本次仍为网关发起的规则模拟测试"
+	}
+	if vpnExcludedTarget(exclusions, host, target) {
+		expected = "VPN自定义排除 → 系统直连"
+	}
+	return expected, smartLANDNS
+}
+
 var _ = filepath.Separator
 
 func diagnosticResultSummary(result M) string {
 	p := obj(result["parameters"])
+	if str(p["kind"]) == "firewall" {
+		summary := "防火墙规则诊断 · " + str(p["destination"])
+		if err := str(result["error"]); err != "" {
+			return summary + " · " + err
+		}
+		if yes(result["gateway_probe"]) {
+			return summary + " · 网关 TCP 建连完成"
+		}
+		return summary + " · 推演完成"
+	}
 	target := str(p["target"])
 	if target == "" {
 		target = str(p["host"])

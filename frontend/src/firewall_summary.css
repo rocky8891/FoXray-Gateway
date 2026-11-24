@@ -124,3 +124,6 @@
 .firewall-workspace .firewall-policy-grid>div>strong,
 .firewall-workspace .firewall-target-inline>span:not(.setting-info),
 .firewall-workspace .firewall-target-inline>strong{color:var(--accent)}
+
+.firewall-diagnostic-probe { min-width: 0; font-size: inherit; }
+.firewall-diagnostic-probe > input { flex: none; }

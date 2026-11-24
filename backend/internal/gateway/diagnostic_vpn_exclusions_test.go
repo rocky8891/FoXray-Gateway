@@ -4,6 +4,9 @@ import (
 	"context"
 	"net"
 	"net/url"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -181,5 +184,44 @@ func TestDiagnosticExpectedPathSharesCaptureExclusions(t *testing.T) {
 	}
 	if defaultCaptureBypass("198.51.100.1") {
 		t.Fatal("public target bypassed")
+	}
+}
+
+func TestFirewallDiagnosticDomainHistoryAndReplay(t *testing.T) {
+	toolDir := t.TempDir()
+	tool := "iptables"
+	if runtime.GOOS == "windows" {
+		tool += ".exe"
+	}
+	if err := os.WriteFile(filepath.Join(toolDir, tool), nil, 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", toolDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	a, runner := fixture(t)
+	runner.mu.Lock()
+	runner.responses = map[string]string{"iptables-save": "*filter\n:FORWARD ACCEPT [0:0]\nCOMMIT\n"}
+	runner.mu.Unlock()
+	params := M{"kind": "firewall", "driver": "iptables", "source": "192.0.2.10", "destination": "localhost", "ingress": "eth0", "protocol": "tcp", "port": "443"}
+	if err := a.audit("diagnostic.result", "global diagnostic", true, M{"parameters": M{"target": "localhost"}}); err != nil {
+		t.Fatal(err)
+	}
+	j := &Job{ID: "firewall-diagnostic-test"}
+	if err := a.diagnose(a.ctx, j, params); err != nil {
+		t.Fatal(err)
+	}
+	rows := a.diagnosticHistory("", true)["items"].([]M)
+	if len(rows) != 1 {
+		t.Fatalf("firewall history count = %d", len(rows))
+	}
+	details := obj(obj(a.diagnosticResult(j.ID)["result"])["details"])
+	if net.ParseIP(str(details["resolved_ip"])).To4() == nil || len(arr(details["steps"])) == 0 || details["gateway_probe"] != nil {
+		t.Fatal("missing resolved address or logs, or a static diagnostic started a gateway probe")
+	}
+	replay := a.diagnosticParams(str(rows[0]["id"]))
+	if replay["destination"] != "localhost" || replay["ingress"] != "eth0" {
+		t.Fatalf("invalid replay parameters: %v", replay)
+	}
+	if err := a.diagnose(a.ctx, &Job{ID: "firewall-diagnostic-replay"}, replay); err != nil {
+		t.Fatal(err)
 	}
 }

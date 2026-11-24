@@ -63,7 +63,11 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
           const cell = row.cells[index];
           if (cell?.dataset.column !== column.key) return;
           const body = cell.querySelector<HTMLElement>(".adaptive-cell-content");
-          if (body) content = Math.max(content, naturalWidth(body) + padding);
+          if (body) {
+            const cellStyle = getComputedStyle(cell);
+            const cellPadding = parseFloat(cellStyle.paddingLeft) + parseFloat(cellStyle.paddingRight);
+            content = Math.max(content, naturalWidth(body) + cellPadding);
+          }
         });
         const size = { min, max: fixedEdge(column) || column.fitContent ? Math.max(max, Math.ceil(content)) : max, auto: 0 };
         size.auto = clamp(Math.ceil(content), size); next[column.key] = size;

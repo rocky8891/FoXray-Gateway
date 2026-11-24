@@ -31,8 +31,11 @@ func (a *App) legacyDiagnostic(identity string) M {
 	}
 	return m
 }
-func (a *App) diagnosticHistory(before string) M {
-	current := a.operations(before, "diagnostic.")
+func (a *App) diagnosticHistory(before string, firewallOnly ...bool) M {
+	current := a.operations(before, "diagnostic.", firewallOnly...)
+	if len(firewallOnly) > 0 && firewallOnly[0] {
+		return current
+	}
 	items, _ := current["items"].([]M)
 	path := filepath.Join(a.base, "private", "diagnostic-history.sqlite3")
 	if regular(path) {
@@ -72,7 +75,7 @@ func (a *App) diagnosticParams(identity string) M {
 		return obj(first(result["request"], result["parameters"]))
 	}
 	row := a.operation(identity)
-	if row == nil {
+	if row == nil || (row["action"] != "diagnostic.result" && row["action"] != "diagnostic.finished") {
 		return nil
 	}
 	return obj(obj(row["details"])["parameters"])

@@ -205,7 +205,7 @@ func (a *App) getAPI(w http.ResponseWriter, r *http.Request) {
 	case path == "/api/diagnostics/result":
 		writeResponse(w, 200, a.diagnosticResult(q.Get("job")))
 	case path == "/api/diagnostics/history":
-		writeResponse(w, 200, a.diagnosticHistory(q.Get("before")))
+		writeResponse(w, 200, a.diagnosticHistory(q.Get("before"), q.Get("kind") == "firewall"))
 	case path == "/api/network/plans":
 		writeResponse(w, 200, M{"plans": a.network.Plans(), "server_time": now()})
 	case path == "/api/time":
@@ -595,7 +595,11 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 	case "/api/warp/action", "/api/warp/scout", "/api/warp/policy":
 		return a.warpAction(r.URL.Path, d, uiAction)
 	case "/api/diagnostics":
-		j, e := a.submitUI(uiAction, "目标路径诊断", "diagnostic.run", func(ctx context.Context, j *Job) error { return a.diagnose(ctx, j, d) })
+		title := "目标路径诊断"
+		if str(d["kind"]) == "firewall" {
+			title = "防火墙规则诊断"
+		}
+		j, e := a.submitUI(uiAction, title, "diagnostic.run", func(ctx context.Context, j *Job) error { return a.diagnose(ctx, j, d) })
 		return M{"ok": e == nil, "id": j}, e
 	case "/api/diagnostics/replay":
 		params := a.diagnosticParams(str(d["id"]))

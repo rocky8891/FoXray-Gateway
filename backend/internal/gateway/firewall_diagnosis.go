@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net"
 	"net/netip"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type firewallFlow struct {
@@ -196,7 +199,34 @@ func annotateFirewallChainOrder(candidates, live []M) {
 }
 
 func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error) {
-	f, err := firewallFlowInput(q)
+	host := strings.TrimSpace(q.Get("destination"))
+	resolved := host
+	if _, err := netip.ParseAddr(host); err != nil {
+		source, sourceErr := netip.ParseAddr(q.Get("source"))
+		if sourceErr != nil || len(host) > 254 || !ruleDomainPattern.MatchString(host) {
+			return nil, errors.New("请填写有效源 IP 和目标 IP 或域名")
+		}
+		family := "ip6"
+		if source.Is4() {
+			family = "ip4"
+		}
+		lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ips, lookupErr := net.DefaultResolver.LookupNetIP(lookupCtx, family, host)
+		cancel()
+		if lookupErr != nil {
+			return nil, fmt.Errorf("目标域名解析失败：%w", lookupErr)
+		}
+		if len(ips) == 0 {
+			return nil, errors.New("目标域名没有与源 IP 同地址族的记录")
+		}
+		resolved = ips[0].String()
+	}
+	flowQuery := url.Values{}
+	for _, key := range []string{"source", "ingress", "protocol", "port"} {
+		flowQuery.Set(key, q.Get(key))
+	}
+	flowQuery.Set("destination", resolved)
+	f, err := firewallFlowInput(flowQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -347,5 +377,5 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 			warnings = append(warnings, "域间策略读取不完整。")
 		}
 	}
-	return M{"driver": driver, "zone": zone, "binding": binding, "egress_zone": egressZone, "route": route, "reverse_route": reverse, "rules": candidates, "nat": translated, "warnings": warnings, "status": "需结合运行时实际匹配确认"}, nil
+	return M{"host": host, "resolved_ip": resolved, "input_port": f.port, "driver": driver, "zone": zone, "binding": binding, "egress_zone": egressZone, "route": route, "reverse_route": reverse, "rules": candidates, "nat": translated, "warnings": warnings, "status": "需结合运行时实际匹配确认"}, nil
 }

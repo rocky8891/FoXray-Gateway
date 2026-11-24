@@ -546,7 +546,7 @@ export function FirewallPage({ act }: { act: Act }) {
           editDefault={()=>start("add",{kind:"zone-default",driver,zone:String(record(resource.data?.zone_policy).default_zone||zone)})}
           editPolicy={()=>{const policy=record(resource.data?.zone_policy),runtime=record(policy.runtime),permanent=record(policy.permanent);start("add",{kind:"zone-policy",driver,zone,target:String(permanent.target||runtime.target||"default"),target_apply:"permanent",target_ack:false,reload_ack:false,masquerade:runtime.masquerade===true,icmp_blocks:Array.isArray(runtime.icmp_blocks)?runtime.icmp_blocks:[],icmp_inversion:runtime.icmp_inversion===true,forward:typeof runtime.forward==="boolean"?runtime.forward:undefined})}}
         />
-      {category === "diagnosis" ? <FirewallDiagnosis driver={driver}/> : crossZone ? <CrossZoneRules act={act} resource={crossResource} filter={crossFilter} resetFilter={()=>setCrossFilter("all")} /> : <Panel className="firewall-main-panel management-panel">
+      {category === "diagnosis" ? <FirewallDiagnosis driver={driver} act={act} /> : crossZone ? <CrossZoneRules act={act} resource={crossResource} filter={crossFilter} resetFilter={()=>setCrossFilter("all")} /> : <Panel className="firewall-main-panel management-panel">
         <ErrorLine error={resource.error || failure} />
         {!!resource.data?.error && (
           <p className="hint">{text(resource.data.error)}</p>

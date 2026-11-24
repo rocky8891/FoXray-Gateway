@@ -34,3 +34,37 @@
 .table-wrap table.adaptive-columns :is(th,td):first-child:not([colspan]) { text-align:left; }
 .table-wrap table.adaptive-columns :is(th,td):last-child:not(:first-child):not([colspan]) { text-align:right; }
 .table-wrap table.adaptive-columns td:last-child:not(:first-child) .row-action-menu { justify-content:flex-end; }
+
+/* Let the message column take any space left over after fitting the other columns. */
+.table-wrap table.balanced-columns.adaptive-columns:has(th.diagnostic-log-actions) {
+  width: 100% !important;
+}
+.table-wrap table.adaptive-columns:has(th.diagnostic-log-actions) col[data-column="message"] {
+  width: auto !important;
+}
+.table-wrap table.adaptive-columns :is(th, td).diagnostic-log-actions[data-column] {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--card);
+  text-align: right !important;
+}
+.table-wrap table.adaptive-columns thead .diagnostic-log-actions { z-index: 2; }
+[data-table-width-slot^="logs-"] { display: inline-flex; align-items: center; }
+.page-heading:has(> .actions > [data-table-width-slot^="logs-"]) {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.page-heading > .actions:has(> [data-table-width-slot^="logs-"]) {
+  flex: 0 0 100%;
+}
+.page-heading > .actions > [data-action="全部标为已读"] {
+  margin-inline-start: auto;
+}
+
+.table-wrap table.adaptive-columns .diagnostic-log-time .adaptive-cell-content {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.diagnostic-log-timestamp { font-variant-numeric: tabular-nums; }
