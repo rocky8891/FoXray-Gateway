@@ -177,6 +177,7 @@ export function FilterBar({
   interfaceMode = false,
   rangeControl,
   refreshControl,
+  tableWidthKey,
 }: {
   state: State;
   value: Filters;
@@ -191,6 +192,7 @@ export function FilterBar({
   interfaceMode?: boolean;
   rangeControl?: React.ReactNode;
   refreshControl?: React.ReactNode;
+  tableWidthKey?: string;
 }) {
   const set = (key: keyof Filters, v: string | number) =>
     onChange({ ...value, [key]: v });
@@ -222,7 +224,7 @@ export function FilterBar({
   const search = (
       <>
         {" "}
-        <AdaptiveSearch>
+        <AdaptiveSearch tableWidthKey={tableWidthKey}>
           <Search size={16} />
           <input
             aria-label={interfaceMode ? "搜索接口" : "搜索节点"}
@@ -1523,7 +1525,9 @@ export function NodeTable({
   selectedCount,
   pageSizeLimit,
   autoPageSize,
+  tableWidthKey,
 }: {
+  tableWidthKey?: string;
   pageSizeLimit?: number;
   autoPageSize?: number;
   total?: number;
@@ -1665,7 +1669,7 @@ export function NodeTable({
   ];
   void label;
   return (
-    <Table
+    <Table columnSizingKey={tableWidthKey}
       rows={nodes}
       pageSizeLimit={pageSizeLimit}
       autoPageSize={autoPageSize}
@@ -1809,7 +1813,7 @@ export function Nodes({
             },
           ]}
         />
-        <FilterBar
+        <FilterBar tableWidthKey="nodes"
           state={state}
           value={filters}
           onChange={setFilters}
@@ -1943,7 +1947,7 @@ export function Nodes({
           ))}
         </PaginatedCards>
       ) : (
-        <NodeTable
+        <NodeTable tableWidthKey="nodes"
           total={state.nodes.length}
           selectedCount={selected.length}
           onOpen={setEditing}
@@ -2433,7 +2437,7 @@ export function Subscriptions({
           ]}
         />
         <div className="management-query-tools">
-          <AdaptiveSearch>
+          <AdaptiveSearch tableWidthKey="subscriptions">
             <Search size={16} />
             <input
               aria-label="搜索订阅"
@@ -2629,7 +2633,7 @@ export function Subscriptions({
           ))}
         </PaginatedCards>
       ) : (
-        <Table
+        <Table columnSizingKey="subscriptions"
           total={subscriptions.length}
           selectedCount={selectedIDs.length}
           rows={rows}

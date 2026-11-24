@@ -487,7 +487,7 @@ function Interfaces({ act }: { act: Act }) {
           }
           label="接口筛选"
         >
-          <AdaptiveSearch>
+          <AdaptiveSearch tableWidthKey="network-interfaces">
             <Search size={18} />
             <input
               placeholder="查询接口、IP、MAC、类型或来源"
@@ -499,7 +499,7 @@ function Interfaces({ act }: { act: Act }) {
 
         <ErrorLine error={resource.error || failure} />
         {resource.data?.complete===false&&<p className="hint">接口快照未完整读取，统计暂不可用，请刷新核对。</p>}
-        <Table
+        <Table columnSizingKey="network-interfaces"
           keepHeaders
           rows={rows}
           total={list(resource.data?.items).length}

@@ -50,7 +50,6 @@ const categories = [
   ["masquerade", "SNAT"],
   ["forward", "端口转发"],
   ["rich", "高级规则"],
-  ["advanced", "未知规则（只读）"],
   ["cross-zone", "跨区域规则"],
 ];
 const strategies: Record<string, string> = {
@@ -105,9 +104,8 @@ export function FirewallPage({ act }: { act: Act }) {
       all
         .filter(
           (r) =>
-            (category === "all" || (category === "advanced"
-              ? r.editable === false
-              : category === "rich" ? (r.kind === "rich" || r.storage === "rich-rule") && r.editable !== false : r.kind === category && r.editable !== false)) &&
+            (category === "all" || (r.editable !== false
+              && (category === "rich" ? r.kind === "rich" || r.storage === "rich-rule" : r.kind === category))) &&
             (protocol === "all" || r.protocol === protocol) &&
             (status === "all" || !!r.enabled === (status === "enabled")) &&
             (owner === "all" || !!r.managed === (owner === "managed")) &&
@@ -373,8 +371,8 @@ export function FirewallPage({ act }: { act: Act }) {
     );
   columns.push({
     key: "source",
-    label: "来源 IP／网段",
-    heading: heading("source", "来源 IP／网段"),
+    label: "源 IP",
+    heading: heading("source", "源 IP"),
     render: (r) => (
       <span className="ellipsis" title={text(r.source || "全部来源")}>
         {text(r.source || "全部来源")}
@@ -384,8 +382,8 @@ export function FirewallPage({ act }: { act: Act }) {
   if (all.some(r => r.destination) && category !== "service-rule")
     columns.push({
       key: "destination",
-      label: "匹配目标地址",
-      heading: heading("destination", "匹配目标地址"),
+      label: "目标 IP",
+      heading: heading("destination", "目标 IP"),
       render: r => <span className="ellipsis" title={String(r.destination || "")}>{text(r.destination || "任意目标")}</span>,
     });
   if (category === "forward")
@@ -431,7 +429,7 @@ export function FirewallPage({ act }: { act: Act }) {
         </span>
       ),
     });
-  if (!native && category !== "service-rule" && category !== "all" && category!=="advanced")
+  if (!native && category !== "service-rule" && category !== "all")
     columns.push({
       key: "priority",
       label: "优先级",
@@ -537,7 +535,7 @@ export function FirewallPage({ act }: { act: Act }) {
         <CompactFilters
           before={
             <>
-              {category !== "advanced" && (
+              {(
                 <Button
                   disabled={!running || !writable}
                   onClick={() => start("add", defaultRule())}
@@ -648,7 +646,7 @@ export function FirewallPage({ act }: { act: Act }) {
           label="防火墙筛选"
           active={protocol !== "all" || status !== "all" || owner !== "all" || ruleAction !== "all"}
         >
-          <AdaptiveSearch>
+          <AdaptiveSearch tableWidthKey="firewall-rules">
             <Search size={15} />
             <input
               placeholder="查询端口、IP、网段或协议"
@@ -658,7 +656,7 @@ export function FirewallPage({ act }: { act: Act }) {
           </AdaptiveSearch>
         </CompactFilters>
 
-        <Table
+        <Table columnSizingKey="firewall-rules"
           rows={rows}
           total={all.length}
           selectedCount={chosen.length}
@@ -928,10 +926,7 @@ function FirewallForm({
               >
                 <option value="">按匹配地址自动判断／双栈</option>
                 <option value="ipv4">IPv4</option>
-                {!native && !(kind === "masquerade" && value.action === "snat") && (
-              <FirewallDestinationField value={value} onChange={updateDestination => onChange("destination", updateDestination)} />
-            )}
-            {kind !== "forward" && kind !== "masquerade" && (
+                {kind !== "forward" && kind !== "masquerade" && (
                   <option value="ipv6">IPv6</option>
                 )}
               </select>
@@ -974,6 +969,9 @@ function FirewallForm({
                 placeholder="192.168.1.0/24"
               />
             </Field>
+            {!native && !(kind === "masquerade" && value.action === "snat") && (
+              <FirewallDestinationField value={value} onChange={destination => onChange("destination", destination)} />
+            )}
             {kind !== "forward" && kind !== "masquerade" && (
               <Field label="访问策略">
                 <select

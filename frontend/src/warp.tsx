@@ -495,7 +495,7 @@ export function WarpPage({ act }: { act: Act }) {
                 }
               />
               <div className="management-query-tools">
-                <AdaptiveSearch>
+                <AdaptiveSearch tableWidthKey="warp-endpoints">
                   <Search size={16} />
                   <input
                     aria-label="搜索候选端点"
@@ -529,7 +529,7 @@ export function WarpPage({ act }: { act: Act }) {
                 检测进行中，完成后自动更新列表。
               </p>
             )}
-            <Table
+            <Table columnSizingKey="warp-endpoints"
               rows={rows}
               total={sourceRows.length}
               selectedCount={visibleSelected.length}

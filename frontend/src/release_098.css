@@ -1,6 +1,6 @@
 .cross-zone-acknowledgements { display:flex;flex-direction:column;gap:10px;margin-block:14px }
 .cross-zone-acknowledgements>.check.risk { display:flex;margin:0;gap:10px;align-items:flex-start }
-.home-tools-handle::before { background:linear-gradient(155deg,color-mix(in srgb,var(--metric-green) 55%,transparent) 0%,color-mix(in srgb,#22c9e6 55%,transparent) 100%);border:1px solid color-mix(in srgb,var(--text) 18%,transparent);backdrop-filter:blur(14px) saturate(135%);box-shadow:0 2px 12px #0002 }
+.home-tools-handle::before { background:linear-gradient(155deg,rgb(48 74 84 / 75%) 0%,rgb(72 69 90 / 75%) 100%);border:1px solid color-mix(in srgb,var(--text) 18%,transparent);backdrop-filter:blur(14px) saturate(135%);box-shadow:0 2px 12px #0002 }
 html #root main[data-home-fullwidth=true]:has(>.overview-page) { padding-block:0!important }
 main[data-home-fullwidth=true]>.overview-page { padding-block:0!important;margin-block:0!important }
 .network-confirm-content { display:flex;flex-direction:column;gap:12px }

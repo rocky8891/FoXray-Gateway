@@ -109,7 +109,7 @@ export function ConnectionsPage({
       ? formatCapacity(valid.reduce((n, v) => n + Number(v[key]), 0))
       : "—";
   };
-  const detailsTable = useConnectionTableControls(rows, module + "|" + scope);
+  const detailsTable = useConnectionTableControls(rows, module + "|" + scope, "connections-" + module);
   return (
     <div className="connections-page">
       <Panel className="connections-controls">

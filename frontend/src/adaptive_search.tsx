@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
-export function AdaptiveSearch({ children }: { children: ReactNode }) {
+export function AdaptiveSearch({ children, tableWidthKey }: { children: ReactNode; tableWidthKey?: string }) {
   const fieldRef = useRef<HTMLLabelElement>(null);
   const ref = useRef<HTMLSpanElement>(null),
     [collapsed, setCollapsed] = useState(false),
@@ -32,8 +32,10 @@ export function AdaptiveSearch({ children }: { children: ReactNode }) {
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(bar);
+    const widthSlot = root.previousElementSibling;
+    if (widthSlot?.classList.contains("table-width-slot")) ro.observe(widthSlot);
     return () => ro.disconnect();
-  }, []);
+  }, [tableWidthKey]);
   useLayoutEffect(() => {
     if (!open) return;
     const place = () => {
@@ -78,6 +80,8 @@ export function AdaptiveSearch({ children }: { children: ReactNode }) {
     </label>
   );
   return (
+    <>
+    {tableWidthKey && <span className="table-width-slot" data-table-width-slot={tableWidthKey} />}
     <span
       ref={ref}
       className={"adaptive-search" + (collapsed ? " is-collapsed" : "")}
@@ -104,5 +108,6 @@ export function AdaptiveSearch({ children }: { children: ReactNode }) {
         ? createPortal(field, ref.current?.closest("dialog") || document.body)
         : field}
     </span>
+    </>
   );
 }

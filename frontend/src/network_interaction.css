@@ -25,3 +25,5 @@ button.network-stat-card:hover{border-color:var(--line);background:var(--status-
 .network-stat-card.managed>svg{color:var(--metric-blue)}
 .network-stat-card.enabled>svg{color:var(--metric-orange)}
 .network-stat-card:is(.network-family-card,.interface-kind-card)>svg{color:var(--metric-purple)}
+
+.field > textarea.wg-resizable-text { min-height: 0; height: var(--button-height-regular, 38px); resize: vertical; }

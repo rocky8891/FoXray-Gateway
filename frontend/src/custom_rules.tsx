@@ -987,6 +987,7 @@ function BuiltinRuleRows({
   return (
     <>
       <div className="toolbar">
+        <span className="table-width-slot" data-table-width-slot="builtin-rules" />
         <input
           aria-label="搜索基础规则"
           placeholder="搜索基础规则目标"
@@ -1010,7 +1011,7 @@ function BuiltinRuleRows({
         </span>
       </div>
       <ErrorLine error={r.error || String(r.data?.error || "")} />
-      <Table
+      <Table columnSizingKey="builtin-rules"
         rows={list(r.data?.items)}
         rowKey={(r) => String(r.type) + r.target}
         columns={[

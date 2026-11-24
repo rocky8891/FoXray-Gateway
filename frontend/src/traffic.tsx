@@ -669,7 +669,7 @@ export function TrafficPage({
             <ErrorLine error={history.error} />
             <Table
               columnSizingKey={"traffic-" + module}
-              toolbar={<div className="statistics-detail-tools"><AdaptiveSearch><Search size={18} /><input aria-label="搜索流量统计" placeholder={isWireGuard ? "搜索接口、类型或状态" : "搜索节点、类型或状态"} value={statisticsQuery} onChange={e=>setStatisticsQuery(e.target.value)} /></AdaptiveSearch><ResetFilters active={!!statisticsQuery} summary="流量统计搜索" onClick={()=>setStatisticsQuery("")} /></div>}
+              toolbar={<div className="statistics-detail-tools"><AdaptiveSearch tableWidthKey={"traffic-" + module}><Search size={18} /><input aria-label="搜索流量统计" placeholder={isWireGuard ? "搜索接口、类型或状态" : "搜索节点、类型或状态"} value={statisticsQuery} onChange={e=>setStatisticsQuery(e.target.value)} /></AdaptiveSearch><ResetFilters active={!!statisticsQuery} summary="流量统计搜索" onClick={()=>setStatisticsQuery("")} /></div>}
               rows={rows.filter(row => statisticsQuery.trim().toLowerCase().split(/\s+/).every(term => [row.name,row.source,row.status].join(" ").toLowerCase().includes(term)))}
               total={all.length}
               columns={columns}

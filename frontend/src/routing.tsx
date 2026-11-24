@@ -514,7 +514,7 @@ export function RoutingPage({
             family !== "4"
           }
         >
-          <AdaptiveSearch>
+          <AdaptiveSearch tableWidthKey="routing-rules">
             <Search size={15} />
             <input
               value={query}
@@ -528,7 +528,7 @@ export function RoutingPage({
         {resource.data?.complete === false && (
           <p className="hint">系统规则读取不完整，请刷新后核对。</p>
         )}
-        <Table
+        <Table columnSizingKey="routing-rules"
           keepHeaders
           rows={rows}
           total={scopeRows.length}

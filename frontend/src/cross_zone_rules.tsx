@@ -53,11 +53,11 @@ export function CrossZoneRules({act, resource, filter, resetFilter}: {
       actions={<><ResetFilters active={!!query || filter !== "all"} onClick={() => {setQuery(""); resetFilter()}} />
         <ExportButton rows={rows} name="跨区域规则" columns={[["名称", r => r.name || r.policy_name], ["入口区域", r => r.ingress_zone], ["出口区域", r => r.egress_zone], ["来源", r => r.source], ["目标", r => r.destination], ["协议", r => r.protocol], ["端口", r => r.port], ["动作", r => r.action]]} /></>}
     >
-      <AdaptiveSearch><Search size={15} /><input aria-label="搜索跨区域规则" placeholder="查询区域、IP、网段或协议" value={query} onChange={event => setQuery(event.target.value)} /></AdaptiveSearch>
+      <AdaptiveSearch tableWidthKey="cross-zone-rules"><Search size={15} /><input aria-label="搜索跨区域规则" placeholder="查询区域、IP、网段或协议" value={query} onChange={event => setQuery(event.target.value)} /></AdaptiveSearch>
     </CompactFilters>
     <ErrorLine error={resource.error || String(resource.data?.error || "") || (!form && !plan ? failure : "")} />
     {resource.loading && !resource.data && <p className="hint">正在读取跨区域规则…</p>}
-    <Table keepHeaders rows={rows} total={items.length} columns={columns} rowKey={r => text(r.id)} />
+    <Table columnSizingKey="cross-zone-rules" keepHeaders rows={rows} total={items.length} columns={columns} rowKey={r => text(r.id)} />
     {form&&<Modal className="firewall-dialog" title={operation==="delete"?"删除跨区域规则":operation==="add"?"添加跨区域规则":"编辑跨区域规则"} onClose={()=>!busy&&setForm(null)} wide>
       {operation==="delete"?<p>删除“{text(form.name||form.policy_name)}”：{text(form.ingress_zone)} → {text(form.egress_zone)}，{text(form.source)} → {text(form.destination)}。</p>:<div className="form-grid">
         <Field label="备注名称"><input value={text(form.name)} onChange={e=>update("name",e.target.value)}/></Field>

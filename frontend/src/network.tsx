@@ -78,6 +78,19 @@ export function NetworkPage({
     [family, setFamily] = useState("4"),
     [section, setSection] = useState("managed");
   const originalWireGuardForm = useRef<Dict | null>(null);
+  const peerEditDraft = useRef<{ form: Dict; original: Dict; allowProtected: boolean } | null>(null);
+  const resumePeerEditor = () => {
+    const draft = peerEditDraft.current;
+    peerEditDraft.current = null;
+    setPlan(null);
+    setFailure("");
+    setForm(draft?.form ?? null);
+    if (draft) {
+      originalWireGuardForm.current = draft.original;
+      setOperation("replace");
+      setAllowProtected(draft.allowProtected);
+    }
+  };
   const onlyWireGuardRemarkChanged = (() => {
     const original = originalWireGuardForm.current;
     if (kind !== "wireguard" || operation !== "replace" || !form || !original) return false;
@@ -87,6 +100,7 @@ export function NetworkPage({
       && JSON.stringify(config) === JSON.stringify(originalConfig);
   })();
   useEffect(() => {
+    peerEditDraft.current = null;
     setForm(null);
     setPlan(null);
     setDetails(null);
@@ -258,7 +272,7 @@ export function NetworkPage({
               {text(r.name)}
             </button>
             {!!r.remark && <small className="wg-interface-remark" title={String(r.remark)}>{String(r.remark)}</small>}
-            {r.protected && <small className="accent wg-protection-label">受保护<SettingInfo label="接口保护" text="保护来源：当前版本内置对 wg-home 接口的保护，修改或启停需要额外确认。这是保护状态，与用途备注分开；备注可在操作 → 编辑备注中修改。实际接口角色可在接口管理的操作 → 编辑 → 角色、路由与 LAN 转发中配置；改变角色不会取消接口保护。" /></small>}
+            {r.protected && <small className="accent wg-protection-label">受保护<SettingInfo label="接口保护" text="保护来源：当前版本内置对 wg-home 接口的保护，修改或启停需要额外确认。这是保护状态，与用途备注分开；备注可在操作 → 编辑中修改。实际接口角色可在接口管理的操作 → 编辑 → 角色、路由与 LAN 转发中配置；改变角色不会取消接口保护。" /></small>}
           </>
         ),
       },
@@ -344,31 +358,9 @@ export function NetworkPage({
         render: (r) => (
           <ActionMenu
             label={String(r.name)}
-            primary={{
-              label: "编辑",
-              onClick: () => {
-                void api<Dict>(
-                  "/api/network/wireguard/profile?name=" +
-                    encodeURIComponent(String(r.name)),
-                )
-                  .then((profile) =>
-                    begin("replace", {
-                      ...profile,
-                      addresses: Array.isArray(profile.addresses)
-                        ? profile.addresses.join(", ")
-                        : "",
-                      dns: Array.isArray(profile.dns)
-                        ? profile.dns.join(", ")
-                        : "",
-                    }),
-                  )
-                  .catch((e) => setFailure(errorMessage(e)));
-              },
-            }}
             items={[
               { label: "详情", onClick: () => setDetails(r) },
-              { label: "管理 Peer", disabled: !r.configured, onClick: () => begin("peers", r) },
-              { label: "编辑备注", disabled: !r.configured, onClick: () => begin("remark", {name:r.name,remark:r.remark||""}) },
+              { label: "编辑", disabled: !r.configured, onClick: () => void editInterface(r) },
               {
                 label: r.active ? "停止" : "启动",
                 title: "只操作此接口",
@@ -382,6 +374,7 @@ export function NetworkPage({
                     name: r.name,
                   }),
               },
+              { label: "管理 Peer", disabled: !r.configured, onClick: () => begin("peers", r) },
               {
                 label: "删除",
                 disabled: !!r.active,
@@ -757,7 +750,7 @@ export function NetworkPage({
           )}
 
           <div className="management-query-tools">
-            <AdaptiveSearch>
+            <AdaptiveSearch tableWidthKey={"network-" + kind}>
               <Search size={16} />
               <input
                 placeholder={
@@ -816,7 +809,7 @@ export function NetworkPage({
         )}
         <Table
           keepHeaders
-          columnSizingKey={kind === "wireguard" ? "wireguard-interfaces" : undefined}
+          columnSizingKey={"network-" + kind}
           rows={rows}
           total={sourceRows.length}
           selectedCount={selection.chosen.length}
@@ -859,7 +852,7 @@ export function NetworkPage({
               "peer-disable": "停用 Peer",
             }[operation] || operation)
           }
-          onClose={() => setForm(null)}
+          onClose={resumePeerEditor}
           wide
         >
           <NetworkForm
@@ -867,6 +860,14 @@ export function NetworkPage({
             operation={operation}
             value={form}
             onChange={setForm}
+            onTogglePeer={kind === "wireguard" && operation === "replace" ? peer => {
+              const original = originalWireGuardForm.current;
+              const saved = list(original?.peers).find(item => item.public_key === peer.public_key);
+              if (!original || !saved) return;
+              peerEditDraft.current = { form, original, allowProtected };
+              begin(saved.disabled ? "peer-enable" : "peer-disable", { name: original.name, public_key: saved.public_key });
+            } : undefined}
+            savedPeers={list(originalWireGuardForm.current?.peers)}
           />
           {operation !== "remark" && !onlyWireGuardRemarkChanged && (form.name === "wg-home" || form.new_name === "wg-home" || (kind === "wireguard" && ["add","replace"].includes(operation)) ||
             operation === "delete" ||
@@ -884,7 +885,7 @@ export function NetworkPage({
           )}
           <ErrorLine error={failure} />
           <div className="modal-actions">
-            <Button onClick={() => setForm(null)}>取消</Button>
+            <Button onClick={resumePeerEditor}>取消</Button>
             <Button
               variant="primary"
               disabled={
@@ -920,7 +921,7 @@ export function NetworkPage({
         </Modal>
       )}
       {plan && (
-        <Modal title="网络变更预览" onClose={() => setPlan(null)} wide>
+        <Modal title="网络变更预览" onClose={resumePeerEditor} wide>
           <h3>{plan.summary}</h3>
           {plan.warnings.map((v, i) => (
             <p className="hint" key={i}>
@@ -930,15 +931,20 @@ export function NetworkPage({
           ))}
           <pre className="command-preview">{plan.preview.join("\n")}</pre>
           <p>应用后需要在 120 秒内确认网络正常，否则自动恢复本次修改。</p>
+          {peerEditDraft.current && <p className="hint">应用只处理此 Peer 并关闭编辑器，其他未保存修改会丢弃。取消可返回原草稿。</p>}
           <div className="modal-actions">
-            <Button onClick={() => setPlan(null)}>取消</Button>
+            <Button onClick={resumePeerEditor}>取消</Button>
             <Button
               variant="primary"
               disabled={plan.preview_only === true}
               onClick={() => {
                 const id = plan.id;
                 setPlan(null);
-                void act("/api/network/apply", { id }).then(() => refresh());
+                void act("/api/network/apply", { id }).then(ok => {
+                  if (!ok && peerEditDraft.current) resumePeerEditor();
+                  else peerEditDraft.current = null;
+                  return refresh();
+                });
               }}
             >
               应用本次变更
@@ -992,11 +998,15 @@ function NetworkForm({
   operation,
   value,
   onChange,
+  onTogglePeer,
+  savedPeers,
 }: {
   kind: NetworkKind;
   operation: string;
   value: Dict;
   onChange: (v: Dict) => void;
+  onTogglePeer?: (peer: Dict) => void;
+  savedPeers: Dict[];
 }) {
   const latest = useRef(value);
   latest.current = value;
@@ -1062,12 +1072,6 @@ function NetworkForm({
               onChange={(e) => set("mtu", Number(e.target.value))}
             />
           </Field>
-          <Field label="路由表">
-            <input
-              value={String(value.table || "auto")}
-              onChange={(e) => set("table", e.target.value)}
-            />
-          </Field>
           {operation === "add" ? (
             <div className="key-generation">
               <Field
@@ -1125,10 +1129,18 @@ function NetworkForm({
         </div>
         <WGNetworkEditor
           value={record(value.network)}
+          routeTable={<Field label="路由表">
+                      <input
+                        value={String(value.table || "auto")}
+                        onChange={(e) => set("table", e.target.value)}
+                      />
+                    </Field>}
           onChange={(network) => set("network", network)}
         />
         <PeerEditor
           peers={list(value.peers)}
+          onTogglePeer={onTogglePeer}
+          savedPeers={savedPeers}
           onChange={(peers) => set("peers", peers)}
         />
         {operation === "replace" && record(value.network).role === "server" && (
@@ -1261,8 +1273,10 @@ function NetworkForm({
 function WGNetworkEditor({
   value,
   onChange,
+  routeTable,
 }: {
   value: Dict;
+  routeTable: React.ReactNode;
   onChange: (v: Dict) => void;
 }) {
   const [lanSources, setLanSources] = useState(() => Array.isArray(value.lan_sources) ? value.lan_sources.join(", ") : "");
@@ -1322,6 +1336,7 @@ function WGNetworkEditor({
             <option value="off">不安装路由：由策略路由单独控制</option>
           </select>
         </Field>
+        {routeTable}
         {mode === "manual" && (
           <>
             {prefixes(
@@ -1370,10 +1385,10 @@ function WGNetworkEditor({
       {!!value.snat && (
         <div className="form-grid">
           <Field label="需要 SNAT 的来源网段" hint="多个网段用逗号分隔">
-            <input value={lanSources} onChange={event => {
+            <textarea rows={1} className="wg-resizable-text" value={lanSources} onChange={event => {
               const draft = event.target.value;
               setLanSources(draft);
-              change("lan_sources", draft.split(/[,，]/).map(prefix => prefix.trim()).filter(Boolean));
+              change("lan_sources", draft.split(/[,，\n]+/).map(prefix => prefix.trim()).filter(Boolean));
             }} />
           </Field>
           <Field label="LAN 接口" hint="用于限定转发范围，填写连接测试 LAN 的实际接口">
@@ -1442,8 +1457,12 @@ function WGClientTemplates({ name, peers }: { name: string; peers: Dict[] }) {
 function PeerEditor({
   peers,
   onChange,
+  onTogglePeer,
+  savedPeers,
 }: {
   peers: Dict[];
+  onTogglePeer?: (peer: Dict) => void;
+  savedPeers: Dict[];
   onChange: (peers: Dict[]) => void;
 }) {
   const change = (index: number, key: string, value: unknown) =>
@@ -1465,7 +1484,7 @@ function PeerEditor({
       </div>
       {peers.map((peer, i) => (
         <section className="peer-card" key={i}>
-          <p className="hint">Peer {i+1} · {peer.disabled ? "已停用（保留配置）" : "已启用"}；单独启停请使用接口操作中的“管理 Peer”。</p>
+          <p className="hint">Peer {i+1} · {peer.disabled ? "已停用（保留配置）" : "已启用"}</p>
           <div className="form-grid">
             <Field label={"Peer " + (i + 1) + " 公钥"}>
               <input
@@ -1474,7 +1493,7 @@ function PeerEditor({
               />
             </Field>
             <Field label="AllowedIPs" hint="支持多个 IP/CIDR，用逗号、空格或换行分隔">
-              <input
+              <textarea rows={1} className="wg-resizable-text"
                 value={
                   typeof peer.allowed_ips === "string" ? peer.allowed_ips : Array.isArray(peer.allowed_ips) ? peer.allowed_ips.join(", ") : ""
                 }
@@ -1517,12 +1536,18 @@ function PeerEditor({
               />
             </Field>
           </div>
+          <div className="actions">
+          {onTogglePeer && <Button
+            disabled={!savedPeers.some(saved => saved.public_key === peer.public_key)}
+            onClick={() => onTogglePeer(peer)}
+          >{peer.disabled ? "启用此 Peer" : "停用此 Peer"}</Button>}
           <Button
             variant="danger"
             onClick={() => onChange(peers.filter((_, index) => index !== i))}
           >
             删除此 Peer
           </Button>
+          </div>
         </section>
       ))}
     </div>

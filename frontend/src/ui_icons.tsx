@@ -113,7 +113,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 const definitions: [RegExp, LucideIcon][] = [
-  [/管理归属|管理来源/, ManagementToolsIcon as LucideIcon],
+  [/管理归属|管理来源|管理\s*Peer/, ManagementToolsIcon as LucideIcon],
   [/纳管/, AdoptIcon as LucideIcon],
   [/^完成$/, DoneIcon as LucideIcon],
   [/加载更多|加载更早/, LoadMoreIcon as LucideIcon],

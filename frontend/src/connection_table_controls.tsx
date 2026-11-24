@@ -10,7 +10,7 @@ const numeric = new Set(["upload", "download", "age"]);
 const exact = new Set(["protocol", "state", "routing"]);
 const collator = new Intl.Collator("zh-CN", { numeric: true, sensitivity: "base" });
 
-export function useConnectionTableControls(rows: Dict[], resetKey: string) {
+export function useConnectionTableControls(rows: Dict[], resetKey: string, tableWidthKey: string) {
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Record<string, Filter>>({});
   const [sort, setSort] = useState<{ key: string; direction: number } | null>(null);
@@ -45,7 +45,7 @@ export function useConnectionTableControls(rows: Dict[], resetKey: string) {
   });
   const active = !!query || !!sort || Object.values(filters).some(f => f.text || f.min || f.max || f.rate);
   const toolbar = <div className="connections-detail-tools">
-    <AdaptiveSearch><Search size={18} /><input aria-label="搜索连接详情" placeholder="搜索源、目标、域名、接口或协议" value={query} onChange={e => setQuery(e.target.value)} /></AdaptiveSearch>
+    <AdaptiveSearch tableWidthKey={tableWidthKey}><Search size={18} /><input aria-label="搜索连接详情" placeholder="搜索源、目标、域名、接口或协议" value={query} onChange={e => setQuery(e.target.value)} /></AdaptiveSearch>
     <ResetFilters active={active} summary="连接详情排序、搜索和列筛选" onClick={reset} />
   </div>;
   const column = (c: Column<Dict>): Column<Dict> => {

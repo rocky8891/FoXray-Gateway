@@ -26,3 +26,6 @@
  .table-wrap table.adaptive-columns :is(th,td) { display:table-cell!important; }
  .table-wrap table.adaptive-columns td::before { display:none!important; }
 }
+
+.table-width-slot { display:inline-flex; flex:none; align-items:center; }
+.table-width-slot:empty { display:none; }
