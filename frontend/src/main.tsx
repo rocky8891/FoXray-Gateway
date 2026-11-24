@@ -612,6 +612,7 @@ function App() {
               <main
                 data-home-fullwidth={page === "overview" && Number(record(state?.manager_settings.presentation).content_width_percent || 80) === 100 || undefined}
                 className={page === "monitoring" && hideHomeHeader ? "monitoring-shortcut-page" : undefined}
+                data-module-page={page === "overview" ? undefined : page}
                 style={
                   {
                     "--overview-label-size": `${Number(record(record(state?.manager_settings.presentation).overview_text).label_size || 14)}px`,

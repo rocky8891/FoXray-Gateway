@@ -1826,7 +1826,7 @@ export function DiagnosticLog({ act, firewallOnly = false, pathOnly = false }: {
   const status = (row: Operation) => row.status === "success" ? "通过" : "未全部通过";
   const table = useLogTable(rows, { time: row => row.time, type, message: row => row.message, read, status }, "time");
   const exportColumns: [string, (row: Operation) => unknown][] = [["时间", row => timestamp(row.time)]];
-  if (!pathOnly) exportColumns.push(["诊断类型", type]);
+  if (!scope) exportColumns.push(["诊断类型", type]);
   exportColumns.push(["内容", row => row.message], ["阅读状态", read], ["结果", status]);
   return (
     <>
@@ -1851,10 +1851,10 @@ export function DiagnosticLog({ act, firewallOnly = false, pathOnly = false }: {
           rowKey={(r) => r.id}
           columns={table.columns([
             { key: "time", label: "时间", className: "diagnostic-log-time", render: (r) => <span className="diagnostic-log-timestamp">{timestamp(r.time)}</span> },
-            ...(!pathOnly ? [{
+            ...(!scope ? [{
               key: "type",
               label: "诊断类型",
-              heading: firewallOnly ? undefined : (
+              heading: (
                 <span className="table-heading-tools">
                   <ListFilter label="诊断类型筛选" column active={kind !== ""}>
                     <Field label="诊断类型">

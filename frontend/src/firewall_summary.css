@@ -108,7 +108,7 @@
 .firewall-workspace .field-title>.firewall-heading-icon,.firewall-workspace .firewall-detail-heading>h3>.firewall-heading-icon{align-self:center;color:var(--metric-green)}
 
 /* Shared typography: scope titles match section titles; policy labels match stat captions. */
-.firewall-workspace .firewall-scope-bar .field>.field-title{font-size:14px;font-weight:600;color:var(--text)}
+.firewall-workspace .firewall-scope-bar .field>.field-title{font-size:20px;font-weight:700;color:var(--text)}
 .firewall-workspace .firewall-policy-grid>div>span{font-size:12px;line-height:18px;font-weight:650;color:var(--text)}
 .firewall-workspace .firewall-policy-grid strong,.firewall-workspace .firewall-policy-grid code,.firewall-workspace .firewall-policy-grid small,.firewall-workspace .firewall-rule-jump{font-family:inherit;font-size:13px;line-height:22px;font-weight:400;color:var(--muted);text-decoration:none}
 .firewall-workspace .firewall-rule-jump:disabled{color:var(--muted)}
@@ -137,7 +137,8 @@
 }
 .firewall-diagnosis-panel > .page-heading {
   margin: 0 0 12px;
-  min-height: 42px;
+  min-height: 32px;
+  align-items: flex-start;
   flex-wrap: wrap !important;
 }
 .firewall-diagnosis-panel > .page-heading .field {
@@ -149,6 +150,8 @@
 }
 .firewall-diagnosis-panel > .page-heading .field-title {
   padding: 0;
+  font-size: 20px;
+  font-weight: 700;
   white-space: nowrap;
   align-self: center;
 }

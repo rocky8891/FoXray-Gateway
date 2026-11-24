@@ -924,10 +924,24 @@ header nav .nav-home-fox-icon > svg { width: 27px; height: 29px; max-height: cal
 .overview-side-tools button.home-header-toggle svg { width: 27px !important; height: 29px !important; flex: none; }
 @media (prefers-reduced-motion: no-preference) {
   .home-tools-dock .home-header-toggle > svg {
-    animation: home-sidebar-logo-arrive 340ms both;
+    animation: home-sidebar-logo-arrive 590ms both;
   }
-  .home-tools-dock .overview-side-tools > .home-header-toggle ~ * {
-    animation: home-sidebar-tools-shift 340ms cubic-bezier(.2,.75,.25,1) both;
+  .home-tools-dock .overview-side-tools > .home-header-toggle ~ :where(:not(.overview-edit-controls)),
+  .home-tools-dock .overview-side-tools > .home-header-toggle ~ .overview-edit-controls > .button {
+    animation: home-sidebar-tools-shift 530ms cubic-bezier(.48,0,.82,.52) both;
+  }
+  .home-tools-dock .overview-side-tools > .home-header-toggle + * + * {
+    animation-duration: 495ms;
+    animation-delay: 55ms;
+  }
+  .home-tools-dock .overview-side-tools > .home-header-toggle + * + * + * {
+    animation-duration: 460ms;
+    animation-delay: 110ms;
+  }
+  .home-tools-dock .overview-side-tools > .home-header-toggle + * + * + * + :not(.overview-edit-controls),
+  .home-tools-dock .overview-side-tools > .home-header-toggle ~ .overview-edit-controls > .button {
+    animation-duration: 425ms;
+    animation-delay: 165ms;
   }
 }
 @keyframes home-sidebar-tools-shift {
@@ -1658,4 +1672,17 @@ html:has(main>.overview-page) .overview-node-table>.table-wrap {overflow-y:auto}
     outline-color:transparent!important;
     box-shadow:none!important;
   }
+}
+
+/* Match the first card title to the service panels on Xray and WireGuard. */
+main[data-module-page] > .panel:nth-child(1 of .panel) > .page-heading,
+main[data-module-page] > :is(.module-page, .module-service-settings) > .panel:nth-child(1 of .panel) > .page-heading {
+  align-items: flex-start;
+  min-height: 32px;
+  margin-block: 0 var(--group-gap);
+}
+main[data-module-page] > .panel:nth-child(1 of .panel) > .page-heading h2,
+main[data-module-page] > :is(.module-page, .module-service-settings) > .panel:nth-child(1 of .panel) > .page-heading h2 {
+  font-size: 20px;
+  line-height: 28px;
 }
