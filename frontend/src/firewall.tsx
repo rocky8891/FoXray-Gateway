@@ -1,6 +1,5 @@
 import { FirewallDiagnosis } from "./firewall_diagnosis";
 import { CrossZoneRules } from "./cross_zone_rules";
-import { ZoneRulesIcon } from "./workspace_icons";
 import { FirewallServiceSelect } from "./firewall_service_select";
 import { AdaptiveSearch } from "./adaptive_search";
 import { FirewallAuditFields,FirewallDestinationField,ZoneSourceEditor,ZonePolicyEditor,RichRuleEditor,FirewallChangeDetails,FirewallRuleSummary } from "./firewall_editors";
@@ -93,6 +92,8 @@ export function FirewallPage({ act }: { act: Act }) {
     running = view.native ? view.canManage : view.running,
     native = view.native,
     writable = view.canManage;
+  const categoryLabel = categories.find(([key]) => key === category)?.[1] ?? "域内规则";
+  const ruleHeading = category === "masquerade" || category === "forward" ? `${categoryLabel} 规则` : categoryLabel;
   const ruleAnchor = useRef<HTMLDivElement>(null);
   const rows = useMemo(
     () =>
@@ -271,7 +272,21 @@ export function FirewallPage({ act }: { act: Act }) {
       )}
     </div>
   );
+  const changeRuleType = (value: string) => {
+    setRuleType(value);
+    setSelected(new Set());
+  };
   const filterControls = {
+    name: (
+      <Field label="类型">
+        <select aria-label="规则类型" value={ruleType} onChange={event => changeRuleType(event.target.value)}>
+          <option value="all">全部类型</option>
+          {zoneRuleTypes.filter(([kind]) => !native || kind === "ip" || kind === "port")
+            .map(([kind, label]) => <option key={kind} value={kind}>{label}</option>)}
+          <option value="system">系统规则</option>
+        </select>
+      </Field>
+    ),
     action: <Field label="规则动作"><select aria-label="防火墙动作筛选" value={ruleAction} onChange={e=>setRuleAction(e.target.value)}><option value="all">全部动作</option><option value="accept">允许</option><option value="drop">丢弃</option><option value="reject">拒绝</option><option value="blocked">阻断（丢弃／拒绝）</option></select></Field>,
     protocol: (
       <Field label="协议">
@@ -536,7 +551,7 @@ export function FirewallPage({ act }: { act: Act }) {
         {!!resource.data?.error && (
           <p className="hint">{text(resource.data.error)}</p>
         )}
-        <div className="firewall-rules-heading" ref={ruleAnchor}><h3><ZoneRulesIcon size={20} className="firewall-heading-icon"/>{native ? "系统规则" : "区域规则"} <span>{native ? driver : zone}</span></h3><span className="muted">{native ? "当前工具规则快照" : ({all:"运行时与永久配置 · 合并展示",runtime:"运行时配置",permanent:"永久配置",difference:"存在差异的配置"} as Record<string,string>)[configScope]}</span></div>
+        <div className="firewall-rules-heading" ref={ruleAnchor}><h3>{labelIcon(categoryLabel, 20)}{ruleHeading} <span>{native ? driver : zone}</span></h3><span className="muted">{native ? "当前工具规则快照" : ({all:"运行时与永久配置 · 合并展示",runtime:"运行时配置",permanent:"永久配置",difference:"存在差异的配置"} as Record<string,string>)[configScope]}</span></div>
         <CompactFilters
           before={
             <>
@@ -653,7 +668,7 @@ export function FirewallPage({ act }: { act: Act }) {
               onChange={(e) => setQuery(e.target.value)}
             />
           </AdaptiveSearch>
-          {category === "all" && <Field label="类型"><select aria-label="规则类型" value={ruleType} onChange={event=>{setRuleType(event.target.value);setSelected(new Set())}}><option value="all">全部类型</option>{zoneRuleTypes.filter(([kind])=>!native||kind==="ip"||kind==="port").map(([kind,label])=><option key={kind} value={kind}>{label}</option>)}<option value="system">系统规则</option></select></Field>}
+          {category === "all" && filterControls.name}
         </CompactFilters>
 
         <Table columnSizingKey="firewall-rules"
@@ -662,7 +677,7 @@ export function FirewallPage({ act }: { act: Act }) {
           selectedCount={chosen.length}
           keepHeaders
           columns={columns.map((c) =>
-            ["protocol", "state", "owner", "action"].includes(c.key)
+            (c.key === "name" || ["protocol", "state", "owner", "action"].includes(c.key))
               ? {
                   ...c,
                   heading: (
@@ -681,21 +696,23 @@ export function FirewallPage({ act }: { act: Act }) {
                         column
                         active={
                           {
+                            name: ruleType !== "all",
                             protocol: protocol !== "all",
                             state: status !== "all",
                             owner: owner !== "all",
                             action: ruleAction !== "all",
-                          }[c.key as "protocol" | "state" | "owner" | "action"]
+                          }[c.key as keyof typeof filterControls]
                         }
                       >
                         {
                           filterControls[
-                            c.key as "protocol" | "state" | "owner" | "action"
+                            c.key as keyof typeof filterControls
                           ]
                         }
                         <Button
                           onClick={() => {
-                            if (c.key === "protocol") setProtocol("all");
+                            if (c.key === "name") changeRuleType("all");
+                            else if (c.key === "protocol") setProtocol("all");
                             else if (c.key === "state") setStatus("all");
                             else if (c.key === "action") setRuleAction("all");
                             else setOwner("all");

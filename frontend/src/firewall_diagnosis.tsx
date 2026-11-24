@@ -1,3 +1,4 @@
+import { DiagnosticIcon } from "./diagnostic_icon";
 import { useState, type FormEvent } from "react";
 import { api, errorMessage, list, record, text, type Dict } from "./api";
 import { Button, ErrorLine, Field, Panel } from "./ui";
@@ -21,7 +22,7 @@ export function FirewallDiagnosis({driver}: {driver:string}) {
   }
   const nat = record(result?.nat), route = record(result?.route), reverse = record(result?.reverse_route);
   return <Panel className="firewall-main-panel management-panel">
-    <div className="firewall-rules-heading"><h3>规则诊断</h3><span className="muted">运行时配置 · 只读静态推演</span></div>
+    <div className="firewall-rules-heading"><h3><DiagnosticIcon size={20} className="firewall-heading-icon" />规则诊断</h3><span className="muted">运行时配置 · 只读静态推演</span></div>
     <form onSubmit={diagnose}>
       <div className="form-grid">
         <Field label="源 IP"><input name="source" placeholder="192.0.2.10" required /></Field>

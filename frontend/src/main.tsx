@@ -2,7 +2,7 @@ import { SettingsIcon } from "./requirement_icons";
 import { ThemedSelects } from "./themed_selects";
 import { useOverviewRandomTheme } from "./overview_random_theme";
 import { HomeTools } from "./home_tools";
-import { HomeHeaderContext } from "./home_header";
+import { HomeHeaderContext, HomeHeaderToggleIcon } from "./home_header";
 import { OverviewFooter } from "./overview_footer";
 import { labelIcon } from "./ui_icons";
 import type { OverviewView } from "./overview_policy";
@@ -17,7 +17,7 @@ import { MonitoringHub, XrayHub, LogsHub, GlobalSettingsHub } from "./hubs";
 import { OverviewPage } from "./host";
 import { TrafficPage } from "./traffic";
 import { NetworkHub } from "./network_hub";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Moon,
@@ -147,6 +147,27 @@ function App() {
   const [headerExpanded, setHeaderExpanded] = useState(false);
   const [headerOrigin, setHeaderOrigin] = useState("calc(100vw - 30px) 150px");
   const headerCollapsed = hideHomeHeader && !headerExpanded;
+  const collapseInNav = hideHomeHeader && headerExpanded && page === "overview";
+  const moveHeaderFocus = useRef(false);
+  const animateHeaderNavigation = useRef(false);
+  useLayoutEffect(() => {
+    if (!moveHeaderFocus.current) return;
+    moveHeaderFocus.current = false;
+    const selector = collapseInNav
+      ? ".nav-home-collapse"
+      : ".home-tools-dock .home-tools-handle, .home-tools-dock .home-header-toggle";
+    document.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true });
+  }, [collapseInNav]);
+  useLayoutEffect(() => {
+    if (!animateHeaderNavigation.current) return;
+    animateHeaderNavigation.current = false;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const animation = document.querySelector("#root main")?.animate(
+      [{ opacity: 0.5, translate: "0 4px" }, { opacity: 1, translate: "0 0" }],
+      { duration: 230, easing: "cubic-bezier(.2,.8,.2,1)" },
+    );
+    return () => animation?.cancel();
+  }, [page]);
   useEffect(() => { setHeaderExpanded(false); }, [page, hideHomeHeader]);
   const updates = useResource<Dict>("/api/updates", 60000);
   const [updateData, setUpdateData] = useState<Dict>({});
@@ -186,6 +207,7 @@ function App() {
     };
   }, [headerCollapsed]);
   const navigate = (next: Page, keepHeaderHidden = false) => {
+    if (collapseInNav && next !== page) animateHeaderNavigation.current = true;
     setMonitorHeaderHidden(keepHeaderHidden);
     sessionStorage.setItem("foxray.monitor.header-hidden", String(keepHeaderHidden));
     setOverviewEditor(undefined);
@@ -419,7 +441,8 @@ function App() {
         ? `管理服务在线，有告警：${managerWarning}`
         : "管理服务正常";
   return (
-    <HomeHeaderContext.Provider value={{hidden: hideHomeHeader, expanded: headerExpanded, toggle: button => {
+    <HomeHeaderContext.Provider value={{hidden: hideHomeHeader, expanded: headerExpanded, collapseInNav, toggle: (button, keyboard) => {
+      moveHeaderFocus.current = page === "overview" && keyboard;
       const box = button.getBoundingClientRect();
       setHeaderOrigin(`${box.x + box.width / 2}px ${box.y + box.height / 2}px`);
       setHeaderExpanded(value => !value);
@@ -473,19 +496,33 @@ function App() {
             </div>
           </a>
           <nav aria-label="功能模块">
-            {available.map(([id, label]) => (
-              <button
-                key={id}
-                className={"nav-tab " + (id === "monitor" ? "integrated" : "")}
-                aria-current={page === id ? "page" : undefined}
-                onClick={() => navigate(id)}
-              >
-                <span className="nav-icon" aria-hidden="true">
-                  {labelIcon(label, 18)}
-                </span>
-                <span>{label}</span>
-              </button>
-            ))}
+            {available.map(([id, label]) => {
+              const collapse = id === "overview" && collapseInNav;
+              return (
+                <button
+                  type="button"
+                  key={id}
+                  className={`nav-tab${id === "monitor" ? " integrated" : ""}${collapse ? " nav-home-collapse" : ""}`}
+                  aria-current={!collapse && page === id ? "page" : undefined}
+                  aria-label={collapse ? "收起首页标题栏" : undefined}
+                  title={collapse ? "收起首页标题栏" : undefined}
+                  onClick={event => {
+                    if (collapse) {
+                      moveHeaderFocus.current = event.detail === 0;
+                      setHeaderExpanded(false);
+                    } else {
+                      navigate(id);
+                    }
+                  }}
+                >
+                  <span className="nav-icon" aria-hidden="true">
+                    {labelIcon(label, 18)}
+                  </span>
+                  <span>{label}</span>
+                  {collapse && <span className="nav-home-collapse-icon"><HomeHeaderToggleIcon /></span>}
+                </button>
+              );
+            })}
           </nav>
           <div className="header-status">
             <div className="header-tools">

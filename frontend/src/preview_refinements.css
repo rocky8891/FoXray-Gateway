@@ -816,6 +816,7 @@ body .overview-footer > .data-freshness {
   height: 0;
   position: relative;
   z-index: 80;
+  transition: height .58s cubic-bezier(.4,0,.22,1);
 }
 .home-header-shell[data-auto-hide="true"] > header {
   position: absolute;
@@ -826,16 +827,46 @@ body .overview-footer > .data-freshness {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: transform .38s cubic-bezier(.22,.8,.24,1), opacity .24s ease, visibility .38s;
+  transition: transform .58s cubic-bezier(.4,0,.22,1), opacity .24s ease .34s, visibility 0s .58s;
 }
 .home-header-shell[data-auto-hide="true"][data-expanded="true"] > header {
   transform: scale(1);
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
+  transition: transform .38s cubic-bezier(.22,.8,.24,1), opacity .24s ease;
 }
 .home-header-shell[data-auto-hide="true"][data-expanded="true"] {
   height: var(--header-height);
+  transition: height .38s cubic-bezier(.22,.8,.24,1);
+}
+header nav .nav-tab.nav-home-collapse:not(:disabled) {
+  position: relative;
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--metric-blue) 24%, var(--card)),
+    color-mix(in srgb, var(--metric-purple) 22%, var(--card))) !important;
+  border-color: var(--metric-blue) !important;
+}
+header nav .nav-home-collapse > :not(.nav-home-collapse-icon) {
+  visibility: hidden;
+}
+header nav .nav-home-collapse-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  animation: home-collapse-arrive 420ms both;
+}
+header nav .nav-home-collapse-icon > svg { width: 23px; height: 25px; overflow: visible; }
+@keyframes home-collapse-arrive {
+  0% { opacity: 0; transform: translate(8px, 4px) scale(.7); }
+  50% { opacity: 1; transform: translate(0, -3px) scale(1.09); }
+  75% { transform: translate(0, 1px) scale(.97); }
+  100% { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-header-shell[data-auto-hide="true"] { transition: none !important; }
+  header nav .nav-home-collapse-icon { animation: none; }
 }
 .home-header-handle {
   position: fixed;
@@ -1024,6 +1055,7 @@ body .overview-footer > .data-freshness {
   transition-delay: 0s, 220ms;
 }
 .home-tools-dock[data-auto-hide="true"]:is(
+  [data-pointer-open="true"],
   :hover,
   :has(.home-tools-handle:focus),
   :has(.overview-side-tools :focus-visible),

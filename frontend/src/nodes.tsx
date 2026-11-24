@@ -1282,6 +1282,7 @@ export function Home({
                 type="button"
                 className="button"
                 aria-label="随机主题"
+                title="随机主题"
                 data-control-icon="true"
                 onClick={() => {
                   randomTheme.shuffle(presentation);

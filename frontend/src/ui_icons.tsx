@@ -1,3 +1,4 @@
+import { DnatIcon } from "./dnat_icon";
 import { AllFirewallRulesIcon } from "./all_firewall_rules_icon";
 import { CrossZoneIcon } from "./cross_zone_icon";
 import { AdoptIcon } from "./action_icons";
@@ -237,7 +238,7 @@ const definitions: [RegExp, LucideIcon][] = [
   [/版本/, Info],
 ];
 export function labelIcon(label: string, size = 16) {
-  if (/^(查看)?全部规则$/.test(label)) return <AllFirewallRulesIcon size={size}/>;
+  if (label === "域内规则" || /^(查看)?全部规则$/.test(label)) return <AllFirewallRulesIcon size={size}/>;
   if (label === "跨区域规则" || label === "域间规则") return <CrossZoneIcon size={size}/>;
   if (/升序|降序|排序/.test(label)) return <SortIcon size={size} />;
   if (label === "卡片外观") return <AppearanceIcon size={size} />;
@@ -245,6 +246,7 @@ export function labelIcon(label: string, size = 16) {
   if (/服务管理/.test(label)) return <ServiceManagementIcon size={size} />;
   if (/活动连接|网络连接|连接数/.test(label))
     return <ConnectionIcon size={size} />;
+  if (label === "DNAT") return <DnatIcon size={size} />;
   if (/^地址伪装$|^SNAT$/i.test(label)) return <SnatIcon size={size} />;
   if (/诊断日志/.test(label)) return <DiagnosticLogIcon size={size} />;
   const product: Product | undefined = /^FoXray/i.test(label)

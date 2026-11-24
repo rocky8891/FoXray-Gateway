@@ -15,7 +15,7 @@ import {
   Search,
 } from "lucide-react";
 import { list, record, timestamp, type Dict } from "./api";
-import { useTimeRange, TimeRangeControl } from "./time_range";
+import { TimeRangeControl, type TimeRange } from "./time_range";
 import { formatCapacity, formatRate, HostChart } from "./host";
 import {
   Button,
@@ -32,13 +32,14 @@ import {
 export function ConnectionsPage({
   module,
   act,
+  range,
   viewControl,
 }: {
   module: string;
   act: Act;
+  range: TimeRange;
   viewControl?: ReactNode;
 }) {
-  const range = useTimeRange();
   const [scope, setScope] = useState("active"),
     [iface, setIface] = useState("all"),
     [node, setNode] = useState("all"),

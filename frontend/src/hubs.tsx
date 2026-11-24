@@ -127,7 +127,9 @@ export function MonitoringHub({
   );
   const settingsOptions = monitoringSettingsTabs(state);
   const settingsTarget = settingsOptions.some(([id]) => id === settingsModule) ? settingsModule : "overview";
-  const range = useTimeRange();
+  const xrayRange = useTimeRange();
+  const warpRange = useTimeRange();
+  const wireGuardRange = useTimeRange();
   const tabs = [
     ["host", "服务器"],
     ...(state.components.xray ? [["xray", "Xray"]] : []),
@@ -136,6 +138,7 @@ export function MonitoringHub({
     ["settings", "设置"],
   ];
   const active = tabs.some(([id]) => id === tab) ? tab : "host";
+  const range = active === "wireguard" ? wireGuardRange : active === "warp" ? warpRange : xrayRange;
   const view = monitorEnabled(state, active, requestedView)
     ? requestedView
     : ["traffic", "latency", "connections"].find((key) =>
@@ -205,6 +208,7 @@ export function MonitoringHub({
             <ConnectionsPage
               act={act}
               module={active}
+              range={range}
               viewControl={viewControl}
             />
           ) : active === "wireguard" ? (

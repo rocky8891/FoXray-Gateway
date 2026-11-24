@@ -1,6 +1,6 @@
-import { useContext, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { HomeHeaderContext } from "./home_header";
+import { HomeHeaderContext, HomeHeaderToggleIcon } from "./home_header";
 
 export function HomeTools({
   dock = false,
@@ -14,6 +14,10 @@ export function HomeTools({
   const header = useContext(HomeHeaderContext);
   const edge = useRef<HTMLDivElement>(null);
   const [autoHide, setAutoHide] = useState(true);
+  const [pointerOpen, setPointerOpen] = useState(false);
+  const hideTimer = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(hideTimer.current), []);
 
   useLayoutEffect(() => {
     const rail = edge.current;
@@ -42,18 +46,16 @@ export function HomeTools({
 
   const tools = (
     <aside className="overview-side-tools" data-overview-view={view} aria-label="主页快捷工具">
-      {header.hidden && (
+      {header.hidden && !header.collapseInNav && (
         <button
           type="button"
           className="button home-header-toggle"
           aria-label={header.expanded ? "收起首页标题栏" : "展开首页标题栏"}
           title={header.expanded ? "收起首页标题栏" : "展开首页标题栏"}
           aria-expanded={header.expanded}
-          onClick={(event) => header.toggle(event.currentTarget)}
+          onClick={(event) => header.toggle(event.currentTarget, event.detail === 0)}
         >
-          <svg viewBox="105 83 292 349" aria-hidden="true">
-            <image href="/foxray-icon.svg?v=0.9.4" width="512" height="512" />
-          </svg>
+          <HomeHeaderToggleIcon />
         </button>
       )}
       {children}
@@ -66,7 +68,17 @@ export function HomeTools({
       ref={edge}
       className="home-tools-dock"
       data-auto-hide={autoHide || undefined}
+      data-pointer-open={pointerOpen || undefined}
+      onPointerEnter={(event) => {
+        if (event.pointerType === "touch") return;
+        window.clearTimeout(hideTimer.current);
+        setPointerOpen(true);
+      }}
       onPointerLeave={(event) => {
+        if (event.pointerType !== "touch") {
+          window.clearTimeout(hideTimer.current);
+          hideTimer.current = window.setTimeout(() => setPointerOpen(false), 1000);
+        }
         const focused = document.activeElement;
         if (
           event.pointerType === "mouse" &&

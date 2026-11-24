@@ -47,8 +47,11 @@ export function FirewallWorkspace({ crossZone = false, serviceData,serviceError,
           {(types.length ? types : [{id:driver,installed:true}]).map(t=><option key={String(t.id)} value={String(t.id)} disabled={t.installed===false}>{String(t.id)}{t.installed===false ? " · 未安装" : ""}{t.id==="ufw" ? " · 只读" : ""}</option>)}
         </select></Field>
         {!crossZone && !view.native && <Field label="查看区域" info="仅决定下方显示和管理哪个区域的规则，不会改变系统默认区域，也不会移动网卡或来源地址。区域是否作用于某个连接，取决于接口、来源地址归属及其他规则。"><select aria-label="查看防火墙区域" value={zone} onChange={e=>changeZone(e.target.value)}>{[...new Set([...zones,zone])].map(z=><option key={z}>{z}</option>)}</select></Field>}
+        {!crossZone && <Field label="配置范围" info="这里只筛选显示运行时、永久或存在差异的条目，不决定写入范围。规则与区域配置的变更仍分别核对运行时和永久配置，在变更预览中明确展示。"><select aria-label="防火墙配置范围" disabled={view.native} title={view.native?"当前工具仅提供系统规则快照":undefined} value={configScope} onChange={e=>changeScope(e.target.value)}><option value="all">全部配置</option><option value="runtime">运行时</option><option value="permanent">永久配置</option><option value="difference">存在差异</option></select></Field>}
       </div>
-      {!crossZone && <div className="firewall-view-mode"><Field label="配置范围" info="这里只筛选显示运行时、永久或存在差异的条目，不决定写入范围。规则与区域配置的变更仍分别核对运行时和永久配置，在变更预览中明确展示。"><select aria-label="防火墙配置范围" disabled={view.native} title={view.native?"当前工具仅提供系统规则快照":undefined} value={configScope} onChange={e=>changeScope(e.target.value)}><option value="all">全部配置</option><option value="runtime">运行时</option><option value="permanent">永久配置</option><option value="difference">存在差异</option></select></Field></div>}
+      {!crossZone && !view.native && <div className="firewall-scope-actions">
+        <Button size="compact" disabled={!view.canManage || !record(data?.zone_policy).default_zone} onClick={editDefault}>设置默认区域</Button>
+      </div>}
     </div>
 
     <div className={"firewall-overview-grid"+(view.native || crossZone ? " is-native" : "")}>
@@ -67,7 +70,7 @@ export function FirewallWorkspace({ crossZone = false, serviceData,serviceError,
       </section>
     </div>
     {crossZone ? null : !view.native ? <section className="firewall-policy-strip firewall-layout-section" aria-label="区域策略">
-      <div className="firewall-detail-heading"><h3><ZonePolicyIcon size={20} className="firewall-heading-icon"/>区域设置<SettingInfo label="默认处理策略" text="对应firewalld区域target配置，必须结合具体规则和流量方向判断。系统默认（default）不等于全部允许。编辑区域策略可修改默认行为、IP地址伪装和ICMP。默认行为可仅保存永久配置，或完整核对后重新加载生效；所有修改先预览、确认并保留回退。" /></h3><div className="firewall-binding-actions"><Button size="compact" disabled={!view.canManage||record(data?.zone_policy).complete!==true} onClick={editPolicy}>编辑区域策略</Button><Button size="compact" disabled={!view.canManage || !record(data?.zone_policy).default_zone} onClick={editDefault}>设置默认区域</Button></div></div>
+      <div className="firewall-detail-heading"><h3><ZonePolicyIcon size={20} className="firewall-heading-icon"/>区域设置<SettingInfo label="默认处理策略" text="对应firewalld区域target配置，必须结合具体规则和流量方向判断。系统默认（default）不等于全部允许。编辑区域策略可修改默认行为、IP地址伪装和ICMP。默认行为可仅保存永久配置，或完整核对后重新加载生效；所有修改先预览、确认并保留回退。" /></h3><div className="firewall-binding-actions"><Button size="compact" disabled={!view.canManage||record(data?.zone_policy).complete!==true} onClick={editPolicy}>编辑区域策略</Button></div></div>
       <div className="firewall-policy-grid">
         <div><span>默认行为</span><div className="firewall-target-inline"><span>运行时 · </span><strong>{firewallTargetLabel(target)}</strong>{target === "default" && <SettingInfo label="系统默认（default）" text="未匹配放行等规则的入站流量，ICMP 默认允许，其他默认拒绝并回应；ICMP 阻断配置可改变 ICMP 处理。转发流量还需结合区域转发与策略判断。"/>}</div>{permanentTarget&&permanentTarget!==target.replace("%%REJECT%%","REJECT")&&<small className="fair">永久：{firewallTargetLabel(permanentTarget)} · 待重新加载</small>}</div>
         <div><span>IP地址伪装</span><strong>{!view.current || error || typeof data?.masquerade!=="boolean" ? "未确认" : data.masquerade ? "已开启" : "已关闭"}</strong></div>
