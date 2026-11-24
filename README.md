@@ -44,12 +44,16 @@ unzip FoXray-Gateway-v0.9.14-linux-amd64.zip -d foxray-0.9.14
 cd foxray-0.9.14
 chmod u+x foxray_v0.9.14
 ./foxray_v0.9.14 --check-topology
-bash install_v0.9.14.sh --plan
-# 核对系统与网络拓扑后安装所选组件。
-sudo bash install_v0.9.14.sh --non-interactive --with-xray --without-wireguard --without-warp --without-komari
+bash install_v0.9.14.sh --plan \
+  --with-xray --with-wireguard --without-warp --without-komari \
+  --listen 0.0.0.0:18880
+# 核对系统与网络拓扑后开始安装。
+sudo bash install_v0.9.14.sh --non-interactive \
+  --with-xray --with-wireguard --without-warp --without-komari \
+  --listen 0.0.0.0:18880
 ```
 
-浏览器访问 `http://<服务器IP>:18880`，将占位符换为服务器实际 IPv4 地址。需要 SSH 隧道时可使用：
+按上述步骤部署 Xray 和 WireGuard，控制台监听 `0.0.0.0:18880`（全部 IPv4 网卡）。浏览器访问 `http://<服务器IP>:18880`，将占位符换为服务器实际 IPv4 地址。需要 SSH 隧道时可使用：
 
 ```sh
 ssh -N -L 18880:127.0.0.1:18880 admin@gateway.example
