@@ -127,3 +127,30 @@
 
 .firewall-diagnostic-probe { min-width: 0; font-size: inherit; }
 .firewall-diagnostic-probe > input { flex: none; }
+
+.firewall-workspace :is(.firewall-service-title > h2, .firewall-detail-heading > h3, .firewall-scope-fields .field-title),
+.firewall-main-panel .firewall-rules-heading > h3,
+.firewall-diagnosis-panel > .page-heading h2 {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 700;
+}
+.firewall-diagnosis-panel > .page-heading {
+  margin: 0 0 12px;
+  min-height: 42px;
+  flex-wrap: wrap !important;
+}
+.firewall-diagnosis-panel > .page-heading .field {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+.firewall-diagnosis-panel > .page-heading .field-title {
+  padding: 0;
+  white-space: nowrap;
+  align-self: center;
+}
+.firewall-diagnosis-panel > .page-heading .field > :is(select, .icon-select) { width: 145px; }
+.firewall-diagnosis-panel > form > .form-grid { margin-top: 0; }

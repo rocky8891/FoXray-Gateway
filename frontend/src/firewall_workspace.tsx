@@ -1,5 +1,6 @@
 import { useRef } from "react";
-import { FirewallManagerIcon, ZoneOwnershipIcon, FirewallOverviewIcon, ZonePolicyIcon } from "./workspace_icons";
+import { ZoneSettingsIcon } from "./firewall_feature_icons";
+import { FirewallManagerIcon, ZoneOwnershipIcon, FirewallOverviewIcon } from "./workspace_icons";
 import { RefreshCw } from "lucide-react";
 import { FirewallIcon } from "./firewall_icons";
 import { Button, Field, SettingInfo } from "./ui";
@@ -70,7 +71,7 @@ export function FirewallWorkspace({ crossZone = false, serviceData,serviceError,
       </section>
     </div>
     {crossZone ? null : !view.native ? <section className="firewall-policy-strip firewall-layout-section" aria-label="区域策略">
-      <div className="firewall-detail-heading"><h3><ZonePolicyIcon size={20} className="firewall-heading-icon"/>区域设置<SettingInfo label="默认处理策略" text="对应firewalld区域target配置，必须结合具体规则和流量方向判断。系统默认（default）不等于全部允许。编辑区域策略可修改默认行为、IP地址伪装和ICMP。默认行为可仅保存永久配置，或完整核对后重新加载生效；所有修改先预览、确认并保留回退。" /></h3><div className="firewall-binding-actions"><Button size="compact" disabled={!view.canManage||record(data?.zone_policy).complete!==true} onClick={editPolicy}>编辑区域策略</Button></div></div>
+      <div className="firewall-detail-heading"><h3><ZoneSettingsIcon size={20} className="firewall-heading-icon"/>区域设置<SettingInfo label="默认处理策略" text="对应firewalld区域target配置，必须结合具体规则和流量方向判断。系统默认（default）不等于全部允许。编辑区域策略可修改默认行为、IP地址伪装和ICMP。默认行为可仅保存永久配置，或完整核对后重新加载生效；所有修改先预览、确认并保留回退。" /></h3><div className="firewall-binding-actions"><Button size="compact" disabled={!view.canManage||record(data?.zone_policy).complete!==true} onClick={editPolicy}>编辑区域策略</Button></div></div>
       <div className="firewall-policy-grid">
         <div><span>默认行为</span><div className="firewall-target-inline"><span>运行时 · </span><strong>{firewallTargetLabel(target)}</strong>{target === "default" && <SettingInfo label="系统默认（default）" text="未匹配放行等规则的入站流量，ICMP 默认允许，其他默认拒绝并回应；ICMP 阻断配置可改变 ICMP 处理。转发流量还需结合区域转发与策略判断。"/>}</div>{permanentTarget&&permanentTarget!==target.replace("%%REJECT%%","REJECT")&&<small className="fair">永久：{firewallTargetLabel(permanentTarget)} · 待重新加载</small>}</div>
         <div><span>IP地址伪装</span><strong>{!view.current || error || typeof data?.masquerade!=="boolean" ? "未确认" : data.masquerade ? "已开启" : "已关闭"}</strong></div>

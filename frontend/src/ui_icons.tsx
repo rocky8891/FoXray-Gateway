@@ -44,6 +44,8 @@ import {
   RoutingIcon,
   PolicyRoutingIcon,
 } from "./note_icons";
+import { FirewallDiagnosisIcon } from "./firewall_feature_icons";
+import { ZonePolicyIcon } from "./workspace_icons";
 import { DiagnosticIcon } from "./diagnostic_icon";
 import { NetworkInterfaceIcon } from "./network_interface_icon";
 import { HomeIcon } from "./home_icon";
@@ -238,7 +240,9 @@ const definitions: [RegExp, LucideIcon][] = [
   [/版本/, Info],
 ];
 export function labelIcon(label: string, size = 16) {
-  if (label === "域内规则" || /^(查看)?全部规则$/.test(label)) return <AllFirewallRulesIcon size={size}/>;
+  if (label === "域内规则") return <ZonePolicyIcon size={size}/>;
+  if (/^(防火墙)?规则诊断$/.test(label)) return <FirewallDiagnosisIcon size={size}/>;
+  if (/^(查看)?全部规则$/.test(label)) return <AllFirewallRulesIcon size={size}/>;
   if (label === "跨区域规则" || label === "域间规则") return <CrossZoneIcon size={size}/>;
   if (/升序|降序|排序/.test(label)) return <SortIcon size={size} />;
   if (label === "卡片外观") return <AppearanceIcon size={size} />;

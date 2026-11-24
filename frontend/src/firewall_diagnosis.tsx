@@ -1,6 +1,6 @@
 import { CircleDot } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { DiagnosticIcon } from "./diagnostic_icon";
+import { FirewallDiagnosisIcon } from "./firewall_feature_icons";
 import { DiagnosticProgress, DiagnosticReport, useDiagnosticRunner } from "./diagnostic_result";
 import type { Act } from "./nodes";
 import { Button, Field, PageHeader, Panel } from "./ui";
@@ -20,12 +20,12 @@ export function FirewallDiagnosis({ initialDriver, act }: { initialDriver?: stri
     void diagnostic.run("/api/diagnostics", data);
   }
   return <>
-    <Panel className="firewall-main-panel management-panel">
+    <Panel className="firewall-main-panel firewall-diagnosis-panel">
       <PageHeader
         title="规则诊断"
         description="按运行时规则推演 LAN 转发"
-        icon={<DiagnosticIcon size={20} />}
-        actions={<Field label="管理工具">
+        icon={<FirewallDiagnosisIcon size={20} />}
+        actions={<Field label="管理工具" info="选择用于读取运行时规则的防火墙工具。">
           <select aria-label="诊断管理工具" value={driver} onChange={event => setDriver(event.target.value)}>
             <option value="firewalld">firewalld</option>
             <option value="nftables">nftables</option>

@@ -1788,18 +1788,19 @@ export function Diagnostics({ act }: { act: Act }) {
         />
       </Panel>
       {diagnostic.result && <DiagnosticReport operation={diagnostic.result} />}
-      <DiagnosticLog act={act} />
+      <DiagnosticLog act={act} pathOnly />
     </>
   );
 }
-export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewallOnly?: boolean }) {
-  const widthKey = firewallOnly ? "logs-firewall-diagnostics" : "logs-diagnostics";
+export function DiagnosticLog({ act, firewallOnly = false, pathOnly = false }: { act: Act; firewallOnly?: boolean; pathOnly?: boolean }) {
+  const scope = firewallOnly ? "firewall" : pathOnly ? "path" : "";
+  const widthKey = scope ? `logs-${scope}-diagnostics` : "logs-diagnostics";
   const { isRead, markRead } = useReadState();
   const diagnostic = useDiagnosticRunner(act);
   const [detail, setDetail] = useState<Operation | null>(null);
   const [kind, setKind] = useState("");
   const history = useResource<{ items: Operation[] }>(
-    "/api/diagnostics/history?kind=" + (firewallOnly ? "firewall" : kind),
+    "/api/diagnostics/history?kind=" + (scope || kind),
     10000,
   );
   useEffect(() => {
@@ -1818,12 +1819,15 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
   const isLogRead = (row: Operation) => (isFirewall(row) && Boolean(row.details?.ui_action)) || isRead(logReadKeys(row));
   const rows = (history.data?.items || []).filter(row =>
     (row.action === "diagnostic.result" || row.action === "diagnostic.finished") &&
-    (firewallOnly ? isFirewall(row) : kind === "" || isFirewall(row) === (kind === "firewall")),
+    (!(scope || kind) || isFirewall(row) === ((scope || kind) === "firewall")),
   );
   const read = (row: Operation) => isLogRead(row) ? "已读" : "未读";
   const type = (row: Operation) => isFirewall(row) ? "防火墙规则诊断" : "转发路径诊断";
   const status = (row: Operation) => row.status === "success" ? "通过" : "未全部通过";
   const table = useLogTable(rows, { time: row => row.time, type, message: row => row.message, read, status }, "time");
+  const exportColumns: [string, (row: Operation) => unknown][] = [["时间", row => timestamp(row.time)]];
+  if (!pathOnly) exportColumns.push(["诊断类型", type]);
+  exportColumns.push(["内容", row => row.message], ["阅读状态", read], ["结果", status]);
   return (
     <>
       {" "}
@@ -1832,7 +1836,7 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
           title="诊断日志"
           actions={<>
             <Button onClick={() => void history.refresh()}>刷新</Button>
-            {table.tools(widthKey, "诊断日志", [["时间", row => timestamp(row.time)], ["诊断类型", type], ["内容", row => row.message], ["阅读状态", read], ["结果", status]], () => setKind(""))}
+            {table.tools(widthKey, "诊断日志", exportColumns, () => setKind(""))}
             <MarkAllReadButton disabled={!rows.some(row => !isLogRead(row))} onClick={() => markRead(rows.flatMap(logReadKeys))} />
           </>}
         />
@@ -1847,7 +1851,7 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
           rowKey={(r) => r.id}
           columns={table.columns([
             { key: "time", label: "时间", className: "diagnostic-log-time", render: (r) => <span className="diagnostic-log-timestamp">{timestamp(r.time)}</span> },
-            {
+            ...(!pathOnly ? [{
               key: "type",
               label: "诊断类型",
               heading: firewallOnly ? undefined : (
@@ -1864,8 +1868,8 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
                   </ListFilter>
                 </span>
               ),
-              render: (row) => isFirewall(row) ? "防火墙规则诊断" : "转发路径诊断",
-            },
+              render: type,
+            }] : []),
             { key: "message", label: "内容", render: (r) => r.message },
             { key: "read", label: "阅读状态", render: (row) => <ReadBadge read={isLogRead(row)} /> },
             {

@@ -923,10 +923,16 @@ header nav .nav-home-fox-icon > svg { width: 27px; height: 29px; max-height: cal
 .overview-side-tools .home-header-toggle svg, header .brand .brand-logo { overflow: visible; }
 .overview-side-tools button.home-header-toggle svg { width: 27px !important; height: 29px !important; flex: none; }
 @media (prefers-reduced-motion: no-preference) {
-  .home-tools-dock:not([data-auto-hide="true"]) .home-header-toggle > svg,
-  .home-tools-dock[data-auto-hide="true"] .overview-side-tools[aria-label] .home-header-toggle > svg {
+  .home-tools-dock .home-header-toggle > svg {
     animation: home-sidebar-logo-arrive 340ms both;
   }
+  .home-tools-dock .overview-side-tools > .home-header-toggle ~ * {
+    animation: home-sidebar-tools-shift 340ms cubic-bezier(.2,.75,.25,1) both;
+  }
+}
+@keyframes home-sidebar-tools-shift {
+  from { translate: 0 calc(-1 * (var(--button-height-regular) + 6px)); }
+  to { translate: 0 0; }
 }
 @keyframes home-sidebar-logo-arrive {
   0% { transform: scale(.72); }
