@@ -1,6 +1,6 @@
 import { ProductIcon } from "./product_icons";
 import { XrayObservationPolicy, DEFAULT_DIRECT_DNS, DEFAULT_PROXY_DNS } from "./xray_observation_policy";
-import { ResetFilters } from "./list_controls";
+import { ListFilter, ResetFilters } from "./list_controls";
 import { MarkAllReadButton, ReadBadge, logReadKeys, switchReadKeys, useReadState } from "./read_state";
 import { hasChanges } from "./settings_save";
 import { PaginatedCards } from "./resource_controls";
@@ -1770,11 +1770,6 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
           actions={<>
             <Button onClick={() => void history.refresh()}>刷新</Button>
             <span data-table-width-slot={widthKey} />
-            {!firewallOnly && <select aria-label="诊断类型" value={kind} onChange={event => setKind(event.target.value)}>
-              <option value="">全部诊断类型</option>
-              <option value="firewall">防火墙规则诊断</option>
-              <option value="path">转发路径诊断</option>
-            </select>}
             <MarkAllReadButton disabled={!rows.some(row => !isLogRead(row))} onClick={() => markRead(rows.flatMap(logReadKeys))} />
           </>}
         />
@@ -1789,7 +1784,25 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
           rowKey={(r) => r.id}
           columns={[
             { key: "time", label: "时间", className: "diagnostic-log-time", render: (r) => <span className="diagnostic-log-timestamp">{timestamp(r.time)}</span> },
-            { key: "type", label: "诊断类型", render: (row) => isFirewall(row) ? "防火墙规则诊断" : "转发路径诊断" },
+            {
+              key: "type",
+              label: "诊断类型",
+              heading: firewallOnly ? undefined : (
+                <span className="table-heading-tools">
+                  诊断类型
+                  <ListFilter label="诊断类型筛选" column active={kind !== ""}>
+                    <Field label="诊断类型">
+                      <select aria-label="诊断类型" value={kind} onChange={event => setKind(event.target.value)}>
+                        <option value="">全部诊断类型</option>
+                        <option value="firewall">防火墙规则诊断</option>
+                        <option value="path">转发路径诊断</option>
+                      </select>
+                    </Field>
+                  </ListFilter>
+                </span>
+              ),
+              render: (row) => isFirewall(row) ? "防火墙规则诊断" : "转发路径诊断",
+            },
             { key: "message", label: "内容", render: (r) => r.message },
             { key: "read", label: "阅读状态", render: (row) => <ReadBadge read={isLogRead(row)} /> },
             {

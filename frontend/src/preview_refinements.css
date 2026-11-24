@@ -853,10 +853,6 @@ header nav .nav-tab.nav-home-fox:is(:active, .nav-home-closing) {
   background: var(--accent-bg) !important;
   border-color: var(--accent) !important;
 }
-header nav .nav-home-fox-icon image { filter: grayscale(1); }
-header nav .nav-tab.nav-home-fox:is(:active, .nav-home-closing) image {
-  filter: grayscale(1) sepia(1) saturate(4) hue-rotate(97deg);
-}
 header nav .nav-home-fox-icon {
   display: grid;
   place-items: center;

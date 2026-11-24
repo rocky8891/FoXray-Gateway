@@ -1,3 +1,4 @@
+import { CircleDot } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { DiagnosticIcon } from "./diagnostic_icon";
 import { DiagnosticProgress, DiagnosticReport, useDiagnosticRunner } from "./diagnostic_result";
@@ -34,6 +35,7 @@ export function FirewallDiagnosis({ driver, act }: { driver: string; act: Act })
         </div>
         <div className="actions">
           <Button type="submit" variant="primary" disabled={diagnostic.pending || driver === "ufw"}>
+            <CircleDot size={14} aria-hidden="true" />
             {diagnostic.pending ? "诊断中…" : "开始诊断"}
           </Button>
           {protocol === "tcp" && (
