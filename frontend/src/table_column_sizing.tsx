@@ -64,8 +64,8 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
           const body = cell.querySelector<HTMLElement>(".adaptive-cell-content");
           if (body) content = Math.max(content, naturalWidth(body) + padding);
         });
-        const size = { min, max, auto: 0 };
-        size.auto = clamp(content, size); next[column.key] = size;
+        const size = { min, max: column.fitContent ? Math.max(max, Math.ceil(content)) : max, auto: 0 };
+        size.auto = clamp(Math.ceil(content), size); next[column.key] = size;
       });
       setSizes(old => JSON.stringify(old) === JSON.stringify(next) ? old : next);
     };
@@ -76,7 +76,7 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
     return () => { disposed = true; observer.disconnect(); };
   }, [enabled, columns, rows, pageKey, key, table]);
   const size = (column: Column<T>): Size => sizes[column.key] || { min: 64, max: column.maxWidth || 480, auto: 140 };
-  const fitted = fitColumnWidths(columns.map(c => ({key:c.key,...size(c),manual:manual[c.key]})), available);
+  const fitted = fitColumnWidths(columns.map(c => ({key:c.key,...size(c),manual:manual[c.key],fitContent:c.fitContent})), available);
   const width = (column: Column<T>) => fitted[column.key];
   const setWidth = (column: Column<T>, value?: number) => setSaved(old => {
     const widths = { ...(old.key === key ? old.widths : {}) };

@@ -209,9 +209,45 @@ func TestStructuredRichRulesRoundTripAndUnsupportedRemainReadonly(t *testing.T) 
 			t.Fatal("rich roundtrip lost conditions")
 		}
 	}
-	for _, raw := range []string{`rule family="ipv4" source NOT address="192.0.2.0/24" drop`, `rule family="ipv4" destination address="198.51.100.1" service name="ssh" accept`} {
+	for _, raw := range []string{`rule family="ipv4" source NOT address="192.0.2.0/24" drop`, `rule family="ipv4" destination NOT address="198.51.100.1" service name="ssh" accept`, `rule family="ipv4" destination address="198.51.100.1" service name="ssh" accept limit value="1/m"`} {
 		if yes(parseFirewallEntry("public", "rich-rule", raw)["editable"]) {
 			t.Fatal("unsupported condition editable")
+		}
+	}
+}
+
+func TestFirewallDestinationSurvivesInventoryAndRuleGeneration(t *testing.T) {
+	for _, tc := range []struct{ raw, kind, destination string }{
+		{`rule family="ipv4" source address="192.0.2.0/24" destination address="198.51.100.3/32" accept`, "ip", "198.51.100.3/32"},
+		{`rule family="ipv6" destination address="2001:db8::3" port port="443" protocol="tcp" accept`, "port", "2001:db8::3"},
+		{`rule family="ipv4" destination address="198.51.100.1" service name="ssh" accept`, "rich", "198.51.100.1"},
+		{`rule family="ipv4" destination address="198.51.100.1" forward-port port="443" protocol="tcp" to-port="8443" to-addr="192.0.2.9"`, "forward", "198.51.100.1"},
+		{`rule family="ipv4" destination address="198.51.100.0/24" masquerade`, "masquerade", "198.51.100.0/24"},
+	} {
+		entry := parseFirewallEntry("public", "rich-rule", tc.raw)
+		if !yes(entry["editable"]) || str(entry["kind"]) != tc.kind || str(entry["destination"]) != tc.destination {
+			t.Fatalf("wrong inventory classification: %v", entry)
+		}
+		// Normalization runs again on persisted and edited rules.
+		rule, err := normalizeFirewall(entry)
+		if err != nil {
+			t.Fatal(err)
+		}
+		spec := firewallSpecs(rule)
+		if len(spec) != 1 || spec[0] != [2]string{"rich-rule", tc.raw} {
+			t.Fatalf("match changed: %v", spec)
+		}
+	}
+	for _, invalid := range []M{
+		{"kind": "ip", "destination": "2001:db8::1", "source": "192.0.2.0/24"},
+		{"kind": "ip", "destination": "198.51.100.1", "family": "ipv6"},
+		{"kind": "ip", "destination": "not-an-ip"},
+		{"kind": "ip", "destination": "198.51.100.1", "driver": "nftables"},
+		{"kind": "service-rule", "destination": "198.51.100.1", "service": "ssh"},
+	} {
+		invalid["zone"] = "public"
+		if _, err := normalizeFirewall(invalid); err == nil {
+			t.Fatalf("accepted invalid destination: %v", invalid)
 		}
 	}
 }

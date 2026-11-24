@@ -48,7 +48,7 @@ func normalizeFirewall(item M) (M, error) {
 		return normalizeCrossZone(item)
 	}
 	r := M{}
-	for _, key := range []string{"id", "driver", "name", "kind", "zone", "port", "protocol", "source", "action", "target_ip", "target_port", "enabled", "family", "storage", "priority", "logging", "log_rate", "service", "to_source", "out_interface", "rich_match"} {
+	for _, key := range []string{"id", "driver", "name", "kind", "zone", "port", "protocol", "source", "destination", "action", "target_ip", "target_port", "enabled", "family", "storage", "priority", "logging", "log_rate", "service", "to_source", "out_interface", "rich_match"} {
 		if value, ok := item[key]; ok {
 			r[key] = value
 		}
@@ -59,6 +59,26 @@ func normalizeFirewall(item M) (M, error) {
 	}
 	kind := firstNonempty(str(r["kind"]), "port")
 	r["kind"] = kind
+	destination := str(r["destination"])
+	if destination != "" {
+		if firewallDriver(r) != "firewalld" || kind == "service-rule" || (kind == "masquerade" && strings.EqualFold(str(r["action"]), "snat")) {
+			return nil, errors.New("此规则类型不支持匹配目标地址")
+		}
+		address, prefix, err := canonicalSource(destination)
+		if err != nil || prefix.Addr().Zone() != "" {
+			return nil, errors.New("匹配目标地址须为有效 IPv4／IPv6 地址或网段")
+		}
+		family := "ipv4"
+		if prefix.Addr().Is6() {
+			family = "ipv6"
+		}
+		if existing := str(r["family"]); existing != "" && existing != family {
+			return nil, errors.New("目标与地址族不匹配")
+		}
+		r["destination"], r["family"] = address, family
+	} else {
+		delete(r, "destination")
+	}
 	priority, e := integer(first(r["priority"], 0), -32768, 32767)
 	if e != nil {
 		return nil, e
@@ -186,8 +206,8 @@ func normalizeFirewall(item M) (M, error) {
 		return r, nil
 	}
 	if kind == "ip" {
-		if str(r["source"]) == "" {
-			return nil, errors.New("IP 规则须填写来源 IP 或网段")
+		if str(r["source"]) == "" && destination == "" {
+			return nil, errors.New("IP 规则须填写来源或目标 IP／网段")
 		}
 		return r, nil
 	}
@@ -231,6 +251,7 @@ func firewallSpecs(item M) [][2]string {
 		return [][2]string{{"direct-rule", spec}}
 	}
 	source := str(item["source"])
+	destination := str(item["destination"])
 	family := str(item["family"])
 	prefix := "rule"
 	if num(item["priority"]) != 0 {
@@ -242,12 +263,15 @@ func firewallSpecs(item M) [][2]string {
 	if source != "" {
 		prefix += " source address=\"" + source + "\""
 	}
+	if destination != "" {
+		prefix += " destination address=\"" + destination + "\""
+	}
 	logging := ""
 	if yes(item["logging"]) {
 		logging = " log prefix=\"foxray \" level=\"warning\" limit value=\"" + str(item["log_rate"]) + "\""
 	}
 	if kind == "masquerade" {
-		if source == "" && num(item["priority"]) == 0 {
+		if source == "" && destination == "" && num(item["priority"]) == 0 {
 			return [][2]string{{"masquerade", ""}}
 		}
 		return [][2]string{{"rich-rule", prefix + " masquerade"}}
@@ -268,7 +292,7 @@ func firewallSpecs(item M) [][2]string {
 	out := [][2]string{}
 	for _, proto := range protocols {
 		port := str(item["port"])
-		if kind == "port" && source == "" && str(item["action"]) == "accept" && str(item["storage"]) != "rich-rule" && str(item["family"]) == "" && num(item["priority"]) == 0 && !yes(item["logging"]) {
+		if kind == "port" && source == "" && destination == "" && str(item["action"]) == "accept" && str(item["storage"]) != "rich-rule" && str(item["family"]) == "" && num(item["priority"]) == 0 && !yes(item["logging"]) {
 			out = append(out, [2]string{"port", port + "/" + proto})
 		} else if kind == "port" || kind == "rich" {
 			out = append(out, [2]string{"rich-rule", prefix + " port port=\"" + port + "\" protocol=\"" + proto + "\"" + logging + " " + str(item["action"])})
@@ -277,7 +301,7 @@ func firewallSpecs(item M) [][2]string {
 			if target := str(item["target_ip"]); target != "" {
 				value += ":toaddr=" + target
 			}
-			if source == "" && num(item["priority"]) == 0 && str(item["family"]) == "" {
+			if source == "" && destination == "" && str(item["storage"]) != "rich-rule" && num(item["priority"]) == 0 && str(item["family"]) == "" {
 				out = append(out, [2]string{"forward-port", value})
 			} else {
 				rule := prefix + " forward-port port=\"" + port + "\" protocol=\"" + proto + "\" to-port=\"" + str(item["target_port"]) + "\""

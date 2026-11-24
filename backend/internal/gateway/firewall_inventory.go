@@ -14,6 +14,7 @@ import (
 
 var richPriority = regexp.MustCompile(`priority="?(-?[0-9]+)"?`)
 var richLogRate = regexp.MustCompile(`limit value="?([1-9][0-9]*/[smhd])"?`)
+var richDestination = regexp.MustCompile(`(?:^| )destination address="?([^" ]+)"?`)
 var richFamily = regexp.MustCompile(`family="?(ipv[46])"?`)
 var richService = regexp.MustCompile(`service name="?([a-zA-Z][a-zA-Z0-9_-]{0,31})"?`)
 
@@ -64,6 +65,9 @@ func parseFirewallEntry(zone, storage, raw string) M {
 		if m := richSource.FindStringSubmatch(raw); len(m) > 1 {
 			r["source"] = m[1]
 		}
+		if m := richDestination.FindStringSubmatch(raw); len(m) > 1 {
+			r["destination"] = m[1]
+		}
 		if m := richFamily.FindStringSubmatch(raw); len(m) > 1 {
 			r["family"] = m[1]
 		}
@@ -78,7 +82,7 @@ func parseFirewallEntry(zone, storage, raw string) M {
 			r["kind"], r["port"], r["protocol"] = "port", m[1], m[2]
 		} else if m := richService.FindStringSubmatch(raw); len(m) > 1 {
 			r["kind"], r["rich_match"], r["service"] = "rich", "service", m[1]
-		} else if r["source"] != nil {
+		} else if r["source"] != nil || r["destination"] != nil {
 			r["kind"] = "ip"
 		} else if str(r["family"]) != "" && (strings.HasSuffix(strings.TrimSpace(raw), " accept") || strings.HasSuffix(strings.TrimSpace(raw), " drop") || strings.HasSuffix(strings.TrimSpace(raw), " reject")) {
 			r["kind"], r["rich_match"] = "rich", "all"

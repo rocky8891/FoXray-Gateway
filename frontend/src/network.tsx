@@ -174,9 +174,9 @@ export function NetworkPage({
       begin("replace", {
         ...profile,
         addresses: Array.isArray(profile.addresses)
-          ? profile.addresses.join("\n")
+          ? profile.addresses.join(", ")
           : "",
-        dns: Array.isArray(profile.dns) ? profile.dns.join("\n") : "",
+        dns: Array.isArray(profile.dns) ? profile.dns.join(", ") : "",
       });
     } catch (e) {
       setFailure(errorMessage(e));
@@ -264,6 +264,7 @@ export function NetworkPage({
       },
       {
         key: "state",
+        fitContent: true,
         label: "状态",
         render: (r) => (
           <span className={r.active ? "accent" : "muted"}>
@@ -273,6 +274,7 @@ export function NetworkPage({
       },
       {
         key: "autostart",
+        fitContent: true,
         label: "开机自启",
         render: (r) => (
           <span
@@ -282,14 +284,14 @@ export function NetworkPage({
           </span>
         ),
       },
-      { key: "addresses", label: "接口 IP", render: (r) => {
+      { key: "addresses", label: "接口 IP", fitContent: true, render: (r) => {
         const current = Array.isArray(r.addresses) ? r.addresses.flatMap(a => Array.isArray(record(a).addr_info) ? (record(a).addr_info as Dict[]).map(ip => String(ip.local || "") + "/" + String(ip.prefixlen ?? "")) : []) : [];
         const addresses = current.length ? current : Array.isArray(r.configured_addresses) ? r.configured_addresses.map(String) : [];
         return addresses.length ? addresses.map(ip=><div key={ip}>{ip}</div>) : "—";
       } },
-      { key: "peer_addresses", label: "Peer IP / AllowedIPs", render: r => list(r.peers).map((p,i)=><div key={i}><small>Peer {i+1}{p.disabled ? " · 已停用" : ""}</small>{(Array.isArray(p.allowed_ips) ? p.allowed_ips.map(String) : String(p.allowed_ips||"").split(/[\s,]+/)).filter(Boolean).map(ip=><div key={ip}>{ip}</div>)}</div>) },
+      { key: "port", label: "监听端口", fitContent: true, render: (r) => text(r.listen_port) },
       { key: "endpoint", label: "Endpoint", render: r => list(r.peers).map((p,i)=><div key={i}><small>Peer {i+1}</small>{p.endpoint && p.endpoint!=="(none)" ? String(p.endpoint) : "未配置／等待对端"}</div>) },
-      { key: "port", label: "监听端口", render: (r) => text(r.listen_port) },
+      { key: "peer_addresses", label: "AllowedIPs", render: r => list(r.peers).map((p,i)=><div key={i}><small>Peer {i+1}{p.disabled ? " · 已停用" : ""}</small>{(Array.isArray(p.allowed_ips) ? p.allowed_ips.map(String) : String(p.allowed_ips||"").split(/[\s,]+/)).filter(Boolean).map(ip=><div key={ip}>{ip}</div>)}</div>) },
       {
         key: "peers",
         label: "Peer / 最近握手",
@@ -353,10 +355,10 @@ export function NetworkPage({
                     begin("replace", {
                       ...profile,
                       addresses: Array.isArray(profile.addresses)
-                        ? profile.addresses.join("\n")
+                        ? profile.addresses.join(", ")
                         : "",
                       dns: Array.isArray(profile.dns)
-                        ? profile.dns.join("\n")
+                        ? profile.dns.join(", ")
                         : "",
                     }),
                   )
@@ -814,6 +816,7 @@ export function NetworkPage({
         )}
         <Table
           keepHeaders
+          columnSizingKey={kind === "wireguard" ? "wireguard-interfaces" : undefined}
           rows={rows}
           total={sourceRows.length}
           selectedCount={selection.chosen.length}
@@ -1039,17 +1042,15 @@ function NetworkForm({
               onChange={(e) => set("listen_port", Number(e.target.value))}
             />
           </Field>
-          <Field label="接口地址" hint="每行一个 CIDR">
-            <textarea
-              rows={3}
+          <Field label="接口地址" hint="多个 CIDR 用逗号分隔">
+            <input
               value={String(value.addresses || "")}
               placeholder="10.24.255.1/24"
               onChange={(e) => set("addresses", e.target.value)}
             />
           </Field>
-          <Field label="DNS" hint="留空保持原解析">
-            <textarea
-              rows={3}
+          <Field label="DNS" hint="多个地址用逗号分隔。留空保持原解析">
+            <input
               value={String(value.dns || "")}
               onChange={(e) => set("dns", e.target.value)}
             />
@@ -1264,6 +1265,7 @@ function WGNetworkEditor({
   value: Dict;
   onChange: (v: Dict) => void;
 }) {
+  const [lanSources, setLanSources] = useState(() => Array.isArray(value.lan_sources) ? value.lan_sources.join(", ") : "");
   const role = String(value.role || "client"),
     mode = String(value.route_mode || "auto");
   const change = (key: string, v: unknown) => onChange({ ...value, [key]: v });
@@ -1367,13 +1369,13 @@ function WGNetworkEditor({
       </label>
       {!!value.snat && (
         <div className="form-grid">
-          {prefixes(
-            "lan_sources",
-            "需要 SNAT 的来源网段",
-            role === "client"
-              ? "例如 192.168.1.0/24；只影响此隧道出口"
-              : "填写 VPN 客户端网段，例如 10.20.0.0/24",
-          )}
+          <Field label="需要 SNAT 的来源网段" hint="多个网段用逗号分隔">
+            <input value={lanSources} onChange={event => {
+              const draft = event.target.value;
+              setLanSources(draft);
+              change("lan_sources", draft.split(/[,，]/).map(prefix => prefix.trim()).filter(Boolean));
+            }} />
+          </Field>
           <Field label="LAN 接口" hint="用于限定转发范围，填写连接测试 LAN 的实际接口">
             <input
               value={String(value.lan_interface || "")}

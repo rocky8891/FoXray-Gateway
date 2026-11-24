@@ -2,7 +2,7 @@ import { CrossZoneRules } from "./cross_zone_rules";
 import { ZoneRulesIcon } from "./workspace_icons";
 import { FirewallServiceSelect } from "./firewall_service_select";
 import { AdaptiveSearch } from "./adaptive_search";
-import { ZoneSourceEditor,ZonePolicyEditor,RichRuleEditor,FirewallChangeDetails,FirewallRuleSummary } from "./firewall_editors";
+import { FirewallDestinationField,ZoneSourceEditor,ZonePolicyEditor,RichRuleEditor,FirewallChangeDetails,FirewallRuleSummary } from "./firewall_editors";
 import { FirewallWorkspace } from "./firewall_workspace";
 import { firewallViewState } from "./firewall_view_state";
 import { MultiSelect } from "./multi_select";
@@ -50,8 +50,8 @@ const categories = [
   ["masquerade", "SNAT"],
   ["forward", "端口转发"],
   ["rich", "高级规则"],
-  ["cross-zone", "跨区域规则"],
   ["advanced", "未知规则（只读）"],
+  ["cross-zone", "跨区域规则"],
 ];
 const strategies: Record<string, string> = {
   accept: "允许",
@@ -78,9 +78,13 @@ export function FirewallPage({ act }: { act: Act }) {
     15000,
     category !== "cross-zone",
   );
-  const serviceResource=useResource<Dict>("/api/network/firewall/service?driver="+encodeURIComponent(driver),5000,category!=="cross-zone");
+  const serviceResource=useResource<Dict>("/api/network/firewall/service?driver="+encodeURIComponent(driver),5000);
+  const crossZone = category === "cross-zone";
+  const crossResource = useResource<Dict>("/api/network/firewall/cross-zone", 30000, crossZone);
+  const [crossFilter, setCrossFilter] = useState("all");
   const [lastRead, setLastRead] = useState(0), [refreshing, setRefreshing] = useState(false);
   useEffect(()=>{if(resource.data)setLastRead(Date.now())},[resource.data]);
+  useEffect(()=>{if(crossResource.data)setLastRead(Date.now())},[crossResource.data]);
   const [selected, setSelected] = useState<Set<string>>(new Set()),
     [form, setForm] = useState<Dict | null>(null),
     [operation, setOperation] = useState("add"),
@@ -156,7 +160,7 @@ export function FirewallPage({ act }: { act: Act }) {
     (form.target_apply === "immediate" && String(form.target) !== String(record(zonePolicy.runtime).target))
   );
   const preview = async (op: string, item: Dict, items?: Dict[]) => {
-    if (item.kind === "service" ? !view.canServiceControl : !writable) {
+    if (item.kind === "service" ? !firewallViewState(serviceResource.data || resource.data, driver, zone, serviceResource.error).canServiceControl : !writable) {
       setFailure("当前状态未满足变更条件，请刷新并确认服务和规则读取状态");
       return;
     }
@@ -342,7 +346,7 @@ export function FirewallPage({ act }: { act: Act }) {
     { key: "serial", label: "序号", render: (_, i) => i + 1 },
   ];
   if (category === "all") columns.push(
-    {key:"name",label:"名称／类型",heading:heading("kind","名称／类型"),render:r=><><strong>{text(r.service || r.port || r.source || (r.kind === "masquerade" ? "地址转换" : "规则"))}</strong><small>{r.editable===false ? "未知规则（只读）" : r.storage==="rich-rule"||r.kind==="rich" ? "高级规则" : categories.find(([id])=>id===r.kind)?.[1] || String(r.kind || "系统规则")}</small></>},
+    {key:"name",label:"名称／类型",heading:heading("kind","名称／类型"),render:r=><><strong>{text(r.service || r.port || r.source || (r.kind === "masquerade" ? "地址转换" : "规则"))}</strong><small>{r.editable===false ? "未知规则（只读）" : categories.find(([id])=>id===r.kind)?.[1] || String(r.kind || "系统规则")}</small></>},
     {key:"protocol",label:"协议／端口",heading:heading("protocol","协议／端口"),render:r=>r.kind==="service-rule" ? "服务定义" : [r.protocol ? String(r.protocol).toUpperCase() : "全部",r.port].filter(Boolean).join(" / ")},
   );
   if (category === "service-rule")
@@ -377,6 +381,13 @@ export function FirewallPage({ act }: { act: Act }) {
       </span>
     ),
   });
+  if (all.some(r => r.destination) && category !== "service-rule")
+    columns.push({
+      key: "destination",
+      label: "匹配目标地址",
+      heading: heading("destination", "匹配目标地址"),
+      render: r => <span className="ellipsis" title={String(r.destination || "")}>{text(r.destination || "任意目标")}</span>,
+    });
   if (category === "forward")
     columns.push({
       key: "target",
@@ -495,23 +506,21 @@ export function FirewallPage({ act }: { act: Act }) {
                 ))}
             </div>
         </SecondaryNav>
-        {category === "cross-zone" && <CrossZoneRules act={act}/>}
-        <div hidden={category === "cross-zone"}>
-        <FirewallWorkspace serviceData={serviceResource.data} serviceError={serviceResource.error || ""} rulesLoading={resource.loading} data={resource.data ? {...resource.data,entries:all} : null} error={resource.error || ""} driver={driver} zone={zone} lastRead={lastRead} refreshing={refreshing}
-          refresh={()=>{setRefreshing(true);void Promise.all([resource.refresh(),serviceResource.refresh()]).finally(()=>setRefreshing(false))}}
+        <FirewallWorkspace crossZone={crossZone} serviceData={serviceResource.data} serviceError={serviceResource.error || ""} rulesLoading={crossZone ? crossResource.loading : resource.loading} data={crossZone ? (crossResource.data ? {...serviceResource.data, ...crossResource.data, zone, driver, entries:crossResource.data.items} : null) : resource.data ? {...resource.data,entries:all} : null} error={(crossZone ? crossResource.error : resource.error) || ""} driver={driver} zone={zone} lastRead={lastRead} refreshing={refreshing}
+          refresh={()=>{setRefreshing(true);void Promise.all([(crossZone ? crossResource : resource).refresh(),serviceResource.refresh()]).finally(()=>setRefreshing(false))}}
           changeDriver={value=>{setDriver(value);setCategory("all");localStorage.setItem("foxray.firewall.driver",value);setZone(value==="firewalld"?"public":"host");setSelected(new Set());setQuery("");setProtocol("all");setStatus("all");setOwner("all");setRuleAction("all");setConfigScope("all");setForm(null);setPlan(null);setFailure("")}}
           changeZone={value=>{setZone(value);setSelected(new Set());setQuery("");setProtocol("all");setStatus("all");setOwner("all");setRuleAction("all");setConfigScope("all");setForm(null);setPlan(null);setFailure("")}}
           manageInterfaces={()=>start("add",{kind:"zone-interface",zone,interfaces:[],driver})}
           serviceAction={action=>start(action,{kind:"service",driver})}
-          selectedFilter={category === "all" ? ruleAction === "blocked" ? "blocked" : owner === "managed" ? "managed" : owner === "external" ? "external" : "all" : ""}
-          filterRules={filter=>{setCategory("all");setOwner(filter==="managed"?"managed":filter==="external"?"external":"all");setRuleAction(filter==="blocked"?"blocked":"all");setQuery("");setProtocol("all");setStatus("all");setSelected(new Set());ruleAnchor.current?.scrollIntoView({behavior:"smooth",block:"start"})}}
+          selectedFilter={crossZone ? crossFilter : category === "all" ? ruleAction === "blocked" ? "blocked" : owner === "managed" ? "managed" : owner === "external" ? "external" : "all" : ""}
+          filterRules={filter=>{if(crossZone){setCrossFilter(filter);document.getElementById("cross-zone-rules")?.scrollIntoView({behavior:"smooth",block:"start"});return}setCategory("all");setOwner(filter==="managed"?"managed":filter==="external"?"external":"all");setRuleAction(filter==="blocked"?"blocked":"all");setQuery("");setProtocol("all");setStatus("all");setSelected(new Set());ruleAnchor.current?.scrollIntoView({behavior:"smooth",block:"start"})}}
           viewRules={kind=>{setCategory(kind);setOwner("all");setRuleAction("all");setQuery("");setProtocol("all");setStatus("all");setSelected(new Set());ruleAnchor.current?.scrollIntoView({behavior:"smooth",block:"start"})}}
           addService={()=>start("add",{...defaultRule(),kind:"service-rule",service:""})}
           configScope={configScope} changeScope={value=>{setConfigScope(value);setSelected(new Set());setQuery("")}}
           manageSources={()=>start("add",{kind:"zone-source",driver,zone,source:"",binding_action:"bind"})}
           editPolicy={()=>{const policy=record(resource.data?.zone_policy),runtime=record(policy.runtime),permanent=record(policy.permanent);start("add",{kind:"zone-policy",driver,zone,target:String(permanent.target||runtime.target||"default"),target_apply:"permanent",target_ack:false,reload_ack:false,masquerade:runtime.masquerade===true,icmp_blocks:Array.isArray(runtime.icmp_blocks)?runtime.icmp_blocks:[],icmp_inversion:runtime.icmp_inversion===true})}}
         />
-      <Panel className="firewall-main-panel management-panel">
+      {crossZone ? <CrossZoneRules act={act} resource={crossResource} filter={crossFilter} resetFilter={()=>setCrossFilter("all")} /> : <Panel className="firewall-main-panel management-panel">
         <ErrorLine error={resource.error || failure} />
         {!!resource.data?.ruleset_raw && (
           <details className="advanced-form">
@@ -704,7 +713,7 @@ export function FirewallPage({ act }: { act: Act }) {
           )}
           rowKey={(r) => String(r.id)}
         />
-      </Panel>
+      </Panel>}
       {form && (
         <Modal className="firewall-dialog"
           description={
@@ -852,7 +861,7 @@ export function FirewallPage({ act }: { act: Act }) {
               onClick={() => {
                 const id = plan.id;
                 setPlan(null);
-                void act("/api/network/apply", { id });
+                void act("/api/network/apply", { id }).then(ok=>{if(ok)void Promise.all([serviceResource.refresh(),(crossZone ? crossResource : resource).refresh()])});
               }}
             >
               应用并等待网络确认
@@ -870,7 +879,6 @@ export function FirewallPage({ act }: { act: Act }) {
           <FirewallRuleSummary value={record(detail)} />
         </Modal>
       )}
-        </div>
     </>
   );
 }
@@ -918,9 +926,12 @@ function FirewallForm({
                 value={String(value.family || "")}
                 onChange={(e) => onChange("family", e.target.value)}
               >
-                <option value="">根据来源自动判断／双栈</option>
+                <option value="">按匹配地址自动判断／双栈</option>
                 <option value="ipv4">IPv4</option>
-                {kind !== "forward" && kind !== "masquerade" && (
+                {!native && !(kind === "masquerade" && value.action === "snat") && (
+              <FirewallDestinationField value={value} onChange={updateDestination => onChange("destination", updateDestination)} />
+            )}
+            {kind !== "forward" && kind !== "masquerade" && (
                   <option value="ipv6">IPv6</option>
                 )}
               </select>

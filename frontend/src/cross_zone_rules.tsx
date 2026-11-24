@@ -1,13 +1,21 @@
 import { CrossZoneIcon } from "./cross_zone_icon";
 import { useState } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { api, errorMessage, list, text, type Dict, type Plan } from "./api";
 import { Button, ErrorLine, Field, Modal, Panel, Table, useResource, SettingInfo, type Column } from "./ui";
+import { AdaptiveSearch } from "./adaptive_search";
+import { CompactFilters, ResetFilters } from "./list_controls";
+import { ExportButton } from "./resource_controls";
 import type { Act } from "./nodes";
 
 const actions: Record<string,string> = {accept:"允许",drop:"丢弃",reject:"拒绝并回应"};
-export function CrossZoneRules({act}:{act:Act}) {
-  const resource=useResource<Dict>("/api/network/firewall/cross-zone",30000);
+export function CrossZoneRules({act, resource, filter, resetFilter}: {
+  act: Act;
+  resource: ReturnType<typeof useResource<Dict>>;
+  filter: string;
+  resetFilter: () => void;
+}) {
+  const [query, setQuery] = useState("");
   const [form,setForm]=useState<Dict|null>(null),[operation,setOperation]=useState("add"),[ack,setAck]=useState(false);
   const [plan,setPlan]=useState<Plan|null>(null),[failure,setFailure]=useState(""),[busy,setBusy]=useState(false),[detail,setDetail]=useState<Dict|null>(null);
   const zones=Array.isArray(resource.data?.zones)?resource.data.zones.map(String):[];
@@ -27,10 +35,29 @@ export function CrossZoneRules({act}:{act:Act}) {
     {key:"state",label:"状态 / 配置",render:r=><><span className={!r.enabled?"muted":r.managed&&!r.runtime?"fair":"accent"}>{r.managed?(r.enabled?(r.runtime?"已生效":"待生效"):"配置停用"):(r.enabled?"启用":"停用")}</span><small>{r.runtime?"运行时已载入":"运行时未同步"} · {r.permanent?"永久已保存":"永久未保存"}{r.drift?" · 存在差异":""}</small></>},
     {key:"actions",label:"操作",render:r=><div className="row-actions"><Button size="compact" onClick={()=>setDetail(r)}>详情</Button>{!!r.managed&&<><Button size="compact" disabled={!complete} onClick={()=>start("replace",r)}>编辑</Button><Button size="compact" disabled={!complete} onClick={()=>start("replace",{...r,enabled:!r.enabled})}>{r.enabled?"停用":"启用"}</Button><Button size="compact" variant="danger" disabled={!complete} onClick={()=>start("delete",r)}>删除</Button></>}</div>},
   ];
-  return <Panel className="management-panel">
-    <div className="cross-zone-heading"><h3><CrossZoneIcon size={20}/>跨区域规则<SettingInfo label="跨区域规则" text="控制流量从入口区域转发到出口区域。每条规则独立管理，按来源、目标和协议匹配；不修改接口归属、路由或 NAT。"/></h3><div className="cross-zone-actions"><Button onClick={()=>void resource.refresh()}><RefreshCw size={16}/>刷新</Button><Button variant="primary" disabled={!complete} onClick={()=>start("add")}><Plus size={16}/>添加跨区域规则</Button></div></div>
-    <ErrorLine error={resource.error||String(resource.data?.error||"")||(!form&&!plan?failure:"")}/>
-    {resource.loading&&!resource.data?<p className="hint">正在读取跨区域规则…</p>:<Table rows={complete?list(resource.data?.items):[]} columns={columns} rowKey={r=>text(r.id)}/>}
+  const items = complete ? list(resource.data?.items) : [];
+  const rows = items.filter(row => {
+    const matchesFilter = filter === "all" ||
+      (filter === "managed" && row.managed) ||
+      (filter === "external" && !row.managed) ||
+      (filter === "blocked" && ["drop", "reject"].includes(String(row.action)));
+    return matchesFilter && JSON.stringify(row).toLowerCase().includes(query.trim().toLowerCase());
+  });
+  return <Panel className="firewall-main-panel management-panel">
+    <div className="firewall-rules-heading" id="cross-zone-rules">
+      <h3><CrossZoneIcon size={20}/>跨区域规则<SettingInfo label="跨区域规则" text="按入口区域、出口区域、来源、目标和协议匹配转发流量。" /></h3>
+      <span className="muted">运行时与永久配置 · 合并展示</span>
+    </div>
+    <CompactFilters label="跨区域规则筛选"
+      before={<Button disabled={!complete} onClick={() => start("add")}><Plus size={15} />添加</Button>}
+      actions={<><ResetFilters active={!!query || filter !== "all"} onClick={() => {setQuery(""); resetFilter()}} />
+        <ExportButton rows={rows} name="跨区域规则" columns={[["名称", r => r.name || r.policy_name], ["入口区域", r => r.ingress_zone], ["出口区域", r => r.egress_zone], ["来源", r => r.source], ["目标", r => r.destination], ["协议", r => r.protocol], ["端口", r => r.port], ["动作", r => r.action]]} /></>}
+    >
+      <AdaptiveSearch><Search size={15} /><input aria-label="搜索跨区域规则" placeholder="查询区域、IP、网段或协议" value={query} onChange={event => setQuery(event.target.value)} /></AdaptiveSearch>
+    </CompactFilters>
+    <ErrorLine error={resource.error || String(resource.data?.error || "") || (!form && !plan ? failure : "")} />
+    {resource.loading && !resource.data && <p className="hint">正在读取跨区域规则…</p>}
+    <Table keepHeaders rows={rows} total={items.length} columns={columns} rowKey={r => text(r.id)} />
     {form&&<Modal className="firewall-dialog" title={operation==="delete"?"删除跨区域规则":operation==="add"?"添加跨区域规则":"编辑跨区域规则"} onClose={()=>!busy&&setForm(null)} wide>
       {operation==="delete"?<p>删除“{text(form.name||form.policy_name)}”：{text(form.ingress_zone)} → {text(form.egress_zone)}，{text(form.source)} → {text(form.destination)}。</p>:<div className="form-grid">
         <Field label="备注名称"><input value={text(form.name)} onChange={e=>update("name",e.target.value)}/></Field>

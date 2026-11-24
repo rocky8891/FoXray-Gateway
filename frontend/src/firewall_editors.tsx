@@ -27,17 +27,24 @@ export function ZonePolicyEditor({value,onChange,policy}:{value:Dict;onChange:(k
  </>;
 }
 
+export function FirewallDestinationField({value,onChange}:{value:Dict;onChange:(value:string)=>void}) {
+  return <Field label="匹配目标地址" hint="可填 IPv4／IPv6 地址或网段。留空匹配任意目标。">
+    <input aria-label="匹配目标地址" value={String(value.destination || "")} onChange={event => onChange(event.target.value)} />
+  </Field>;
+}
+
 export function RichRuleEditor({value,onChange,services}:{value:Dict;onChange:(k:string,v:unknown)=>void;services:string[]}){
  const match=String(value.rich_match||"port");
  return <><p className="small muted">高级规则使用firewalld Rich Rules；按表单生成，支持端口、服务或所选来源的全部流量。无法无损解析的现有规则继续只读。</p><div className="form-grid">
  <Field label="备注名称"><input aria-label="高级规则名称" value={String(value.name||"")} onChange={e=>onChange("name",e.target.value)}/></Field>
  <Field label="匹配类型"><select aria-label="高级规则匹配类型" value={match} onChange={e=>onChange("rich_match",e.target.value)}><option value="port">协议／端口</option><option value="service">预定义服务</option><option value="all">全部流量</option></select></Field>
  <Field label="来源IP／网段" info="留空表示当前区域内所有来源，并非整个系统所有流量。"><input aria-label="高级规则来源" value={String(value.source||"")} placeholder="192.168.1.0/24" onChange={e=>onChange("source",e.target.value)}/></Field>
+ <FirewallDestinationField value={value} onChange={destination => onChange("destination", destination)} />
  {match==="port"&&<><Field label="协议"><select aria-label="高级规则协议" value={String(value.protocol||"tcp")} onChange={e=>onChange("protocol",e.target.value)}><option value="tcp">TCP</option><option value="udp">UDP</option><option value="tcpudp">TCP＋UDP</option></select></Field><Field label="端口／范围"><input aria-label="高级规则端口" value={String(value.port||"")} placeholder="443 或 8000-8100" onChange={e=>onChange("port",e.target.value)}/></Field></>}
  {match==="service"&&<Field label="预定义服务"><FirewallServiceSelect label="高级规则服务" value={String(value.service||"")} services={services} onChange={name=>onChange("service",name)}/></Field>}
  <Field label="动作"><select aria-label="高级规则动作" value={String(value.action||"accept")} onChange={e=>onChange("action",e.target.value)}><option value="accept">允许</option><option value="drop">丢弃</option><option value="reject">拒绝并回应</option></select></Field>
  </div><details className="advanced-form"><summary>高级选项 · 地址族、优先级与日志</summary><div className="form-grid"><Field label="地址族"><select aria-label="高级规则地址族" value={String(value.family||"ipv4")} onChange={e=>onChange("family",e.target.value)}><option value="ipv4">IPv4</option><option value="ipv6">IPv6</option></select></Field><Field label="优先级" hint="-32768至32767；0使用firewalld默认顺序"><NumberInput min={-32768} max={32767} value={Number(value.priority||0)} onChange={e=>onChange("priority",Number(e.target.value))}/></Field></div><label className="check"><input type="checkbox" checked={!!value.logging} onChange={e=>onChange("logging",e.target.checked)}/>记录匹配日志</label>{value.logging===true&&<Field label="日志速率限制"><input aria-label="高级规则日志速率" value={String(value.log_rate||"5/m")} onChange={e=>onChange("log_rate",e.target.value)}/></Field>}</details>
- <div className="firewall-human-summary">{value.source?String(value.source):"当前区域全部来源"} → {match==="port"?String(value.protocol||"tcp").toUpperCase()+" / "+String(value.port||"未填写端口"):match==="service"?"服务 "+String(value.service||"未选择"):"全部流量"} → {({accept:"允许",drop:"丢弃",reject:"拒绝并回应"} as Record<string,string>)[String(value.action||"accept")]}</div></>;
+ <div className="firewall-human-summary">{value.source?String(value.source):"当前区域全部来源"} → {String(value.destination || "任意目标")} → {match==="port"?String(value.protocol||"tcp").toUpperCase()+" / "+String(value.port||"未填写端口"):match==="service"?"服务 "+String(value.service||"未选择"):"全部流量"} → {({accept:"允许",drop:"丢弃",reject:"拒绝并回应"} as Record<string,string>)[String(value.action||"accept")]}</div></>;
 }
 
 export function FirewallChangeDetails({plan}:{plan:Plan}){
@@ -49,5 +56,5 @@ export function FirewallChangeDetails({plan}:{plan:Plan}){
 
 export function FirewallRuleSummary({value}:{value:Dict}){
  const action=({accept:"允许",drop:"丢弃",reject:"拒绝",masquerade:"地址伪装",snat:"源地址转换"} as Record<string,string>)[String(value.action)]||String(value.action||"未识别");
- return <><div className="firewall-human-summary">{String(value.source||"当前区域全部来源")} → {value.service?"服务 "+String(value.service):value.port?String(value.protocol||"").toUpperCase()+" / "+String(value.port):"匹配条件见原始规则"} → {action}</div><dl className="firewall-rule-facts"><div><dt>区域</dt><dd>{String(value.zone||"—")}</dd></div><div><dt>管理归属</dt><dd>{value.managed?"本应用管理":"系统／外部"}</dd></div><div><dt>运行时</dt><dd>{value.partial_runtime?"部分生效":value.runtime?"存在":"不存在"}</dd></div><div><dt>永久配置</dt><dd>{value.partial_permanent?"部分存在":value.permanent?"存在":"不存在"}</dd></div><div><dt>编辑能力</dt><dd>{value.editable===false?"只读：当前表单不能无损重建全部条件":value.managed?"可通过预览修改":"需先纳入管理"}</dd></div></dl><details className="advanced-form"><summary>原始规则与完整字段</summary><pre className="command-preview">{String(value.raw||"未提供原始规则")}</pre><pre className="json-details">{JSON.stringify(value,null,2)}</pre></details></>;
+ return <><div className="firewall-human-summary">{String(value.source||"当前区域全部来源")} → {String(value.destination || "任意目标")} → {value.service?"服务 "+String(value.service):value.port?String(value.protocol||"").toUpperCase()+" / "+String(value.port):"匹配条件见原始规则"} → {action}</div><dl className="firewall-rule-facts"><div><dt>区域</dt><dd>{String(value.zone||"—")}</dd></div><div><dt>管理归属</dt><dd>{value.managed?"本应用管理":"系统／外部"}</dd></div><div><dt>运行时</dt><dd>{value.partial_runtime?"部分生效":value.runtime?"存在":"不存在"}</dd></div><div><dt>永久配置</dt><dd>{value.partial_permanent?"部分存在":value.permanent?"存在":"不存在"}</dd></div><div><dt>编辑能力</dt><dd>{value.editable===false?"只读：当前表单不能无损重建全部条件":value.managed?"可通过预览修改":"需先纳入管理"}</dd></div></dl><details className="advanced-form"><summary>原始规则与完整字段</summary><pre className="command-preview">{String(value.raw||"未提供原始规则")}</pre><pre className="json-details">{JSON.stringify(value,null,2)}</pre></details></>;
 }

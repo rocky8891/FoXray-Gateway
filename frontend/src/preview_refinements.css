@@ -1603,6 +1603,8 @@ html:has(main>.overview-page) .overview-node-table>.table-wrap {overflow-y:auto}
   }
   .overview-page .service-host.summary-v417.service-overview-card.service-style-metrics[class]:not([data-adaptive-circles=true]) .summary-metric:hover,
   .overview-page .service-host.summary-v417.service-overview-card[class]:not([data-adaptive-circles=true]) .summary-metric:hover {
-    border-color:var(--overview-xray-detail-edge,var(--overview-detail-edge,var(--line)))!important;
+    border-color:transparent!important;
+    outline-color:transparent!important;
+    box-shadow:none!important;
   }
 }

@@ -901,6 +901,7 @@ export function RowActions({
 export type Column<T> = {
   width?: string;
   maxWidth?: number;
+  fitContent?: boolean;
   key: string;
   label: string;
   heading?: ReactNode;
