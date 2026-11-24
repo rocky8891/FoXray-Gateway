@@ -922,6 +922,18 @@ header nav .nav-home-fox-icon > svg { width: 27px; height: 29px; max-height: cal
 }
 .overview-side-tools .home-header-toggle svg, header .brand .brand-logo { overflow: visible; }
 .overview-side-tools button.home-header-toggle svg { width: 27px !important; height: 29px !important; flex: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .home-tools-dock:not([data-auto-hide="true"]) .home-header-toggle > svg,
+  .home-tools-dock[data-auto-hide="true"] .overview-side-tools[aria-label] .home-header-toggle > svg {
+    animation: home-sidebar-logo-arrive 340ms both;
+  }
+}
+@keyframes home-sidebar-logo-arrive {
+  0% { transform: scale(.72); }
+  52% { transform: translateY(-3px) scale(1.12); }
+  76% { transform: translateY(1px) scale(.96); }
+  100% { transform: none; }
+}
 .task-detail-heading { display: flex; flex-wrap: wrap; }
 .task-detail-heading > strong { flex: 0 0 100%; order: -1; white-space: normal; overflow-wrap: anywhere; }
 .task-detail-heading > .button:last-child { margin-left: auto; }

@@ -68,3 +68,9 @@
   text-overflow: clip;
 }
 .diagnostic-log-timestamp { font-variant-numeric: tabular-nums; }
+
+.log-table-panel > .page-heading > .actions > .adaptive-search { flex: 1 1 180px; }
+.log-table-panel .table-wrap { margin-top: 8px; }
+.diagnostic-log-panel .table-wrap table { font-size: 13px; }
+.diagnostic-log-panel .table-wrap th { font-size: 12px; }
+.diagnostic-log-panel .table-wrap td { font-size: 13px; }

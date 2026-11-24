@@ -41,12 +41,14 @@ import {
   PageHeader,
   Panel,
   useResource,
+  SecondaryNav,
 } from "./ui";
 import { Nodes, Subscriptions, type Act } from "./nodes";
 import { Diagnostics, History, Operations, Switches } from "./views";
 import { Komari, WarpPage } from "./warp";
 import { NetworkPending } from "./network";
 import { FirewallPage } from "./firewall";
+import { FirewallDiagnosis } from "./firewall_diagnosis";
 import "./style.css";
 import "./button_system.css";
 import "./toolbar_layout.css";
@@ -84,6 +86,7 @@ const pageHeadings: Partial<Record<Page, [string, string]>> = {
 };
 function App() {
   useCompactSelects();
+  const [diagnosticTab, setDiagnosticTab] = useState("path");
   useEffect(() => {
     const handler = (event: Event) => {
       if ((event as CustomEvent).detail === "wireguard") {
@@ -423,7 +426,18 @@ function App() {
         content = <FirewallPage act={act} />;
         break;
       case "diagnostics":
-        content = <Diagnostics act={act} />;
+        content = <>
+          <SecondaryNav label="诊断分类">
+            <div className="module-tabs" role="tablist" aria-label="诊断分类">
+              {[["path", "转发路径诊断"], ["firewall", "防火墙规则诊断"]].map(([id, title]) => (
+                <button key={id} role="tab" aria-selected={diagnosticTab === id} onClick={() => setDiagnosticTab(id)}>
+                  {labelIcon(id === "path" ? "路径探测" : "规则诊断", 14)}{title}
+                </button>
+              ))}
+            </div>
+          </SecondaryNav>
+          {diagnosticTab === "firewall" ? <FirewallDiagnosis act={act} /> : <Diagnostics act={act} />}
+        </>;
         break;
       case "monitor":
         content = state.components.komari ? (

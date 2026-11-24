@@ -1,9 +1,11 @@
+import { AdaptiveSearch } from "./adaptive_search";
+import { Search } from "lucide-react";
 import { ProductIcon } from "./product_icons";
 import { XrayObservationPolicy, DEFAULT_DIRECT_DNS, DEFAULT_PROXY_DNS } from "./xray_observation_policy";
-import { ListFilter, ResetFilters } from "./list_controls";
+import { ListFilter, ResetFilters, SortHeading } from "./list_controls";
 import { MarkAllReadButton, ReadBadge, logReadKeys, switchReadKeys, useReadState } from "./read_state";
 import { hasChanges } from "./settings_save";
-import { PaginatedCards } from "./resource_controls";
+import { ExportButton, PaginatedCards } from "./resource_controls";
 import { NodeManagementIcon } from "./requirement_icons";
 import { TrueLatencyIcon } from "./requirement_icons";
 import { useMonitorSections } from "./monitor_sections";
@@ -446,6 +448,55 @@ export function History({
     </>
   );
 }
+type LogValues<T> = Record<string, (row: T) => string | number>;
+
+function useLogTable<T>(source: T[], values: LogValues<T>, defaultSort: string) {
+  const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [sort, setSort] = useState({ key: defaultSort, direction: -1 });
+  const term = query.trim().toLocaleLowerCase();
+  const rows = source.filter(row =>
+    (!term || Object.values(values).some(value => String(value(row)).toLocaleLowerCase().includes(term))) &&
+    Object.entries(filters).every(([key, choice]) => !choice || String(values[key](row)) === choice),
+  ).sort((a, b) => {
+    const x = values[sort.key](a), y = values[sort.key](b);
+    return sort.direction * (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "zh-CN", { numeric: true }));
+  });
+  const columns = (items: Column<T>[], filterKeys: string[]) => items.map(column => {
+    const key = column.key;
+    if (!values[key]) return column;
+    const direction = sort.key === key ? sort.direction : undefined;
+    const choices = filterKeys.includes(key) ? [...new Set(source.map(row => String(values[key](row))))].filter(Boolean).sort() : [];
+    return {
+      ...column,
+      sortDirection: direction === 1 ? "ascending" as const : direction === -1 ? "descending" as const : undefined,
+      heading: <span className="table-heading-tools">
+        <SortHeading label={column.label} direction={direction} onClick={() => setSort({ key, direction: direction === 1 ? -1 : 1 })} />
+        {column.heading}
+        {filterKeys.includes(key) && <ListFilter label={column.label + "筛选"} column active={!!filters[key]}>
+          <Field label={column.label}>
+            <select aria-label={column.label + "筛选选项"} value={filters[key] || ""} onChange={event => setFilters({ ...filters, [key]: event.target.value })}>
+              <option value="">全部</option>
+              {filters[key] && !choices.includes(filters[key]) && <option value={filters[key]}>{filters[key]}</option>}
+              {choices.map(choice => <option key={choice} value={choice}>{choice}</option>)}
+            </select>
+          </Field>
+          <Button onClick={() => setFilters({ ...filters, [key]: "" })}>重置</Button>
+        </ListFilter>}
+      </span>,
+    };
+  });
+  const tools = (widthKey: string, name: string, exportColumns: [string, (row: T) => unknown][], resetExtra?: () => void) => <>
+    <AdaptiveSearch tableWidthKey={widthKey}>
+      <Search size={15} />
+      <input aria-label="搜索日志" placeholder="搜索当前已加载的日志" value={query} onChange={event => setQuery(event.target.value)} />
+    </AdaptiveSearch>
+    <ResetFilters active={!!term || Object.values(filters).some(Boolean)} onClick={() => { setQuery(""); setFilters({}); setSort({ key: defaultSort, direction: -1 }); resetExtra?.(); }} />
+    <ExportButton name={name} rows={rows} columns={exportColumns} />
+  </>;
+  return { rows, columns, tools };
+}
+
 export function Operations({
   kind = "",
   title = "操作日志",
@@ -480,20 +531,24 @@ export function Operations({
       ]),
     ).values(),
   ];
+  const widthKey = `logs-${kind || "operations"}`;
+  const read = (row: Operation) => isRead(logReadKeys(row)) ? "已读" : "未读";
+  const status = (row: Operation) => row.status === "partial" ? "部分成功" : row.status === "error" ? "失败" : "成功";
+  const table = useLogTable(rows, { time: row => row.time, message: row => row.message, read, status }, "time");
   return (
-    <Panel>
+    <Panel className="log-table-panel">
       <PageHeader
         title={title}
         description="UI操作日志自动标为已读；其他日志查看详情后标为已读。阅读状态保存在当前浏览器，日志仍按服务器保留周期清理。"
         actions={<>
           <Button onClick={() => void refresh()}>刷新</Button>
-          <span data-table-width-slot={`logs-${kind || "operations"}`} />
+          {table.tools(widthKey, title, [["时间", row => timestamp(row.time)], ["类型", row => row.action], ["操作内容", row => row.message], ["阅读状态", read], ["结果", status]])}
           <MarkAllReadButton disabled={!rows.some(r => !isRead(logReadKeys(r)))} onClick={() => markRead(rows.flatMap(logReadKeys))} />
         </>}
       />
       <ErrorLine error={error || failure} />
       <Table
-        columnSizingKey={`logs-${kind || "operations"}`}
+        columnSizingKey={widthKey}
         footerActions={
           data?.next && (
             <Button
@@ -506,9 +561,9 @@ export function Operations({
             </Button>
           )
         }
-        rows={rows}
+        rows={table.rows}
         rowKey={(r) => r.id}
-        columns={[
+        columns={table.columns([
           { key: "serial", label: "序号", render: (_, i) => i + 1 },
           {
             key: "time",
@@ -563,7 +618,7 @@ export function Operations({
               </Button>
             ),
           },
-        ]}
+        ], ["read", "status"])}
       />
       {detail && (
         <Modal
@@ -589,23 +644,27 @@ export function Switches() {
     "/api/switches",
     5000,
   );
+  const read = (row: Dict) => isRead(switchReadKeys(row)) ? "已读" : "未读";
+  const method = (row: Dict) => row.method === "auto" ? "自动" : "手动";
+  const status = (row: Dict) => row.status === "success" ? "成功" : "失败";
+  const table = useLogTable(data?.items || [], { t: row => Number(row.time), method, source: row => text(row.source), target: row => text(row.target), duration: row => Number(row.duration) || 0, error: row => text(row.error), read, status }, "t");
   return (
-    <Panel>
+    <Panel className="log-table-panel">
       <PageHeader
         title="切换日志"
         description="记录最近 500 次出口切换，含自动／手动与失败原因；保存于服务器"
         actions={<>
           <Button onClick={() => void refresh()}>刷新</Button>
-          <span data-table-width-slot="logs-switches" />
+          {table.tools("logs-switches", "切换日志", [["时间", row => timestamp(row.time)], ["方式", method], ["原出口", row => row.source], ["目标出口", row => row.target], ["耗时（秒）", row => row.duration], ["原因", row => row.error], ["阅读状态", read], ["结果", status]])}
           <MarkAllReadButton disabled={!(data?.items || []).some(r => !isRead(switchReadKeys(r)))} onClick={() => markRead((data?.items || []).flatMap(switchReadKeys))} />
         </>}
       />
       <ErrorLine error={error} />
       <Table
         columnSizingKey="logs-switches"
-        rows={data?.items || []}
+        rows={table.rows}
         rowKey={(r) => String(r.time) + String(r.target)}
-        columns={[
+        columns={table.columns([
           { key: "i", label: "序号", render: (_, i) => i + 1 },
           { key: "t", label: "时间", render: (r) => timestamp(r.time) },
           {
@@ -624,7 +683,7 @@ export function Switches() {
           { key: "read", label: "阅读状态", render: (r) => <ReadBadge read={isRead(switchReadKeys(r))} /> },
           { key: "status", label: "结果", render: (r) => (r.status === "success" ? "成功" : "失败") },
           { key: "details", label: "详情", render: (r) => <Button iconOnly title="查看日志" ariaLabel="查看日志" onClick={() => { setDetail(r); markRead(switchReadKeys(r)); }}>{labelIcon("查看日志", 18)}</Button> },
-        ]}
+        ], ["method", "read", "status"])}
       />
       {detail && <Modal title="切换日志详情" copyText={JSON.stringify(detail, null, 2)} onClose={() => setDetail(null)}>
         <p>{timestamp(detail.time)} · {detail.method === "auto" ? "自动" : "手动"} · {detail.status === "success" ? "成功" : "失败"}</p>
@@ -1761,15 +1820,19 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
     (row.action === "diagnostic.result" || row.action === "diagnostic.finished") &&
     (firewallOnly ? isFirewall(row) : kind === "" || isFirewall(row) === (kind === "firewall")),
   );
+  const read = (row: Operation) => isLogRead(row) ? "已读" : "未读";
+  const type = (row: Operation) => isFirewall(row) ? "防火墙规则诊断" : "转发路径诊断";
+  const status = (row: Operation) => row.status === "success" ? "通过" : "未全部通过";
+  const table = useLogTable(rows, { time: row => row.time, type, message: row => row.message, read, status }, "time");
   return (
     <>
       {" "}
-      <Panel>
+      <Panel className="log-table-panel diagnostic-log-panel">
         <PageHeader
           title="诊断日志"
           actions={<>
             <Button onClick={() => void history.refresh()}>刷新</Button>
-            <span data-table-width-slot={widthKey} />
+            {table.tools(widthKey, "诊断日志", [["时间", row => timestamp(row.time)], ["诊断类型", type], ["内容", row => row.message], ["阅读状态", read], ["结果", status]], () => setKind(""))}
             <MarkAllReadButton disabled={!rows.some(row => !isLogRead(row))} onClick={() => markRead(rows.flatMap(logReadKeys))} />
           </>}
         />
@@ -1780,16 +1843,15 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
         <ErrorLine error={history.error} />
         <Table
           columnSizingKey={widthKey}
-          rows={rows}
+          rows={table.rows}
           rowKey={(r) => r.id}
-          columns={[
+          columns={table.columns([
             { key: "time", label: "时间", className: "diagnostic-log-time", render: (r) => <span className="diagnostic-log-timestamp">{timestamp(r.time)}</span> },
             {
               key: "type",
               label: "诊断类型",
               heading: firewallOnly ? undefined : (
                 <span className="table-heading-tools">
-                  诊断类型
                   <ListFilter label="诊断类型筛选" column active={kind !== ""}>
                     <Field label="诊断类型">
                       <select aria-label="诊断类型" value={kind} onChange={event => setKind(event.target.value)}>
@@ -1833,7 +1895,7 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
                 </div>
               ),
             },
-          ]}
+          ], ["read", "status"])}
         />
         {detail && (
           <Modal

@@ -3,10 +3,14 @@ import { useState, type FormEvent } from "react";
 import { DiagnosticIcon } from "./diagnostic_icon";
 import { DiagnosticProgress, DiagnosticReport, useDiagnosticRunner } from "./diagnostic_result";
 import type { Act } from "./nodes";
-import { Button, Field, Panel } from "./ui";
+import { Button, Field, PageHeader, Panel } from "./ui";
 import { DiagnosticLog } from "./views";
 
-export function FirewallDiagnosis({ driver, act }: { driver: string; act: Act }) {
+export function FirewallDiagnosis({ initialDriver, act }: { initialDriver?: string; act: Act }) {
+  const [driver, setDriver] = useState(() => {
+    const saved = initialDriver || localStorage.getItem("foxray.firewall.driver");
+    return saved === "nftables" || saved === "iptables" ? saved : "firewalld";
+  });
   const [protocol, setProtocol] = useState("tcp");
   const diagnostic = useDiagnosticRunner(act);
   function diagnose(event: FormEvent<HTMLFormElement>) {
@@ -17,10 +21,18 @@ export function FirewallDiagnosis({ driver, act }: { driver: string; act: Act })
   }
   return <>
     <Panel className="firewall-main-panel management-panel">
-      <div className="firewall-rules-heading">
-        <h3><DiagnosticIcon size={20} className="firewall-heading-icon" />规则诊断</h3>
-        <span className="muted">按运行时规则推演 LAN 转发</span>
-      </div>
+      <PageHeader
+        title="规则诊断"
+        description="按运行时规则推演 LAN 转发"
+        icon={<DiagnosticIcon size={20} />}
+        actions={<Field label="管理工具">
+          <select aria-label="诊断管理工具" value={driver} onChange={event => setDriver(event.target.value)}>
+            <option value="firewalld">firewalld</option>
+            <option value="nftables">nftables</option>
+            <option value="iptables">iptables</option>
+          </select>
+        </Field>}
+      />
       <form onSubmit={diagnose}>
         <div className="form-grid">
           <Field label="源 IP"><input name="source" placeholder="192.0.2.10" required /></Field>
@@ -34,7 +46,7 @@ export function FirewallDiagnosis({ driver, act }: { driver: string; act: Act })
           <Field label="入口接口"><input name="ingress" placeholder="ens16" required /></Field>
         </div>
         <div className="actions">
-          <Button type="submit" variant="primary" disabled={diagnostic.pending || driver === "ufw"}>
+          <Button type="submit" variant="primary" disabled={diagnostic.pending}>
             <CircleDot size={14} aria-hidden="true" />
             {diagnostic.pending ? "诊断中…" : "开始诊断"}
           </Button>

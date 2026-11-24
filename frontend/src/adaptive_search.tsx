@@ -10,7 +10,7 @@ export function AdaptiveSearch({ children, tableWidthKey }: { children: ReactNod
   useLayoutEffect(() => {
     const root = ref.current,
       bar = root?.closest<HTMLElement>(
-        ".management-toolbar,.monitor-search-row,.filter-bar",
+        ".management-toolbar,.monitor-search-row,.filter-bar,.log-table-panel > .page-heading > .actions",
       );
     if (!root || !bar) return;
     const measure = () => {

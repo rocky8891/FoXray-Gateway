@@ -68,15 +68,16 @@ export function FirewallPage({ act }: { act: Act }) {
     [owner, setOwner] = useState("all"),
     [ruleAction, setRuleAction] = useState("all"),
     [configScope,setConfigScope]=useState("all");
+  const diagnosing = category === "diagnosis";
   const resource = useResource<Dict>(
     "/api/network/firewall?driver=" +
       driver +
       "&zone=" +
       encodeURIComponent(zone),
     15000,
-    category !== "cross-zone",
+    category !== "cross-zone" && !diagnosing,
   );
-  const serviceResource=useResource<Dict>("/api/network/firewall/service?driver="+encodeURIComponent(driver),5000);
+  const serviceResource=useResource<Dict>("/api/network/firewall/service?driver="+encodeURIComponent(driver),5000,!diagnosing);
   const crossZone = category === "cross-zone";
   const crossResource = useResource<Dict>("/api/network/firewall/cross-zone", 30000, crossZone);
   const [crossFilter, setCrossFilter] = useState("all");
@@ -536,7 +537,7 @@ export function FirewallPage({ act }: { act: Act }) {
                 ))}
             </div>
         </SecondaryNav>
-        <FirewallWorkspace crossZone={crossZone} serviceData={serviceResource.data} serviceError={serviceResource.error || ""} rulesLoading={crossZone ? crossResource.loading : resource.loading} data={crossZone ? (crossResource.data ? {...serviceResource.data, ...crossResource.data, zone, driver, entries:crossResource.data.items} : null) : resource.data ? {...resource.data,entries:all} : null} error={(crossZone ? crossResource.error : resource.error) || ""} driver={driver} zone={zone} lastRead={lastRead} refreshing={refreshing}
+        {!diagnosing && <FirewallWorkspace crossZone={crossZone} serviceData={serviceResource.data} serviceError={serviceResource.error || ""} rulesLoading={crossZone ? crossResource.loading : resource.loading} data={crossZone ? (crossResource.data ? {...serviceResource.data, ...crossResource.data, zone, driver, entries:crossResource.data.items} : null) : resource.data ? {...resource.data,entries:all} : null} error={(crossZone ? crossResource.error : resource.error) || ""} driver={driver} zone={zone} lastRead={lastRead} refreshing={refreshing}
           refresh={()=>{setRefreshing(true);void Promise.all([(crossZone ? crossResource : resource).refresh(),serviceResource.refresh()]).finally(()=>setRefreshing(false))}}
           changeDriver={value=>{setDriver(value);setCategory("all");setRuleType("all");localStorage.setItem("foxray.firewall.driver",value);setZone(value==="firewalld"?"public":"host");setSelected(new Set());setQuery("");setProtocol("all");setStatus("all");setOwner("all");setRuleAction("all");setConfigScope("all");setForm(null);setPlan(null);setFailure("")}}
           changeZone={value=>{setZone(value);setSelected(new Set());setQuery("");setProtocol("all");setStatus("all");setOwner("all");setRuleAction("all");setConfigScope("all");setForm(null);setPlan(null);setFailure("")}}
@@ -550,8 +551,8 @@ export function FirewallPage({ act }: { act: Act }) {
           manageSources={()=>start("add",{kind:"zone-source",driver,zone,source:"",binding_action:"bind"})}
           editDefault={()=>start("add",{kind:"zone-default",driver,zone:String(record(resource.data?.zone_policy).default_zone||zone)})}
           editPolicy={()=>{const policy=record(resource.data?.zone_policy),runtime=record(policy.runtime),permanent=record(policy.permanent);start("add",{kind:"zone-policy",driver,zone,target:String(permanent.target||runtime.target||"default"),target_apply:"permanent",target_ack:false,reload_ack:false,masquerade:runtime.masquerade===true,icmp_blocks:Array.isArray(runtime.icmp_blocks)?runtime.icmp_blocks:[],icmp_inversion:runtime.icmp_inversion===true,forward:typeof runtime.forward==="boolean"?runtime.forward:undefined})}}
-        />
-      {category === "diagnosis" ? <FirewallDiagnosis driver={driver} act={act} /> : crossZone ? <CrossZoneRules linkedRule={linkedCategory === "cross-zone" ? linkedRule : ""} act={act} resource={crossResource} filter={crossFilter} resetFilter={()=>setCrossFilter("all")} /> : <Panel className="firewall-main-panel management-panel">
+        />}
+      {diagnosing ? <FirewallDiagnosis initialDriver={driver} act={act} /> : crossZone ? <CrossZoneRules linkedRule={linkedCategory === "cross-zone" ? linkedRule : ""} act={act} resource={crossResource} filter={crossFilter} resetFilter={()=>setCrossFilter("all")} /> : <Panel className="firewall-main-panel management-panel">
         <ErrorLine error={resource.error || failure} />
         {!!resource.data?.error && (
           <p className="hint">{text(resource.data.error)}</p>
