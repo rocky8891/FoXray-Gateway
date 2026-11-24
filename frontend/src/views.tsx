@@ -1738,8 +1738,9 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
   const { isRead, markRead } = useReadState();
   const diagnostic = useDiagnosticRunner(act);
   const [detail, setDetail] = useState<Operation | null>(null);
+  const [kind, setKind] = useState("");
   const history = useResource<{ items: Operation[] }>(
-    "/api/diagnostics/history" + (firewallOnly ? "?kind=firewall" : ""),
+    "/api/diagnostics/history?kind=" + (firewallOnly ? "firewall" : kind),
     10000,
   );
   useEffect(() => {
@@ -1754,7 +1755,12 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
       markRead(logReadKeys(diagnostic.result));
     }
   }, [diagnostic.result, markRead]);
-  const rows = (history.data?.items || []).filter(r => r.action === "diagnostic.result" || r.action === "diagnostic.finished");
+  const isFirewall = (row: Operation) => record(row.details?.parameters).kind === "firewall";
+  const isLogRead = (row: Operation) => (isFirewall(row) && Boolean(row.details?.ui_action)) || isRead(logReadKeys(row));
+  const rows = (history.data?.items || []).filter(row =>
+    (row.action === "diagnostic.result" || row.action === "diagnostic.finished") &&
+    (firewallOnly ? isFirewall(row) : kind === "" || isFirewall(row) === (kind === "firewall")),
+  );
   return (
     <>
       {" "}
@@ -1764,7 +1770,12 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
           actions={<>
             <Button onClick={() => void history.refresh()}>刷新</Button>
             <span data-table-width-slot={widthKey} />
-            <MarkAllReadButton disabled={!rows.some(r => !isRead(logReadKeys(r)))} onClick={() => markRead(rows.flatMap(logReadKeys))} />
+            {!firewallOnly && <select aria-label="诊断类型" value={kind} onChange={event => setKind(event.target.value)}>
+              <option value="">全部诊断类型</option>
+              <option value="firewall">防火墙规则诊断</option>
+              <option value="path">转发路径诊断</option>
+            </select>}
+            <MarkAllReadButton disabled={!rows.some(row => !isLogRead(row))} onClick={() => markRead(rows.flatMap(logReadKeys))} />
           </>}
         />
         <DiagnosticProgress
@@ -1778,8 +1789,9 @@ export function DiagnosticLog({ act, firewallOnly = false }: { act: Act; firewal
           rowKey={(r) => r.id}
           columns={[
             { key: "time", label: "时间", className: "diagnostic-log-time", render: (r) => <span className="diagnostic-log-timestamp">{timestamp(r.time)}</span> },
+            { key: "type", label: "诊断类型", render: (row) => isFirewall(row) ? "防火墙规则诊断" : "转发路径诊断" },
             { key: "message", label: "内容", render: (r) => r.message },
-            { key: "read", label: "阅读状态", render: (r) => <ReadBadge read={isRead(logReadKeys(r))} /> },
+            { key: "read", label: "阅读状态", render: (row) => <ReadBadge read={isLogRead(row)} /> },
             {
               key: "status",
               label: "结果",

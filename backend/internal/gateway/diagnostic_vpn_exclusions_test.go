@@ -209,7 +209,11 @@ func TestFirewallDiagnosticDomainHistoryAndReplay(t *testing.T) {
 	if err := a.diagnose(a.ctx, j, params); err != nil {
 		t.Fatal(err)
 	}
-	rows := a.diagnosticHistory("", true)["items"].([]M)
+	paths := a.diagnosticHistory("", "path")["items"].([]M)
+	if len(paths) != 1 || paths[0]["message"] != "global diagnostic" {
+		t.Fatal("path history includes firewall results or lost global history")
+	}
+	rows := a.diagnosticHistory("", "firewall")["items"].([]M)
 	if len(rows) != 1 {
 		t.Fatalf("firewall history count = %d", len(rows))
 	}

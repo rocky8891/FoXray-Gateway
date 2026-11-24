@@ -264,7 +264,7 @@ func (a *App) audit(action, message string, ok bool, details M, uiAction ...stri
 	_ = a.pruneLogs(false)
 	return nil
 }
-func (a *App) operations(before, kind string, firewallOnly ...bool) M {
+func (a *App) operations(before, kind string, diagnosticKind ...string) M {
 	q := "SELECT id,t,level,action,status,message,details FROM operations WHERE 1=1"
 	args := []any{}
 	if kind == "" {
@@ -278,8 +278,13 @@ func (a *App) operations(before, kind string, firewallOnly ...bool) M {
 		q += " AND action LIKE ?"
 		args = append(args, kind+"%")
 	}
-	if len(firewallOnly) > 0 && firewallOnly[0] {
-		q += " AND action='diagnostic.result' AND json_extract(details,'$.parameters.kind')='firewall'"
+	if len(diagnosticKind) > 0 {
+		switch diagnosticKind[0] {
+		case "firewall":
+			q += " AND action='diagnostic.result' AND json_extract(details,'$.parameters.kind')='firewall'"
+		case "path":
+			q += " AND COALESCE(json_extract(details,'$.parameters.kind'),'')!='firewall'"
+		}
 	}
 	q += " ORDER BY t DESC LIMIT 50"
 	rows, e := a.logdb.Query(q, args...)

@@ -153,7 +153,17 @@ function FirewallDiagnosticFacts({ data }: { data: Dict }) {
         rows={candidates}
         rowKey={(row) => String(candidates.indexOf(row))}
         columns={[
-          { key: "name", label: "规则", render: row => text(row.name || "未命名规则") },
+          { key: "name", label: "规则", render: row => {
+            const name = text(row.name || "未命名规则");
+            if (!row.id) return name;
+            const action = String(row.action);
+            let category = "all";
+            if (row.kind === "cross-zone") category = "cross-zone";
+            else if (row.kind === "forward" || ["dnat", "redirect"].includes(action)) category = "forward";
+            else if (row.kind === "masquerade" || ["snat", "masquerade"].includes(action)) category = "masquerade";
+            const params = new URLSearchParams({firewallRule: String(row.id), ruleDriver: String(result.driver || "firewalld"), ruleZone: String(result.zone || "public"), ruleCategory: category});
+            return <a className="table-link" href={`/?${params}`} target="_blank" rel="noopener noreferrer">{name}</a>;
+          } },
           { key: "action", label: "动作", render: row => text(row.action) },
           { key: "range", label: "匹配范围", render: row => `${text(row.source || "任意来源")} → ${text(row.destination || "任意目标")}${row.port ? ` · ${text(row.port)}` : ""}` },
           { key: "evidence", label: "匹配依据", render: row => text(row.evidence || "无可解析字段") },

@@ -10,13 +10,14 @@ import { ExportButton, useRowSelection } from "./resource_controls";
 import type { Act } from "./nodes";
 
 const actions: Record<string,string> = {accept:"允许",drop:"丢弃",reject:"拒绝并回应"};
-export function CrossZoneRules({act, resource, filter, resetFilter}: {
+export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule = ""}: {
+  linkedRule?: string;
   act: Act;
   resource: ReturnType<typeof useResource<Dict>>;
   filter: string;
   resetFilter: () => void;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(linkedRule);
   const [priorityOrder,setPriorityOrder] = useState(1);
   const [stateFilter,setStateFilter] = useState("all");
   const [form,setForm]=useState<Dict|null>(null),[operation,setOperation]=useState("add"),[ack,setAck]=useState(false);
@@ -46,7 +47,7 @@ export function CrossZoneRules({act, resource, filter, resetFilter}: {
       (filter === "managed" && row.managed) ||
       (filter === "external" && !row.managed) ||
       (filter === "blocked" && ["drop", "reject"].includes(String(row.action)));
-    return matchesFilter && (stateFilter === "all" || !!row.enabled === (stateFilter === "enabled")) && JSON.stringify(row).toLowerCase().includes(query.trim().toLowerCase());
+    return matchesFilter && (stateFilter === "all" || !!row.enabled === (stateFilter === "enabled")) && (linkedRule && query === linkedRule ? text(row.id) === linkedRule : JSON.stringify(row).toLowerCase().includes(query.trim().toLowerCase()));
   }).sort((a,b)=>(Number(a.priority ?? -1)-Number(b.priority ?? -1))*priorityOrder);
   const selection = useRowSelection(rows, row => text(row.id), row => !!row.managed);
   const batchLabels: Record<string,string> = {enable:"启用",disable:"停用",delete:"删除"};

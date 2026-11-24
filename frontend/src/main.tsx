@@ -96,6 +96,7 @@ function App() {
     return () => window.removeEventListener("foxray:navigate", handler);
   }, []);
   const [page, setPage] = useState<Page>(() => {
+      if (new URLSearchParams(location.search).has("firewallRule")) return "firewall";
       let saved = localStorage.getItem("foxray.page");
       if (saved === "nodes" || saved === "subscriptions") {
         localStorage.setItem("foxray.xray.tab", saved);
@@ -146,8 +147,14 @@ function App() {
   const [headerExpanded, setHeaderExpanded] = useState(false);
   const [headerOrigin, setHeaderOrigin] = useState("calc(100vw - 30px) 150px");
   const headerCollapsed = hideHomeHeader && !headerExpanded;
-  const showNavFox = headerAutoHide && headerExpanded;
-  const collapseInNav = showNavFox && page === "overview";
+  const [headerClosing, setHeaderClosing] = useState(false);
+  const showNavFox = headerAutoHide && (headerExpanded || headerClosing);
+  const collapseInNav = hideHomeHeader && headerExpanded && page === "overview";
+  useEffect(() => {
+    if (!headerClosing) return;
+    const timer = window.setTimeout(() => setHeaderClosing(false), 600);
+    return () => window.clearTimeout(timer);
+  }, [headerClosing]);
   const moveHeaderFocus = useRef(false);
   const animateHeaderNavigation = useRef(false);
   useLayoutEffect(() => {
@@ -208,6 +215,11 @@ function App() {
   }, [headerCollapsed]);
   const navigate = (next: Page, keepHeaderHidden = false) => {
     if (collapseInNav && next !== page) animateHeaderNavigation.current = true;
+    const url = new URL(location.href);
+    if (next !== "firewall" && url.searchParams.has("firewallRule")) {
+      for (const key of ["firewallRule", "ruleCategory", "ruleDriver", "ruleZone"]) url.searchParams.delete(key);
+      history.replaceState(null, "", url);
+    }
     setMonitorHeaderHidden(keepHeaderHidden);
     sessionStorage.setItem("foxray.monitor.header-hidden", String(keepHeaderHidden));
     setOverviewEditor(undefined);
@@ -445,6 +457,7 @@ function App() {
       moveHeaderFocus.current = page === "overview" && keyboard;
       const box = button.getBoundingClientRect();
       setHeaderOrigin(`${box.x + box.width / 2}px ${box.y + box.height / 2}px`);
+      setHeaderClosing(false);
       setHeaderExpanded(value => !value);
     }}}>
     <UpdatesContext.Provider
@@ -504,13 +517,14 @@ function App() {
                 <button
                   type="button"
                   key={id}
-                  className={`nav-tab${id === "monitor" ? " integrated" : ""}${id === "overview" ? " nav-home-icon-button" : ""}${foxIcon ? " nav-home-fox" : ""}${collapse ? " nav-home-collapse" : ""}`}
+                  className={`nav-tab${id === "monitor" ? " integrated" : ""}${id === "overview" ? " nav-home-icon-button" : ""}${foxIcon ? " nav-home-fox" : ""}${collapse ? " nav-home-collapse" : ""}${foxIcon && headerClosing ? " nav-home-closing" : ""}`}
                   aria-current={!collapse && page === id ? "page" : undefined}
                   aria-label={collapse ? "收起首页标题栏" : id === "overview" ? label : undefined}
                   title={collapse ? "收起首页标题栏" : id === "overview" ? label : undefined}
                   onClick={event => {
                     if (collapse) {
                       moveHeaderFocus.current = event.detail === 0;
+                      setHeaderClosing(!window.matchMedia("(prefers-reduced-motion: reduce)").matches);
                       setHeaderExpanded(false);
                     } else {
                       navigate(id);

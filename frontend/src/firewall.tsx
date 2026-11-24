@@ -51,13 +51,18 @@ const strategies: Record<string, string> = {
   reject: "拒绝",
 };
 export function FirewallPage({ act }: { act: Act }) {
+  const link = new URLSearchParams(location.search);
+  const linkedRule = link.get("firewallRule") || "";
+  const linkedDriver = linkedRule ? link.get("ruleDriver") : null;
+  const linkedZone = linkedRule ? link.get("ruleZone") : null;
+  const linkedCategory = linkedRule ? link.get("ruleCategory") : null;
   const [driver, setDriver] = useState(
-    () => localStorage.getItem("foxray.firewall.driver") || "firewalld",
+    () => linkedDriver && ["firewalld", "nftables", "iptables"].includes(linkedDriver) ? linkedDriver : localStorage.getItem("foxray.firewall.driver") || "firewalld",
   );
-  const [zone, setZone] = useState("public"),
-    [category, setCategory] = useState("all"),
+  const [zone, setZone] = useState(linkedZone || "public"),
+    [category, setCategory] = useState(categories.some(([id]) => id === linkedCategory && id !== "diagnosis") ? linkedCategory! : "all"),
     [ruleType, setRuleType] = useState("all"),
-    [query, setQuery] = useState(""),
+    [query, setQuery] = useState(linkedCategory === "cross-zone" ? "" : linkedRule),
     [protocol, setProtocol] = useState("all"),
     [status, setStatus] = useState("all"),
     [owner, setOwner] = useState("all"),
@@ -105,7 +110,7 @@ export function FirewallPage({ act }: { act: Act }) {
             (status === "all" || !!r.enabled === (status === "enabled")) &&
             (owner === "all" || !!r.managed === (owner === "managed")) &&
             (ruleAction === "all" || (ruleAction === "blocked" ? ["drop","reject"].includes(String(r.action).toLowerCase()) : String(r.action).toLowerCase() === ruleAction)) &&
-            JSON.stringify(r).toLowerCase().includes(query.toLowerCase()),
+            (linkedRule && query === linkedRule ? String(r.id) === linkedRule : JSON.stringify(r).toLowerCase().includes(query.toLowerCase())),
         )
         .sort((a, b) => {
           const x = a[sort.key],
@@ -121,7 +126,7 @@ export function FirewallPage({ act }: { act: Act }) {
             );
           return text(x).localeCompare(text(y), "zh-CN") * sort.direction;
         }),
-    [all, category, ruleType, native, protocol, status, owner, ruleAction, query, sort],
+    [all, category, ruleType, native, protocol, status, owner, ruleAction, query, sort, linkedRule],
   );
   const selectable = rows.filter(
     (r) => r.managed || (!native && r.editable !== false),
@@ -546,7 +551,7 @@ export function FirewallPage({ act }: { act: Act }) {
           editDefault={()=>start("add",{kind:"zone-default",driver,zone:String(record(resource.data?.zone_policy).default_zone||zone)})}
           editPolicy={()=>{const policy=record(resource.data?.zone_policy),runtime=record(policy.runtime),permanent=record(policy.permanent);start("add",{kind:"zone-policy",driver,zone,target:String(permanent.target||runtime.target||"default"),target_apply:"permanent",target_ack:false,reload_ack:false,masquerade:runtime.masquerade===true,icmp_blocks:Array.isArray(runtime.icmp_blocks)?runtime.icmp_blocks:[],icmp_inversion:runtime.icmp_inversion===true,forward:typeof runtime.forward==="boolean"?runtime.forward:undefined})}}
         />
-      {category === "diagnosis" ? <FirewallDiagnosis driver={driver} act={act} /> : crossZone ? <CrossZoneRules act={act} resource={crossResource} filter={crossFilter} resetFilter={()=>setCrossFilter("all")} /> : <Panel className="firewall-main-panel management-panel">
+      {category === "diagnosis" ? <FirewallDiagnosis driver={driver} act={act} /> : crossZone ? <CrossZoneRules linkedRule={linkedCategory === "cross-zone" ? linkedRule : ""} act={act} resource={crossResource} filter={crossFilter} resetFilter={()=>setCrossFilter("all")} /> : <Panel className="firewall-main-panel management-panel">
         <ErrorLine error={resource.error || failure} />
         {!!resource.data?.error && (
           <p className="hint">{text(resource.data.error)}</p>

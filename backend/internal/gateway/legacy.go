@@ -31,9 +31,9 @@ func (a *App) legacyDiagnostic(identity string) M {
 	}
 	return m
 }
-func (a *App) diagnosticHistory(before string, firewallOnly ...bool) M {
-	current := a.operations(before, "diagnostic.", firewallOnly...)
-	if len(firewallOnly) > 0 && firewallOnly[0] {
+func (a *App) diagnosticHistory(before string, diagnosticKind ...string) M {
+	current := a.operations(before, "diagnostic.", diagnosticKind...)
+	if len(diagnosticKind) > 0 && diagnosticKind[0] == "firewall" {
 		return current
 	}
 	items, _ := current["items"].([]M)
