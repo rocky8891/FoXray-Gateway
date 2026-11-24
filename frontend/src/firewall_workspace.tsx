@@ -44,7 +44,7 @@ export function FirewallWorkspace({ crossZone = false, serviceData,serviceError,
 
     <div className="firewall-scope-bar">
       <div className="firewall-scope-fields">
-        <Field label="管理工具" icon={<FirewallManagerIcon size={20} className="firewall-heading-icon"/>} info={view.native ? `当前显示 ${driver} 的系统规则。此视图不使用 firewalld 的区域与接口绑定，${driver === "ufw" ? "仅供查看" : "可编辑 FoXray 管理的规则"}。` : "选择查看和编辑规则的工具。切换工具不会安装、启停或迁移防火墙。"}><select aria-label="防火墙管理工具" value={driver} onChange={e=>changeDriver(e.target.value)}>
+        <Field label="管理工具" icon={<FirewallManagerIcon size={20} className="firewall-heading-icon"/>} info={view.native ? `当前显示 ${driver} 的系统规则。此视图不使用 firewalld 的区域与接口绑定，${driver === "ufw" ? "仅供查看" : "可编辑 FoXray 管理的规则"}。` : "选择查看和编辑规则的工具。切换工具不会安装、启停或迁移防火墙。"}><select className="firewall-driver-select" aria-label="防火墙管理工具" value={driver} onChange={e=>changeDriver(e.target.value)}>
           {(types.length ? types : [{id:driver,installed:true}]).map(t=><option key={String(t.id)} value={String(t.id)} disabled={t.installed===false}>{String(t.id)}{t.installed===false ? " · 未安装" : ""}{t.id==="ufw" ? " · 只读" : ""}</option>)}
         </select></Field>
         {!crossZone && !view.native && <Field label="查看区域" info="仅决定下方显示和管理哪个区域的规则，不会改变系统默认区域，也不会移动网卡或来源地址。区域是否作用于某个连接，取决于接口、来源地址归属及其他规则。"><select aria-label="查看防火墙区域" value={zone} onChange={e=>changeZone(e.target.value)}>{[...new Set([...zones,zone])].map(z=><option key={z}>{z}</option>)}</select></Field>}

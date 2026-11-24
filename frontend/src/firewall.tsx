@@ -188,6 +188,8 @@ export function FirewallPage({ act }: { act: Act }) {
     setAck(false);
     setFailure("");
   };
+  const adopting = operation === "adopt";
+  const adoptionItems = adopting ? list(form?.adoptionItems) : [];
   const defaultRule = (kind = category === "all" ? "port" : category) => ({
     kind,
     ...(kind === "rich" ? {rich_match:"port",family:"ipv4",storage:"rich-rule"} : {}),
@@ -271,7 +273,7 @@ export function FirewallPage({ act }: { act: Act }) {
       ) : (
         <Button
           disabled={!writable || native || r.editable === false}
-          onClick={() => void preview("adopt", r)}
+          onClick={() => start("adopt", r)}
         >
           纳管
         </Button>
@@ -383,7 +385,12 @@ export function FirewallPage({ act }: { act: Act }) {
   ];
   if (category === "all") columns.push(
     {key:"name",label:"名称／类型",heading:heading("kind","名称／类型"),render:r=><><strong>{text(r.service || (r.kind === "system" ? [r.family, r.table, r.chain].filter(Boolean).join(" / ") : "") || r.port || r.source || (r.kind === "masquerade" ? "地址转换" : "规则"))}</strong><small>{r.kind === "system" ? "系统规则（只读）" : r.editable===false ? "未知规则（只读）" : [...zoneRuleTypes,...categories].find(([id])=>id===r.kind)?.[1] || String(r.kind || "系统规则")}</small></>},
-    {key:"protocol",label:"协议／端口",heading:heading("protocol","协议／端口"),render:r=>r.kind==="service-rule" ? "服务定义" : [r.protocol ? String(r.protocol).toUpperCase() : "全部",r.port].filter(Boolean).join(" / ")},
+    {key:"protocol",label:"协议／端口",heading:heading("protocol","协议／端口"),render:r=>r.service ? (
+      <div>
+        {Array.isArray(r.service_ports) && r.service_ports.length ? r.service_ports.map(String).join("、") : "端口未列出"}
+        <small className="muted firewall-service-definition-label">服务定义</small>
+      </div>
+    ) : [r.protocol ? String(r.protocol).toUpperCase() : "全部",r.port].filter(Boolean).join(" / ")},
   );
   if (category === "service-rule")
     columns.push({
@@ -640,8 +647,7 @@ export function FirewallPage({ act }: { act: Act }) {
                             !externalChosen.length ||
                             externalChosen.length > 50 ||
                             !writable,
-                          onClick: () =>
-                            void preview("adopt", {}, externalChosen),
+                          onClick: () => start("adopt", { adoptionItems: externalChosen }),
                         },
                       ]
                     : []),
@@ -737,15 +743,10 @@ export function FirewallPage({ act }: { act: Act }) {
       </Panel>}
       {form && (
         <Modal className="firewall-dialog"
-          description={
-            <>
-              <p>
-                运行规则和永久声明同时处理；不全局
-                reload。允许规则仍可能受其他防火墙的拒绝规则限制。
-              </p>
-            </>
-          }
-          title={
+          description={adopting ? undefined : (
+            <p>运行规则和永久声明同时处理；不全局 reload。允许规则仍可能受其他防火墙的拒绝规则限制。</p>
+          )}
+          title={adopting ? "纳管防火墙规则" :
             form.kind === "zone-default" ? "设置默认区域" : form.kind === "zone-source" ? "管理来源地址归属" : form.kind === "zone-policy" ? "编辑区域策略" : form.kind === "rich" ? (operation==="add"?"添加高级规则":"编辑高级规则") : form.kind === "zone-interface"
               ? "调整接口所属区域"
               : form.kind === "service"
@@ -757,7 +758,18 @@ export function FirewallPage({ act }: { act: Act }) {
           onClose={() => setForm(null)}
           wide
         >
-          {form.kind === "zone-default" ? <Field label="默认区域"><select value={String(form.zone)} onChange={event=>update("zone",event.target.value)}>{zones.map(item=><option key={item}>{item}</option>)}</select></Field> : form.kind === "zone-source" ? <ZoneSourceEditor value={form} onChange={update} zones={zones} sources={String(record(resource.data?.zone_info).sources||" ").trim().split(/\s+/).filter(Boolean)}/> : form.kind === "zone-policy" ? <ZonePolicyEditor value={form} onChange={update} policy={record(resource.data?.zone_policy)}/> : form.kind==="rich" ? <RichRuleEditor value={form} onChange={update} services={Array.isArray(resource.data?.available_services)?resource.data.available_services.map(String):[]}/> : form.kind === "zone-interface" ? (
+          {adopting ? (
+            <>
+              <p>将 {adoptionItems.length || 1} 条现有规则纳入 FoXray 管理。纳管只登记归属，现有规则保持生效。</p>
+              <ul>
+                {(adoptionItems.length ? adoptionItems : [form]).map(rule => (
+                  <li key={String(rule.id)}>
+                    {text(rule.zone)} · {text(rule.raw || rule.name || rule.id)}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : form.kind === "zone-default" ? <Field label="默认区域"><select value={String(form.zone)} onChange={event=>update("zone",event.target.value)}>{zones.map(item=><option key={item}>{item}</option>)}</select></Field> : form.kind === "zone-source" ? <ZoneSourceEditor value={form} onChange={update} zones={zones} sources={String(record(resource.data?.zone_info).sources||" ").trim().split(/\s+/).filter(Boolean)}/> : form.kind === "zone-policy" ? <ZonePolicyEditor value={form} onChange={update} policy={record(resource.data?.zone_policy)}/> : form.kind==="rich" ? <RichRuleEditor value={form} onChange={update} services={Array.isArray(resource.data?.available_services)?resource.data.available_services.map(String):[]}/> : form.kind === "zone-interface" ? (
             <div className="form-grid">
               <Field label="目标区域">
                 <select
@@ -808,20 +820,22 @@ export function FirewallPage({ act }: { act: Act }) {
               checked={ack}
               onChange={(e) => setAck(e.target.checked)}
             />
-            我已确认规则和管理连接的影响，允许本次变更；必要时使用独立回退
+            {adopting ? "我确认将上述规则纳入 FoXray 管理" : "我已确认规则和管理连接的影响，允许本次变更；必要时使用独立回退"}
           </label>
           <ErrorLine error={failure} />
           <div className="modal-actions">
             <Button onClick={() => setForm(null)}>取消</Button>
             <Button
               variant="primary"
-              disabled={
+              disabled={adopting ? !ack : (
                 ((form.kind === "service-rule" || (form.kind === "rich" && form.rich_match === "service")) && !String(form.service || "").trim()) ||
                 (form.kind === "zone-interface" && (!Array.isArray(form.interfaces) || !form.interfaces.length)) ||
                 (["service", "zone-interface", "zone-source", "zone-policy", "zone-default", "masquerade", "rich"].includes(String(form.kind)) && !ack) ||
                 (targetDraftChanged && (form.target_ack !== true || (form.target_apply === "immediate" && form.reload_ack !== true)))
-              }
-              onClick={() => void preview(operation, form)}
+              )}
+              onClick={() => void (adoptionItems.length
+                ? preview(operation, {}, adoptionItems)
+                : preview(operation, form))}
             >
               生成变更预览
             </Button>

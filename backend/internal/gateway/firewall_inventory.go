@@ -308,7 +308,16 @@ func (n *Network) firewallSnapshotWithState(zone string, state M, contexts ...co
 
 	}
 	rows := []M{}
+	servicePorts := map[string][]string{}
 	for _, row := range entries {
+		if service := str(row["service"]); service != "" {
+			ports, found := servicePorts[service]
+			if !found {
+				ports = firewallServiceDisplayPorts(service, map[string]bool{})
+				servicePorts[service] = ports
+			}
+			row["service_ports"] = ports
+		}
 		rows = append(rows, row)
 	}
 	sort.Slice(rows, func(i, j int) bool {

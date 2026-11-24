@@ -19,7 +19,13 @@
   min-width: 0;
   margin: 0;
 }
-.firewall-scope-fields > .field:first-child { flex-basis: 240px; }
+.firewall-scope-fields > .field:first-child { flex: 0 1 auto; }
+.firewall-scope-fields .firewall-driver-select {
+  width: var(--select-content-width, 10.5rem);
+  box-sizing: border-box;
+  max-width: 100%;
+}
+.firewall-service-definition-label { display: block; }
 .firewall-scope-actions { flex: none; margin-inline-start: auto; }
 .firewall-rule-counts{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:12px 24px;flex:1;min-width:0}.firewall-rule-counts>span{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;white-space:nowrap}.firewall-rule-counts strong{font-size:18px;font-variant-numeric:tabular-nums;color:var(--text);font-weight:650}.firewall-rule-counts>.setting-info{align-self:flex-start}
 .firewall-zone-details{display:grid;grid-template-columns:1.15fr 1fr;border-top:1px solid var(--line)}.firewall-zone-details>section{padding:18px 20px;min-width:0}.firewall-zone-details>section+section{border-left:1px solid var(--line)}
@@ -35,6 +41,7 @@
 .firewall-workspace .firewall-service-bar{padding:0 0 18px}
 .firewall-workspace .firewall-scope-bar{padding:14px 18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--card)}
 .firewall-workspace .firewall-scope-fields>.field{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:10px}
+.firewall-workspace .firewall-scope-fields>.field:has(.firewall-driver-select){grid-template-columns:auto minmax(0,max-content)}
 .firewall-workspace .firewall-scope-fields .field-title{padding-inline:0!important;white-space:nowrap;align-self:center!important}
 .firewall-overview-grid{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(0,1.65fr);gap:16px;margin:16px 0}
 .firewall-layout-section{min-width:0;padding:16px 18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--card)}

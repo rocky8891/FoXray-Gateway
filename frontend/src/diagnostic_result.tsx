@@ -133,9 +133,9 @@ function FirewallDiagnosticFacts({ data }: { data: Dict }) {
       <div><dt>目标</dt><dd>{text(params.destination)}{params.port ? `:${text(params.port)}` : ""}</dd></div>
       <div><dt>解析地址</dt><dd>{text(result.resolved_ip || "未取得")}</dd></div>
       <div><dt>入口接口与区域</dt><dd>{text(params.ingress)}{result.zone ? ` · ${text(result.zone)} · ${text(result.binding)}` : ""}</dd></div>
-      <div><dt>内核正向出口</dt><dd>{text(route.dev || "未取得")}{result.egress_zone ? ` · ${text(result.egress_zone)}` : ""}</dd></div>
+      <div><dt>内核路由查询</dt><dd>{text(route.dev || "未取得")}{result.egress_zone ? ` · ${text(result.egress_zone)}` : ""}{result.path_scope === "input" ? " · 本机入站" : result.path_scope === "forward" ? " · 转发" : ""}</dd></div>
       <div><dt>网关本机回程出口</dt><dd>{text(reverse.dev || "未取得")}</dd></div>
-      <div><dt>配置接管判断</dt><dd>{text(data.expected || "未取得")}</dd></div>
+      <div><dt>FoXray 配置预计路径</dt><dd>{text(data.expected || "未取得")}</dd></div>
       {nat.status != null && <div><dt>地址转换推演</dt><dd>{text(nat.source)} → {text(nat.destination)}{nat.port ? ` · 端口 ${text(nat.port)}` : ""} · {text(nat.status)}</dd></div>}
     </dl>
     {data.gateway_probe === true && <>

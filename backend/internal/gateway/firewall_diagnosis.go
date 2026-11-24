@@ -109,10 +109,10 @@ func firewallFlowCandidates(rows []any, f firewallFlow, driver string) ([]M, []s
 		}
 		kind := str(r["kind"])
 		evidence := "已匹配可解析字段"
-		if yes(r["partial_runtime"]) || r["editable"] == false || kind == "service-rule" || str(r["rich_match"]) == "service" || str(r["action_rate"]) != "" {
+		if yes(r["partial_runtime"]) || r["editable"] == false || (str(r["service"]) != "" && !yes(r["service_verified"])) || str(r["action_rate"]) != "" {
 			evidence = "需核对完整条件或运行时副本"
 		}
-		row := M{"id": r["id"], "name": firstNonempty(str(r["name"]), str(r["service"]), str(r["id"])), "kind": kind, "action": r["action"], "priority": r["priority"], "chain": r["chain"], "table": r["table"], "source": r["source"], "destination": r["destination"], "protocol": r["protocol"], "port": r["port"], "target_ip": r["target_ip"], "target_port": r["target_port"], "to_source": r["to_source"], "out_interface": r["out_interface"], "raw": r["raw"], "permanent": yes(r["permanent"]), "runtime_only": driver == "firewalld" && !yes(r["permanent"]) && !yes(r["partial_permanent"]), "evidence": evidence, "policy": r["policy_name"]}
+		row := M{"id": r["id"], "name": firstNonempty(str(r["name"]), str(r["service"]), str(r["id"])), "kind": kind, "action": r["action"], "priority": r["priority"], "chain": r["chain"], "table": r["table"], "source": r["source"], "destination": r["destination"], "protocol": r["protocol"], "port": r["port"], "target_ip": r["target_ip"], "target_port": r["target_port"], "to_source": r["to_source"], "out_interface": r["out_interface"], "storage": r["storage"], "raw": r["raw"], "permanent": yes(r["permanent"]), "runtime_only": driver == "firewalld" && !yes(r["permanent"]) && !yes(r["partial_permanent"]), "evidence": evidence, "policy": r["policy_name"]}
 		candidates = append(candidates, row)
 	}
 	if driver == "firewalld" {
@@ -237,6 +237,8 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 	cmd := n.firewallReadCommand(ctx)
 	warnings := []string{"结果为运行时快照的静态推演。连接跟踪、动态集合、跨链跳转和远端回程需要独立核对。"}
 	zone, binding := "host", "系统规则"
+	var activeZones string
+	var activeZonesErr error
 	if driver == "firewalld" {
 		raw, e := cmd(3, "", "firewall-cmd", "--get-zone-of-interface="+f.ingress)
 		zone = strings.TrimSpace(raw)
@@ -249,10 +251,10 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 				return nil, errors.New("无法读取入口区域")
 			}
 		}
-		active, e := cmd(3, "", "firewall-cmd", "--get-active-zones")
+		activeZones, activeZonesErr = cmd(8, "", "firewall-cmd", "--get-active-zones")
 		matched := map[string]bool{}
 		current := ""
-		for _, line := range strings.Split(active, "\n") {
+		for _, line := range strings.Split(activeZones, "\n") {
 			value := strings.TrimSpace(line)
 			if value != "" && value == line {
 				current = strings.Fields(value)[0]
@@ -269,7 +271,7 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 				}
 			}
 		}
-		if e != nil || len(matched) > 1 {
+		if activeZonesErr != nil || len(matched) > 1 {
 			warnings = append(warnings, "源地址归属无法唯一确认，当前以接口区域为依据。")
 		}
 		if len(matched) == 1 {
@@ -285,23 +287,13 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 	}
 	rows := arr(clone(snapshot)["entries"])
 	candidates, detail := firewallFlowCandidates(rows, f, driver)
-	warnings = append(warnings, detail...)
-	if driver == "firewalld" {
-		hasOverlap := false
-		for _, candidate := range candidates {
-			hasOverlap = hasOverlap || candidate["overlaps_with"] != nil
-		}
-		if hasOverlap {
-			if raw, err := cmd(4, "", "nft", "-j", "list", "table", "inet", "firewalld"); err == nil {
-				if live, err := nftablesInventory(raw, nil, nil); err == nil {
-					annotateFirewallChainOrder(candidates, live)
-				}
-			}
-		}
+	if driver != "firewalld" {
+		warnings = append(warnings, detail...)
 	}
-	translated := M{"source": f.source.String(), "destination": f.destination.String(), "port": f.port, "status": "需结合实际链顺序"}
+	translated := M{"source": f.source.String(), "destination": f.destination.String(), "port": f.port, "status": "未确认地址转换"}
 	routeDestination := f.destination.String()
 	dnatCount := 0
+	translatedDestinationKnown := false
 	for _, row := range candidates {
 		if row["kind"] == "forward" || row["action"] == "dnat" {
 			dnatCount++
@@ -315,6 +307,7 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 			if target := str(row["target_ip"]); target != "" {
 				translated["destination"] = target
 				routeDestination = target
+				translatedDestinationKnown = true
 			}
 			if port := str(row["target_port"]); port != "" {
 				translated["port"] = port
@@ -334,20 +327,25 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 		}
 		return routes[0]
 	}
-	route := routeRead(routeDestination, "from", f.source.String(), "iif", f.ingress)
-	reverse := routeRead(f.source.String())
-	if route != nil && str(route["dev"]) != "" {
-		for _, candidate := range candidates {
-			if candidate["kind"] == "masquerade" && candidate["action"] == "snat" && str(candidate["out_interface"]) == str(route["dev"]) && str(candidate["to_source"]) != "" && candidate["evidence"] == "已匹配可解析字段" {
-				if translated["source"] != f.source.String() && translated["source"] != candidate["to_source"] {
-					translated["source"] = f.source.String()
-					break
-				}
-				translated["source"] = candidate["to_source"]
-				translated["status"] = "候选 NAT 转换"
-			}
+	routeArgs := []string{routeDestination, "from", f.source.String(), "iif", f.ingress}
+	if f.protocol == "tcp" || f.protocol == "udp" {
+		port := f.port
+		if translatedPort, ok := translated["port"].(string); ok {
+			port, _ = strconv.Atoi(translatedPort)
+		}
+		routeArgs = append(routeArgs, "ipproto", f.protocol)
+		if port > 0 {
+			routeArgs = append(routeArgs, "dport", strconv.Itoa(port))
 		}
 	}
+	var route M
+	if dnatCount == 0 || translatedDestinationKnown {
+		route = routeRead(routeArgs...)
+	} else {
+		warnings = append(warnings, "DNAT 转换后的目的地址无法唯一确定，未推断后续出口。")
+	}
+	reverse := routeRead(f.source.String())
+
 	if reverse == nil || str(reverse["dev"]) != f.ingress {
 		warnings = append(warnings, "本机回程路由缺失或出口与入口接口不同，需核对策略路由和远端回程。")
 	}
@@ -355,27 +353,127 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 		warnings = append(warnings, "未能确认正向路由。")
 	}
 	egressZone := ""
-	if driver == "firewalld" && str(route["dev"]) != "" {
-		raw, e := cmd(3, "", "firewall-cmd", "--get-zone-of-interface="+str(route["dev"]))
-		egressZone = strings.TrimSpace(raw)
-		if e != nil || !firewallZoneName.MatchString(egressZone) || egressZone == "no" {
-			raw, _ = cmd(3, "", "firewall-cmd", "--get-default-zone")
-			egressZone = strings.TrimSpace(raw)
-		}
-		cross := n.CrossZoneSnapshot(ctx)
-		if yes(cross["complete"]) {
-			for _, value := range arr(clone(cross)["items"]) {
-				row := obj(value)
-				if row["ingress_zone"] != zone || row["egress_zone"] != egressZone || !yes(row["runtime"]) {
-					continue
-				}
-				row["kind"] = "cross-zone"
-				extra, _ := firewallFlowCandidates([]any{row}, f, driver)
-				candidates = append(candidates, extra...)
-			}
-		} else {
-			warnings = append(warnings, "域间策略读取不完整。")
+	pathScope := "unknown"
+	if route != nil {
+		if str(route["type"]) == "local" {
+			pathScope = "input"
+		} else if str(route["dev"]) != "" && (str(route["type"]) == "" || str(route["type"]) == "unicast") {
+			pathScope = "forward"
 		}
 	}
-	return M{"host": host, "resolved_ip": resolved, "input_port": f.port, "driver": driver, "zone": zone, "binding": binding, "egress_zone": egressZone, "route": route, "reverse_route": reverse, "rules": candidates, "nat": translated, "warnings": warnings, "status": "需结合运行时实际匹配确认"}, nil
+	if driver == "firewalld" {
+		if pathScope == "forward" {
+			if activeZonesErr == nil {
+				egressZone = firewallActiveInterfaceZone(activeZones, str(route["dev"]))
+				if egressZone == "" {
+					raw, err := cmd(8, "", "firewall-cmd", "--get-default-zone")
+					if value := strings.TrimSpace(raw); err == nil && firewallZoneName.MatchString(value) {
+						egressZone = value
+					}
+				}
+			}
+			if egressZone == "" {
+				warnings = append(warnings, "未能核实出口区域，无法筛选域间规则。")
+			}
+		}
+		translatedFlow := f
+		if address, err := netip.ParseAddr(str(translated["destination"])); err == nil {
+			translatedFlow.destination = address
+		}
+		switch port := translated["port"].(type) {
+		case int:
+			translatedFlow.port = port
+		case string:
+			if value, err := strconv.Atoi(port); err == nil {
+				translatedFlow.port = value
+			} else {
+				translatedFlow.port = 0
+				warnings = append(warnings, "转换后的端口未唯一确定，后续端口规则无法完整推演。")
+			}
+		}
+		filtered := []any{}
+		serviceDefinitions := map[string]M{}
+		for _, value := range rows {
+			row := obj(value)
+			switch str(row["kind"]) {
+			case "forward":
+				// DNAT matches the original packet, evaluated before the route lookup.
+				continue
+			case "masquerade":
+				// Egress NAT is handled separately from ingress-zone filtering.
+				continue
+			}
+			if pathScope != "input" || (!yes(row["runtime"]) && !yes(row["partial_runtime"])) || !firewallFlowMatches(row, translatedFlow) {
+				continue
+			}
+			if service := str(row["service"]); service != "" {
+				details, found := serviceDefinitions[service]
+				if !found && firewallZoneName.MatchString(service) {
+					raw, err := cmd(8, "", "firewall-cmd", "--info-service="+service)
+					if err == nil {
+						details = parseZoneDetails(raw)
+					}
+					serviceDefinitions[service] = details
+				}
+				match, known := firewallServiceMatch(details, translatedFlow)
+				if !known {
+					warnings = append(warnings, "无法完整核对服务定义 "+service+"，未列为匹配规则。")
+					continue
+				}
+				if !match {
+					continue
+				}
+				row["service_verified"] = true
+			}
+			filtered = append(filtered, row)
+		}
+		inputRules, details := firewallFlowCandidates(filtered, translatedFlow, driver)
+		warnings = append(warnings, details...)
+		natRules := []M{}
+		for _, candidate := range candidates {
+			if candidate["kind"] == "forward" {
+				natRules = append(natRules, candidate)
+			}
+			if pathScope == "forward" && candidate["kind"] == "masquerade" && candidate["action"] == "snat" && str(candidate["out_interface"]) == str(route["dev"]) && candidate["evidence"] == "已匹配可解析字段" && firewallFlowMatches(candidate, translatedFlow) {
+				candidate["evidence"] = "出口与规则条件相符，实际转换待验证"
+				translated["status"] = "存在显式 SNAT 候选，源地址转换未确认"
+				natRules = append(natRules, candidate)
+			}
+		}
+		candidates = append(natRules, inputRules...)
+		if pathScope == "forward" {
+			warnings = append(warnings, "域内服务放行只用于访问本机。区域地址伪装需核对实际出口及 POSTROUTING 链，本次未据此确认源地址转换。")
+			if egressZone != "" {
+				cross := n.CrossZoneSnapshot(ctx)
+				if yes(cross["complete"]) {
+					for _, value := range arr(clone(cross)["items"]) {
+						row := obj(value)
+						if row["ingress_zone"] != zone || row["egress_zone"] != egressZone || !yes(row["runtime"]) {
+							continue
+						}
+						row["kind"] = "cross-zone"
+						extra, _ := firewallFlowCandidates([]any{row}, translatedFlow, driver)
+						candidates = append(candidates, extra...)
+					}
+				} else {
+					warnings = append(warnings, "域间策略读取不完整。")
+				}
+			}
+		}
+	}
+	if driver == "firewalld" {
+		hasOverlap := false
+		for _, candidate := range candidates {
+			hasOverlap = hasOverlap || candidate["overlaps_with"] != nil
+		}
+		if hasOverlap {
+			if raw, err := cmd(4, "", "nft", "-j", "list", "table", "inet", "firewalld"); err == nil {
+				if live, err := nftablesInventory(raw, nil, nil); err == nil {
+					annotateFirewallChainOrder(candidates, live)
+				}
+			}
+		}
+	}
+
+	return M{"host": host, "resolved_ip": resolved, "input_port": f.port, "driver": driver, "zone": zone, "binding": binding, "egress_zone": egressZone, "path_scope": pathScope, "route": route, "reverse_route": reverse, "rules": candidates, "nat": translated, "warnings": uniq(warnings), "status": "需结合运行时实际匹配确认"}, nil
 }

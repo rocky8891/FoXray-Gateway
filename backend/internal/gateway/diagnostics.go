@@ -72,13 +72,14 @@ func (a *App) diagnose(ctx context.Context, j *Job, data M) (diagnosticError err
 		}
 		a.jobDetail(j, "目标："+query.Get("destination")+" → "+str(firewallResult["resolved_ip"]))
 		a.jobDetail(j, "入口："+query.Get("ingress")+" · "+str(firewallResult["zone"]))
-		a.jobDetail(j, "内核出口："+firstNonempty(str(obj(firewallResult["route"])["dev"]), "未取得"))
+		a.jobDetail(j, "内核路由查询："+firstNonempty(str(obj(firewallResult["route"])["dev"]), "未取得"))
 		result["firewall"] = firewallResult
 		result["resolved_ip"] = firewallResult["resolved_ip"]
 		expected, _ := a.expectedDiagnosticPath("lan", query.Get("protocol"), query.Get("destination"), str(firewallResult["resolved_ip"]))
 		result["expected"] = expected
 		if !yes(params["probe"]) || query.Get("protocol") != "tcp" || net.ParseIP(str(firewallResult["resolved_ip"])).To4() == nil {
-			a.jobDetail(j, "配置接管判断："+str(result["expected"]))
+			a.jobDetail(j, "FoXray 配置预计路径："+str(result["expected"]))
+			a.jobDetail(j, "客户端实际出口与 NAT 结果：本次未观测")
 			result["ok"] = true
 			a.stage(j, diagnosticResultSummary(result))
 			return nil
