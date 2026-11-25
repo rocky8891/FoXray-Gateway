@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const Version = "0.9.36"
+const Version = "0.9.37"
 
 type M = map[string]any
 

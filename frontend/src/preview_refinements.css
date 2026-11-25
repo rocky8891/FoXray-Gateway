@@ -1724,3 +1724,36 @@ main[data-module-page] > :is(.module-page, .module-service-settings) > .panel:nt
   text-overflow: ellipsis;
 }
 .service-wg-peer-identity > time { flex: none; }
+
+.service-connection-identity {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+  margin-inline: auto 6px;
+  padding-inline-start: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.service-connection-endpoint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.service-connection-identity > .xray-connected-time { flex: none; }
+.firewall-main-panel .table-wrap table :is(th, td)[data-column="selected"] {
+  padding-inline: 10px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+.firewall-main-panel .table-wrap th[data-column="selected"] .adaptive-column-heading {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.firewall-main-panel .table-wrap [data-column="selected"] input[type="checkbox"] {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0;
+}

@@ -40,7 +40,6 @@ function SummaryHeader({
   identity,
   identityBeforeStatus,
   controls,
-  titleExtra,
 }: {
   title: string;
   icon: ReactNode;
@@ -49,7 +48,6 @@ function SummaryHeader({
   identity?: ReactNode;
   identityBeforeStatus?: ReactNode;
   controls?: ReactNode;
-  titleExtra?: ReactNode;
 }) {
   const heading = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -73,14 +71,6 @@ function SummaryHeader({
         width: r.width / scale,
         height: r.height / scale,
       });
-      const identity = heading.current?.querySelector<HTMLElement>(
-        ".service-overview-identity-row",
-      );
-      if (identity && titleExtra)
-        heading.current?.style.setProperty(
-          "--summary-identity-width",
-          `${identity.getBoundingClientRect().width / scale}px`,
-        );
       const box = logical(card.getBoundingClientRect()),
         surfaceElement = card.querySelector(".service-overview-surface"),
         surface = surfaceElement
@@ -392,10 +382,6 @@ function SummaryHeader({
     const observer = new ResizeObserver(measure);
     window.addEventListener("resize", measure);
     observer.observe(card);
-    const identity = heading.current?.querySelector(
-      ".service-overview-identity-row",
-    );
-    if (identity && titleExtra) observer.observe(identity);
     const surface = card.querySelector(".service-overview-surface");
     if (surface) observer.observe(surface);
     const classes = new MutationObserver(records => {
@@ -431,9 +417,6 @@ function SummaryHeader({
         <h2 aria-label={title}>
           {icon}
           {title}
-          {titleExtra && (
-            <span className="service-title-extra">{titleExtra}</span>
-          )}
         </h2>
         {identityBeforeStatus}
         {status && (
@@ -800,31 +783,22 @@ export function ServiceOverviewCards({
                 icon={<ProductIcon product={module} size={20} />}
                 status={status}
                 tone={paused ? "muted" : "accent"}
-                titleExtra={
-                  suffix ? (
-                    <span
-                      className="xray-exit-name"
-                      title={`${name} · ${suffix}`}
-                    >
-                      {name} · {suffix}
-                    </span>
-                  ) : undefined
-                }
-                identity={
-                  <ConnectedTime
-                    since={
-                      module === "xray"
-                        ? state.state.active_since
-                        : Number(warp.data?.connected_since || 0)
-                    }
-                    connected={
-                      module === "xray" ? !!suffix : !!warp.data?.connected
-                    }
-                    observed={
-                      module === "warp" &&
-                      warp.data?.connection_time_source === "observed"
-                    }
-                  />
+                identityBeforeStatus={
+                  <div className="service-connection-identity">
+                    {suffix && (
+                      <>
+                        <span className="service-connection-endpoint" title={`${name} · ${suffix}`}>
+                          {name} · {suffix}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                      </>
+                    )}
+                    <ConnectedTime
+                      since={module === "xray" ? state.state.active_since : Number(warp.data?.connected_since || 0)}
+                      connected={module === "xray" ? !!suffix : !!warp.data?.connected}
+                      observed={module === "warp" && warp.data?.connection_time_source === "observed"}
+                    />
+                  </div>
                 }
               />
               <div className="service-overview-surface">

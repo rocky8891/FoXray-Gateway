@@ -7,7 +7,7 @@ import { FirewallWorkspace } from "./firewall_workspace";
 import { ALL_FIREWALL_ZONES, firewallBindings, firewallRuleOrigin, firewallRuleOriginLabel, firewallViewState } from "./firewall_view_state";
 import { MultiSelect } from "./multi_select";
 import { ResetFilters } from "./list_controls";
-import { ExportButton } from "./resource_controls";
+import { ExportButton, useRowSelection } from "./resource_controls";
 import { ActionMenu } from "./action_menu";
 import { CompactFilters, ListFilter } from "./list_controls";
 import { SortHeading } from "./list_controls";
@@ -86,8 +86,7 @@ export function FirewallPage({ act }: { act: Act }) {
   const [lastRead, setLastRead] = useState(0), [refreshing, setRefreshing] = useState(false);
   useEffect(()=>{if(resource.data)setLastRead(Date.now())},[resource.data]);
   useEffect(()=>{if(crossResource.data)setLastRead(Date.now())},[crossResource.data]);
-  const [selected, setSelected] = useState<Set<string>>(new Set()),
-    [form, setForm] = useState<Dict | null>(null),
+  const [form, setForm] = useState<Dict | null>(null),
     [operation, setOperation] = useState("add"),
     [plan, setPlan] = useState<Plan | null>(null),
     [failure, setFailure] = useState(""),
@@ -162,12 +161,11 @@ export function FirewallPage({ act }: { act: Act }) {
         }),
     [all, category, ruleType, native, protocol, status, owner, ruleAction, query, sort, linkedRule],
   );
-  const selectable = rows.filter(
-    (r) => r.managed || (!native && r.editable !== false),
-  );
-  const chosen = rows.filter((r) => selected.has(rowKey(r)));
-  const managedChosen = chosen.filter((r) => r.managed),
-    externalChosen = chosen.filter((r) => !r.managed);
+  const { chosen, setSelected, column: selectionColumn } = useRowSelection(rows, rowKey);
+  const managedChosen = chosen.filter((row) => row.managed);
+  const externalChosen = chosen.filter((row) => !row.managed);
+  const canAdoptSelection = externalChosen.length > 0 &&
+    externalChosen.length <= 50 && externalChosen.every((row) => row.editable !== false);
   const [interfaces, setInterfaces] = useState<string[]>([]);
   useEffect(() => {
     if (form?.kind !== "zone-interface") return;
@@ -370,47 +368,7 @@ export function FirewallPage({ act }: { act: Act }) {
     ),
   };
   const columns: Column<Dict>[] = [
-    {
-      key: "select",
-      label: "选择",
-      heading: (
-        <input
-          type="checkbox"
-          aria-label="全选规则"
-          title="选择当前筛选范围的全部可操作规则"
-          checked={selectable.length > 0 && chosen.length === selectable.length}
-          ref={(el) => {
-            if (el)
-              el.indeterminate =
-                chosen.length > 0 && chosen.length < selectable.length;
-          }}
-          onChange={(e) =>
-            setSelected(
-              e.target.checked
-                ? new Set(selectable.map(rowKey))
-                : new Set(),
-            )
-          }
-        />
-      ),
-      render: (r) => (
-        <input
-          type="checkbox"
-          aria-label={"选择规则 " + text(r.port || r.source)}
-          disabled={!r.managed && (native || r.editable === false)}
-          checked={selected.has(rowKey(r))}
-          onChange={(e) =>
-            setSelected((old) => {
-              const next = new Set(old);
-              e.target.checked
-                ? next.add(rowKey(r))
-                : next.delete(rowKey(r));
-              return next;
-            })
-          }
-        />
-      ),
-    },
+    selectionColumn,
     showPriority ? {
       key: "priority", label: "优先级", heading: heading("priority","优先级"),
       render: row => row.priority != null && (native || canPrioritize(row)) ? text(row.priority) : "—",
@@ -706,8 +664,7 @@ export function FirewallPage({ act }: { act: Act }) {
                         {
                           label: "纳管",
                           disabled:
-                            !externalChosen.length ||
-                            externalChosen.length > 50 ||
+                            !canAdoptSelection ||
                             !writable,
                           onClick: () => start("adopt", { adoptionItems: externalChosen }),
                         },

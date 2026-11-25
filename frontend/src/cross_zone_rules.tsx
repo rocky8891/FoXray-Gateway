@@ -76,10 +76,12 @@ export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule =
       (filter === "blocked" && ["drop", "reject"].includes(actionValue(row)));
     return matchesFilter && Object.entries(filters).every(([key, value]) => !value || facets[key](row) === value) && (linkedRule && query === linkedRule ? text(row.id) === linkedRule : JSON.stringify(row).toLowerCase().includes(query.trim().toLowerCase()));
   }).sort((a,b)=>(Number(a.priority ?? -1)-Number(b.priority ?? -1))*priorityOrder);
-  const selection = useRowSelection(rows, row => text(row.id), row => !!row.managed);
+  const selection = useRowSelection(rows, row => text(row.id));
   const batchLabels: Record<string,string> = {enable:"启用",disable:"停用",delete:"删除"};
-  const canBatch = complete && selection.chosen.length > 0 && selection.chosen.length <= 50;
+  const canBatch = complete && selection.chosen.length > 0 &&
+    selection.chosen.length <= 50 && selection.chosen.every(row => row.managed);
   const beginBatch = (operation:string) => {
+    if (!canBatch) return;
     setAck(false);
     setFailure("");
     setBatch({operation, ids:selection.chosen.map(row=>text(row.id)), mode:"permanent"});
