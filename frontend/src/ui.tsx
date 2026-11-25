@@ -427,6 +427,7 @@ export function Empty({ children = "暂无记录" }: { children?: ReactNode }) {
   return <div className="empty">{children}</div>;
 }
 const DetailsCopyContext = createContext(false);
+const ModalTableContext = createContext(false);
 export function Modal({
   title,
   description,
@@ -487,7 +488,7 @@ export function Modal({
           </div>
         )}
         <DetailsCopyContext.Provider value={copyText !== undefined}>
-          {children}
+          <ModalTableContext.Provider value>{children}</ModalTableContext.Provider>
         </DetailsCopyContext.Provider>
       </div>
     </dialog>
@@ -956,7 +957,8 @@ export function Table<T>({
   const offset = paginate ? pagination.start : 0;
   const tableRef = useRef<HTMLTableElement>(null);
   const widthKey = columnSizingKey ?? columns.map(column => column.key + "=" + column.label).join("|");
-  const sizing = useTableColumnSizing(tableRef, columns, widthKey);
+  const modalTable = useContext(ModalTableContext);
+  const sizing = useTableColumnSizing(tableRef, columns, widthKey, !modalTable);
   const [widthSlot, setWidthSlot] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
     const scope = tableRef.current?.closest("dialog, main");
@@ -993,8 +995,8 @@ export function Table<T>({
   );
   return rows.length || keepHeaders || sizing.enabled ? (
     <>
-      {widthSlot ? createPortal(widthControl, widthSlot) : !toolbar && <div className="adaptive-table-tools">{widthControl}</div>}
-      {toolbar && <div className="adaptive-table-tools"><div className="adaptive-table-actions">{toolbar}</div></div>}
+      {!modalTable && (widthSlot ? createPortal(widthControl, widthSlot) : !toolbar && <div className="adaptive-table-tools">{widthControl}</div>)}
+      {!modalTable && toolbar && <div className="adaptive-table-tools"><div className="adaptive-table-actions">{toolbar}</div></div>}
       <div className="table-wrap">
         <table
           className={

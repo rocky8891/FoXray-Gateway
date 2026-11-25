@@ -7146,18 +7146,11 @@ header .brand{align-items:center}header .brand .brand-logo{width:44px;height:44p
 .wg-peer-probe-controls > .button { justify-self: start; }
 @media (max-width: 599px) { .wg-peer-probe-controls { grid-template-columns: minmax(0, 1fr) auto; } }
 
-/* Keep navigation content above any translucent button decoration. */
+/* Keep navigation content above translucent button decoration. */
 :is(header nav .nav-tab, .secondary-nav button, .module-tabs > button, .subtabs > button):not(:disabled) {
-  color: rgb(248, 250, 252) !important;
   isolation: isolate;
 }
 :is(header nav .nav-tab, .secondary-nav button, .module-tabs > button, .subtabs > button) > :is(span, svg) {
   position: relative;
   z-index: 1;
-}
-html[data-theme="light"] :is(header nav .nav-tab, .secondary-nav button, .module-tabs > button, .subtabs > button):not(:disabled) {
-  background-color: #344359;
-}
-html[data-theme="light"] :is(header nav .nav-tab, .secondary-nav button, .module-tabs > button, .subtabs > button):is([aria-current="page"], [aria-selected="true"], .selected):not(:disabled) {
-  background-color: #174c49;
 }

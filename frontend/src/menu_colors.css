@@ -1,4 +1,4 @@
-/* Restore the previous primary-navigation palette at every menu level. */
+/* Keep navigation labels and monochrome icons white in every state. */
 :is(
   header nav .nav-tab,
   .secondary-nav button,
@@ -7,7 +7,7 @@
   .monitor-settings-tabs > button,
   .monitor-view-switch > button
 ) {
-  color: var(--text) !important;
+  color: #fff !important;
   background: var(--button) !important;
   border-color: var(--line) !important;
   box-shadow: 0 5px 14px #0001 !important;
@@ -20,7 +20,7 @@
     .monitor-settings-tabs > button,
     .monitor-view-switch > button
   ):not(:disabled):is(:hover, :focus-visible) {
-  color: var(--text) !important;
+  color: #fff !important;
   background: var(--card) !important;
   border-color: var(--line) !important;
   box-shadow: 0 3px 10px #0002 !important;
@@ -33,7 +33,7 @@
   .monitor-settings-tabs > button,
   .monitor-view-switch > button
 ):is([aria-current="page"], [aria-selected="true"], .selected) {
-  color: var(--accent) !important;
+  color: #fff !important;
   background: var(--accent-bg) !important;
   border-color: color-mix(in srgb, var(--accent) 60%, transparent) !important;
 }
@@ -47,4 +47,11 @@
   )
   > :is(svg, span) {
   color: inherit;
+}
+
+html[data-theme="light"] :is(header nav .nav-tab, .secondary-nav button, .module-tabs > button, .subtabs > button):not(:disabled) {
+  background: #344359 !important;
+}
+html[data-theme="light"] :is(header nav .nav-tab, .secondary-nav button, .module-tabs > button, .subtabs > button):is([aria-current="page"], [aria-selected="true"], .selected):not(:disabled) {
+  background: #174c49 !important;
 }

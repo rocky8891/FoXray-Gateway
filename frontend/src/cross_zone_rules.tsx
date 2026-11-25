@@ -4,11 +4,12 @@ import { Plus, Search } from "lucide-react";
 import { api, errorMessage, list, text, type Dict, type Plan } from "./api";
 import { Button, ErrorLine, Field, Modal, NumberInput, Panel, Table, useResource, SettingInfo, type Column } from "./ui";
 import { AdaptiveSearch } from "./adaptive_search";
-import { CompactFilters, ResetFilters, SortHeading } from "./list_controls";
+import { CompactFilters, ListFilter, ResetFilters, SortHeading } from "./list_controls";
 import { ActionMenu } from "./action_menu";
 import { ExportButton, useRowSelection } from "./resource_controls";
 import type { Act } from "./nodes";
 
+const completeRows = (data: Dict | null, error: string) => data?.complete === true && !error ? list(data.items) : [];
 const policyTargets: Record<string, string> = { ACCEPT: "允许", DROP: "丢弃", REJECT: "拒绝", CONTINUE: "继续匹配" };
 const actions: Record<string,string> = {accept:"允许",drop:"丢弃",reject:"拒绝并回应"};
 export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule = ""}: {
@@ -20,7 +21,19 @@ export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule =
 }) {
   const [query, setQuery] = useState(linkedRule);
   const [priorityOrder,setPriorityOrder] = useState(1);
-  const [stateFilter,setStateFilter] = useState("all");
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  const actionValue = (row: Dict) => String(row.action || row.policy_target || "").toLowerCase();
+  const facets: Record<string, (row: Dict) => string> = {
+    source: row => String(row.ingress_zone || ""),
+    destination: row => String(row.egress_zone || ""),
+    protocol: row => String(row.protocol || ""),
+    action: actionValue,
+    state: row => row.enabled ? "enabled" : "disabled",
+  };
+  const items = completeRows(resource.data, resource.error);
+  const facetLabel = (key: string, value: string) => key === "state" ? (value === "enabled" ? "启用" : "停用")
+    : key === "action" ? actions[value] || policyTargets[value.toUpperCase()] || value
+    : key === "protocol" ? (value === "all" ? "全部协议" : value.toUpperCase()) : value;
   const [form,setForm]=useState<Dict|null>(null),[operation,setOperation]=useState("add"),[ack,setAck]=useState(false);
   const [plan,setPlan]=useState<Plan|null>(null),[failure,setFailure]=useState(""),[busy,setBusy]=useState(false),[detail,setDetail]=useState<Dict|null>(null);
   const zones=Array.isArray(resource.data?.zones)?resource.data.zones.map(String):[];
@@ -47,13 +60,12 @@ export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule =
     {key:"state",label:"状态 / 配置",render:r=><><span className={!r.enabled?"muted":r.managed&&!r.runtime?"fair":"accent"}>{r.managed?(r.enabled?(r.runtime?"已生效":"待生效"):"配置停用"):(r.enabled?"启用":"停用")}</span><small>{r.runtime?"运行时已载入":"运行时未同步"} · {r.permanent?"永久已保存":"永久未保存"}{r.drift?" · 存在差异":""}</small></>},
     {key:"actions",label:"操作",render:r=><div className="row-actions"><Button size="compact" onClick={()=>setDetail(r)}>详情</Button>{!!r.managed&&<><Button size="compact" disabled={!complete} onClick={()=>start("replace",r)}>编辑</Button><Button size="compact" disabled={!complete} onClick={()=>start("replace",{...r,enabled:!r.enabled})}>{r.enabled?"停用":"启用"}</Button><Button size="compact" variant="danger" disabled={!complete} onClick={()=>start("delete",r)}>删除</Button></>}</div>},
   ];
-  const items = complete ? list(resource.data?.items) : [];
   const rows = items.filter(row => {
     const matchesFilter = filter === "all" ||
       (filter === "managed" && row.managed) ||
       (filter === "external" && !row.managed) ||
-      (filter === "blocked" && ["drop", "reject"].includes(String(row.action)));
-    return matchesFilter && (stateFilter === "all" || !!row.enabled === (stateFilter === "enabled")) && (linkedRule && query === linkedRule ? text(row.id) === linkedRule : JSON.stringify(row).toLowerCase().includes(query.trim().toLowerCase()));
+      (filter === "blocked" && ["drop", "reject"].includes(actionValue(row)));
+    return matchesFilter && Object.entries(filters).every(([key, value]) => !value || facets[key](row) === value) && (linkedRule && query === linkedRule ? text(row.id) === linkedRule : JSON.stringify(row).toLowerCase().includes(query.trim().toLowerCase()));
   }).sort((a,b)=>(Number(a.priority ?? -1)-Number(b.priority ?? -1))*priorityOrder);
   const selection = useRowSelection(rows, row => text(row.id), row => !!row.managed);
   const batchLabels: Record<string,string> = {enable:"启用",disable:"停用",delete:"删除"};
@@ -75,15 +87,29 @@ export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule =
         <Button disabled={!canBatch} onClick={() => beginBatch("disable")}>停用</Button>
         <ActionMenu label="批量" triggerLabel="批量操作" showLabel items={Object.entries(batchLabels).map(([operation,label])=>({label,disabled:!canBatch,onClick:()=>beginBatch(operation)}))} />
       </>}
-      actions={<><ResetFilters active={!!query || filter !== "all" || stateFilter !== "all" || priorityOrder !== 1} onClick={() => {selection.setSelected(new Set()); setQuery(""); setStateFilter("all"); setPriorityOrder(1); resetFilter()}} />
-        <ExportButton rows={selection.chosen.length ? selection.chosen : rows} name="域间规则" columns={[["优先级", r => r.priority], ["名称", r => r.name || r.policy_name], ["入口区域", r => r.ingress_zone], ["出口区域", r => r.egress_zone], ["来源", r => r.source], ["目标", r => r.destination], ["协议", r => r.protocol], ["端口", r => r.port], ["动作", r => r.action]]} /></>}
+      actions={<><ResetFilters active={!!query || filter !== "all" || Object.values(filters).some(Boolean) || priorityOrder !== 1} onClick={() => {selection.setSelected(new Set()); setQuery(""); setFilters({}); setPriorityOrder(1); resetFilter()}} />
+        <ExportButton rows={selection.chosen.length ? selection.chosen : rows} name="域间规则" columns={[["优先级", r => r.priority], ["名称", r => r.name || r.policy_name], ["入口区域", r => r.ingress_zone], ["出口区域", r => r.egress_zone], ["来源", r => r.source], ["目标", r => r.destination], ["协议", r => r.protocol], ["端口", r => r.port], ["动作", r => facetLabel("action", actionValue(r))]]} /></>}
     >
       <AdaptiveSearch tableWidthKey="cross-zone-rules"><Search size={15} /><input aria-label="搜索域间规则" placeholder="查询区域、IP、网段或协议" value={query} onChange={event => setQuery(event.target.value)} /></AdaptiveSearch>
-      <Field label="规则状态"><select aria-label="域间规则状态筛选" value={stateFilter} onChange={e=>setStateFilter(e.target.value)}><option value="all">全部状态</option><option value="enabled">启用</option><option value="disabled">停用</option></select></Field>
     </CompactFilters>
     <ErrorLine error={resource.error || String(resource.data?.error || "") || (!form && !plan && !batch ? failure : "")} />
     {resource.loading && !resource.data && <p className="hint">正在读取域间规则…</p>}
-    <Table columnSizingKey="cross-zone-rules" keepHeaders rows={rows} total={items.length} selectedCount={selection.chosen.length} columns={[selection.column, ...columns]} rowKey={r => text(r.id)} />
+    <Table columnSizingKey="cross-zone-rules" keepHeaders rows={rows} total={items.length} selectedCount={selection.chosen.length} columns={[selection.column, ...columns.map(column => {
+      const facet = facets[column.key];
+      if (!facet) return column;
+      const options = [...new Set(items.map(facet).filter(Boolean))].sort();
+      return {...column, heading: <span className="table-heading-tools">{column.label}
+        <ListFilter label={column.label + "筛选"} column active={!!filters[column.key]}>
+          <Field label={column.label}><select value={filters[column.key] || ""} onChange={event => {
+            setFilters(previous => ({...previous, [column.key]: event.target.value}));
+            selection.setSelected(new Set());
+          }}>
+            <option value="">全部</option>
+            {options.map(value => <option key={value} value={value}>{facetLabel(column.key, value)}</option>)}
+          </select></Field>
+        </ListFilter>
+      </span>};
+    })]} rowKey={r => text(r.id)} />
     {batch && <Modal className="firewall-dialog" title={"批量" + batchLabels[batch.operation] + "域间规则"} onClose={() => !busy && setBatch(null)}>
       <p>已选 {batch.ids.length} 条 FoXray 纳管规则。</p>
       <Field label="生效方式"><select value={batch.mode} onChange={event=>setBatch({...batch,mode:event.target.value})}>

@@ -742,7 +742,6 @@ export function FirewallPage({ act }: { act: Act }) {
               onChange={(e) => setQuery(e.target.value)}
             />
           </AdaptiveSearch>
-          {category === "all" && filterControls.name}
         </CompactFilters>
 
         <Table columnSizingKey="firewall-rules"

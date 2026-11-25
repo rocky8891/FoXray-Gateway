@@ -22,22 +22,22 @@ function measurementClone(element: HTMLElement) {
   return clone;
 }
 
-export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null>, columns: Column<T>[], storageKey?: string) {
+export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null>, columns: Column<T>[], storageKey?: string, adjustable = true) {
   const enabled = !!storageKey, key = "foxray.column-widths.v1." + storageKey;
-  const [saved, setSaved] = useState(() => ({ key, widths: load(key) }));
+  const [saved, setSaved] = useState(() => ({ key, widths: adjustable ? load(key) : {} }));
   const [sizes, setSizes] = useState<Record<string, Size>>({});
   const [available, setAvailable] = useState(0);
   const drag = useRef<{ key: string; x: number; width: number; pointer: number } | null>(null);
-  const manual = saved.key === key ? saved.widths : {};
+  const manual = adjustable && saved.key === key ? saved.widths : {};
   const fixedEdge = (column: Column<T>) => column === columns[0] || column === columns.at(-1);
-  useEffect(() => { if (enabled) setSaved({ key, widths: load(key) }); drag.current = null; }, [key, enabled]);
+  useEffect(() => { if (enabled && adjustable) setSaved({ key, widths: load(key) }); drag.current = null; }, [key, enabled, adjustable]);
   useEffect(() => {
-    if (!enabled || saved.key !== key) return;
+    if (!enabled || !adjustable || saved.key !== key) return;
     try {
       if (Object.keys(saved.widths).length) localStorage.setItem(key, JSON.stringify(saved.widths));
       else localStorage.removeItem(key);
     } catch { /* Resizing still works when browser storage is unavailable. */ }
-  }, [saved, key, enabled]);
+  }, [saved, key, enabled, adjustable]);
   const measured = useRef<{ table: HTMLTableElement; signature: string } | null>(null);
   const [fontRevision, setFontRevision] = useState(0);
 
@@ -104,7 +104,7 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
       try {
         for (const { column, items } of samples) {
           const widths = items.map(item => item.clone.getBoundingClientRect().width + item.padding);
-          const min = Math.ceil(widths[0] + (fixedEdge(column) ? 0 : 14));
+          const min = Math.ceil(widths[0] + (!adjustable || fixedEdge(column) ? 0 : 14));
           const content = Math.ceil(Math.max(min, ...widths.slice(1)));
           const max = Math.max(min, column.maxWidth || 480, fixedEdge(column) || column.fitContent ? content : 0);
           const size = { min, max, auto: 0 };
@@ -128,7 +128,7 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
     return { key, widths };
   });
   const handle = (column: Column<T>) => {
-    if (fixedEdge(column)) return null;
+    if (!adjustable || fixedEdge(column)) return null;
     const bounds = size(column);
     return <span className="column-resize-handle" role="separator" aria-orientation="vertical" tabIndex={0}
       aria-label={column.label + "列宽"} aria-valuemin={bounds.min} aria-valuemax={bounds.max} aria-valuenow={width(column)}

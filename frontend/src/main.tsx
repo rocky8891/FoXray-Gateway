@@ -84,6 +84,18 @@ const pageHeadings: Partial<Record<Page, [string, string]>> = {
   monitor: ["Komari", "嵌入式服务器监控与状态查看"],
   settings: ["设置", "应用设置、备份、服务与版本维护"],
 };
+const navigationCacheKey = "foxray.navigation.v1";
+type NavigationSnapshot = { xray: boolean; wireguard: boolean; warp: boolean; komari: boolean; autoHide: boolean };
+
+function readNavigationSnapshot(): NavigationSnapshot | null {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(navigationCacheKey) || "null");
+    return cached && ["xray", "wireguard", "warp", "komari", "autoHide"].every(key => typeof cached[key] === "boolean") ? cached : null;
+  } catch {
+    return null;
+  }
+}
+
 function App() {
   useCompactSelects();
   const [diagnosticTab, setDiagnosticTab] = useState("path");
@@ -145,7 +157,20 @@ function App() {
     );
   }, [state?.manager_settings.status_refresh_seconds]);
   const [monitorHeaderHidden, setMonitorHeaderHidden] = useState(() => sessionStorage.getItem("foxray.monitor.header-hidden") === "true");
-  const headerAutoHide = record(state?.manager_settings.presentation).home_header_auto_hide === true;
+  const [cachedNavigation, setCachedNavigation] = useState(readNavigationSnapshot);
+  const components = state?.components;
+  const headerAutoHide = state
+    ? record(state.manager_settings.presentation).home_header_auto_hide === true
+    : cachedNavigation?.autoHide === true;
+  useEffect(() => {
+    if (!components) return;
+    const snapshot = {
+      xray: !!components.xray, wireguard: !!components.wireguard,
+      warp: !!components.warp, komari: !!components.komari, autoHide: headerAutoHide,
+    };
+    setCachedNavigation(snapshot);
+    try { sessionStorage.setItem(navigationCacheKey, JSON.stringify(snapshot)); } catch { /* Navigation can still use live state. */ }
+  }, [components?.xray, components?.wireguard, components?.warp, components?.komari, headerAutoHide, !!components]);
   const hideHomeHeader = headerAutoHide && (page === "overview" || page === "monitoring" && monitorHeaderHidden);
   const [headerExpanded, setHeaderExpanded] = useState(false);
   const [headerOrigin, setHeaderOrigin] = useState("calc(100vw - 30px) 150px");
@@ -348,12 +373,13 @@ function App() {
     state?.read_only === true,
   );
   cancelRandom.current = randomTheme.cancel;
+  const navComponents = components ?? cachedNavigation;
   const available = navigation.filter(
     ([id]) =>
-      (id !== "xray" || state?.components.xray) &&
-      (id !== "wireguard" || state?.components.wireguard) &&
-      (id !== "warp" || state?.components.warp) &&
-      (id !== "monitor" || state?.components.komari),
+      (id !== "xray" || navComponents?.xray) &&
+      (id !== "wireguard" || navComponents?.wireguard) &&
+      (id !== "warp" || navComponents?.warp) &&
+      (id !== "monitor" || navComponents?.komari),
   );
   useEffect(() => {
     if (state && !available.some(([id]) => id === page) && page !== "settings")
@@ -530,7 +556,7 @@ function App() {
               </div>
             </div>
           </a>
-          <nav aria-label="功能模块">
+          <nav aria-label="功能模块" aria-busy={!navComponents && !error} style={!navComponents && !error ? { visibility: "hidden" } : undefined}>
             {available.map(([id, label]) => {
               const collapse = id === "overview" && collapseInNav;
               const foxIcon = id === "overview" && showNavFox;

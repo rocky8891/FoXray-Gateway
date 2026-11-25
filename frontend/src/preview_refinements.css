@@ -849,7 +849,7 @@ header nav .nav-tab.nav-home-icon-button {
 /* Reserve space only on scrollable pages. The homepage already fits the viewport. */
 html:has(.home-header-shell[data-nav-fox="true"]):not(:has(main > .overview-page)) { scrollbar-gutter: stable; }
 header nav .nav-tab.nav-home-fox:is(:active, .nav-home-closing) {
-  color: var(--accent) !important;
+  color: #fff !important;
   background: var(--accent-bg) !important;
   border-color: var(--accent) !important;
 }
