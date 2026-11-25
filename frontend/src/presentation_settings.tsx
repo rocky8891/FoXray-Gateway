@@ -33,6 +33,7 @@ import {
   SERVICE_METRICS,
   serviceStyle,
   serviceStyleAvailable,
+  splitWireGuardCards,
   wireguardNameStyle,
   overviewPolicy,
   defaultOverviewView,
@@ -1059,18 +1060,20 @@ function OverviewLayoutSettings({
                       ["warp", "WARP"],
                       ["wireguard", "WireGuard"],
                     ].map(([module, title]) => {
+                      const standalone = module === "wireguard" && splitWireGuardCards(p);
+                      const aggregate = module === "wireguard" && !standalone;
                       const style = serviceStyle(p, module),
                         circle =
-                          module === "wireguard" &&
+                          aggregate &&
                           SERVICE_CIRCLE_STYLES.includes(style);
                       return (
                         <Field
                           key={module}
-                          label={title + "卡片样式"}
+                          label={title + (standalone ? "接口" : "") + "卡片样式"}
                           info="每张卡片独立保存样式，可自由组合。圆形按可用宽高自动缩放并调整间距和位置，空间不足时统一缩小字号，保持单行完整。小圆环的圆心名称会移到上方。无适用样式时，矩形回退为对称矩形、圆形回退为四圆横排。指标和接口子卡片可在主页编辑模式拖动交换位置。竖排只用于左右布局左侧的大卡片，右侧保持横排。"
                         >
                           <select
-                            aria-label={title + "卡片样式"}
+                            aria-label={title + (standalone ? "接口" : "") + "卡片样式"}
                             value={circle ? wireguardNameStyle(p) : style}
                             onChange={(e) => {
                               const value = e.target.value;
@@ -1093,9 +1096,9 @@ function OverviewLayoutSettings({
                             }}
                           >
                             <option value="metrics">
-                              {module === "wireguard" ? "矩形" : "对称矩形"}
+                              {aggregate ? "矩形" : "对称矩形"}
                             </option>
-                            {module === "wireguard" ? (
+                            {aggregate ? (
                               <>
                                 <option value="above">圆形</option>
                               </>

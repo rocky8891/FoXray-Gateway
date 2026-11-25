@@ -67,7 +67,14 @@ export const SERVICE_STYLE_FIELDS: Record<string, string> = {
   wireguard: "services_wireguard_layout",
 };
 export const SERVICE_METRICS = ["upload", "download", "latency", "connections"];
-export function serviceStyle(value: unknown, module: string): string {
+export function splitWireGuardCards(value: unknown): boolean {
+  const { cards } = overviewPolicy(value, "services");
+  return cards.includes("service-wireguard") &&
+    (Number(record(value).services_wireguard_count) === 1 ||
+      SERVICE_CARDS.some(card => !cards.includes(card)));
+}
+
+export function serviceStyle(value: unknown, module: string, secondary = false): string {
   const p = record(value);
   // Older versions saved the circle choice independently of the global style.
   if (
@@ -85,7 +92,7 @@ export function serviceStyle(value: unknown, module: string): string {
       DEFAULT_SERVICE_THEME[SERVICE_STYLE_FIELDS[module]] ||
       "metrics",
   );
-  return serviceStyleAvailable(p, module, style)
+  return serviceStyleAvailable(p, module, style, secondary)
     ? style
     : style.startsWith("radial")
       ? "radial"
@@ -107,10 +114,12 @@ export function serviceStyleAvailable(
   value: unknown,
   module: string,
   style: string,
+  secondary = false,
 ): boolean {
   const { layout, cards } = overviewPolicy(value, "services");
-  const anchor = cards[0] === "service-" + module;
-  if (module === "wireguard") return ["metrics", "radial"].includes(style);
+  const anchor = !secondary && cards[0] === "service-" + module;
+  if (module === "wireguard" && !splitWireGuardCards(value))
+    return ["metrics", "radial"].includes(style);
   if (style === "radial-vertical") return layout === "sidebar" && anchor;
   if (style === "metrics" || style === "radial") return true;
   if (!style.startsWith("radial")) return false;
@@ -132,7 +141,7 @@ export function wireguardNameStyle(value: unknown): string {
 export function normalizeServiceLayoutChange(p: Dict, layout: string): Dict {
   const patch: Dict = { services_layout: layout };
   if (layout !== "sidebar")
-    for (const module of ["host", "xray", "warp"]) {
+    for (const module of ["host", "xray", "warp", "wireguard"]) {
       const key = SERVICE_STYLE_FIELDS[module];
       if (p[key] === "radial-vertical") patch[key] = "radial";
     }

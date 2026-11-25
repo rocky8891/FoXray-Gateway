@@ -211,8 +211,8 @@ func validatePresentation(p M) error {
 	}
 	for _, key := range []string{"services_host_style", "services_xray_style", "services_warp_style", "services_wireguard_layout"} {
 		v := str(p[key])
-		if v == "radial-vertical" && (str(p["services_layout"]) != "sidebar" || key == "services_wireguard_layout") {
-			return errors.New("四圆竖排仅用于左右布局的服务器、Xray或WARP卡片")
+		if v == "radial-vertical" && str(p["services_layout"]) != "sidebar" {
+			return errors.New("四圆竖排仅用于左右布局")
 		}
 		if _, ok := p[key].(string); !ok || (v != "" && v != "metrics" && v != "metrics-left" && v != "radial" && v != "radial-diamond" && v != "radial-diamond-compact" && v != "radial-wave" && v != "radial-square" && v != "radial-mixed" && v != "radial-vertical") {
 			return errors.New("服务卡片独立样式无效")

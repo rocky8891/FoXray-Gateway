@@ -17,7 +17,7 @@ import { TrueLatencyIcon } from "./requirement_icons";
 import { useOverviewDrag } from "./overview_editor";
 import { ConnectionIcon, GatewayIcon, ThemePaletteIcon } from "./monitor_icons";
 import { IconSelect } from "./icon_select";
-import { overviewPolicy, type OverviewView } from "./overview_policy";
+import { overviewPolicy, splitWireGuardCards, type OverviewView } from "./overview_policy";
 import { ServiceOverviewCards } from "./monitor_overview";
 import { rangeHours } from "./presentation_settings";
 import { SettingInfo } from "./ui";
@@ -61,6 +61,7 @@ import {
   api,
   bandwidth,
   errorMessage,
+  list,
   record,
   text,
   timestamp,
@@ -1073,6 +1074,14 @@ export function Home({
   const timeRange = useTimeRange(rangeHours(presentation, true));
   const { cards: shown, layout } = overviewPolicy(presentation, page);
   const servicesView = page === "services";
+  const wireguard = useResource<Dict>("/api/network/wireguard", 15000, shown.includes("service-wireguard"));
+  const wgCount = Number(presentation.services_wireguard_count || 2);
+  const wgSlots = splitWireGuardCards(presentation)
+    ? Math.min(wgCount, 4 - shown.filter(id => id !== "service-wireguard").length)
+    : wgCount;
+  const wgExtraCards = servicesView && splitWireGuardCards(presentation)
+    ? Math.max(0, Math.min(wgSlots, list(wireguard.data?.items).length) - 1)
+    : 0;
   const current = state.nodes.find((n) => n.active),
     enabled = state.nodes.filter((n) => n.id !== "warp" && n.enabled).length,
     nodes = filterNodes(state, { ...filterDefaults, status }).filter(
@@ -1365,7 +1374,7 @@ export function Home({
           <div
             className={`dashboard-exit-grid overview-layout-${layout}`}
             data-overview-anchor={visibleCards[0]}
-            data-card-count={visibleCards.length}
+            data-card-count={visibleCards.length + wgExtraCards}
             style={
               {
                 ...Object.fromEntries(
@@ -1373,7 +1382,7 @@ export function Home({
                 ),
                 "--overview-secondary-count": Math.max(
                   1,
-                  visibleCards.length - 1,
+                  visibleCards.length + wgExtraCards - 1,
                 ),
               } as React.CSSProperties
             }
@@ -1388,6 +1397,8 @@ export function Home({
                   manager_settings: { ...state.manager_settings, presentation },
                 }}
                 cards={shown.filter((id) => id.startsWith("service-"))}
+                wireguard={wireguard}
+                interfaceCount={wgSlots}
               />
             )}
             {shown.includes("info") && (

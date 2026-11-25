@@ -5,6 +5,7 @@ import { ServerIcon, TrueLatencyIcon } from "./requirement_icons";
 import { circleLayout } from "./circle_layout";
 import {
   serviceStyle,
+  splitWireGuardCards,
   wireguardNameStyle,
   SERVICE_METRICS,
   SERVICE_CIRCLE_STYLES,
@@ -567,9 +568,13 @@ function SummaryMetrics({
 export function ServiceOverviewCards({
   state,
   cards,
+  wireguard: wg,
+  interfaceCount,
 }: {
   state: State;
   cards: string[];
+  wireguard: ReturnType<typeof useResource<Dict>>;
+  interfaceCount: number;
 }) {
   const monitorLink = (module: string, label: string) => {
     const enabled = module === "host" || !!state.components[module as keyof typeof state.components];
@@ -594,14 +599,10 @@ export function ServiceOverviewCards({
   const system = useResource<Dict>("/api/system", 2000),
     traffic = useResource<Dict>("/api/traffic", 2000),
     warp = useResource<Dict>("/api/warp", 15000),
-    wg = useResource<Dict>("/api/network/wireguard", 15000),
     services = useResource<Dict>("/api/services", 15000);
   const wgDelay = useResource<Dict>(
       "/api/latency-history?module=wireguard&kind=icmp&hours=1",
       15000,
-    ),
-    interfaceCount = Number(
-      record(state.manager_settings.presentation).services_wireguard_count || 2,
     );
   const moduleOn = (m: string) =>
     record(record(state.monitoring_items)._modules)[m] !== false;
@@ -641,13 +642,12 @@ export function ServiceOverviewCards({
   const hostOrder = (record(state.manager_settings.presentation)
     .services_host_order as string[]) || ["cpu", "load", "memory", "root"];
   const presentation = record(state.manager_settings.presentation);
-  const cardStyle = (module: string) =>
-    " service-style-" +
-    serviceStyle(presentation, module) +
-    (serviceStyle(presentation, module).startsWith("radial-") &&
-    serviceStyle(presentation, module) !== "radial-diamond"
-      ? " service-style-radial-diamond"
-      : "");
+  const cardStyle = (module: string, secondary = false) => {
+    const style = serviceStyle(presentation, module, secondary);
+    return ` service-style-${style}` + (style.startsWith("radial-") && style !== "radial-diamond"
+      ? " service-style-radial-diamond" : "");
+  };
+  const splitWireGuard = splitWireGuardCards(presentation) && interfaces.length > 0;
   return (
     <>
       {cards.includes("service-host") && (
@@ -843,7 +843,40 @@ export function ServiceOverviewCards({
             </Panel>
           );
         })}
-      {cards.includes("service-wireguard") && (
+      {cards.includes("service-wireguard") && splitWireGuard && interfaces.map((row, index) => {
+        const name = String(row.name);
+        const id = "wg:" + name;
+        const samples = list(record(wgDelay.data?.series)[id]);
+        const peer = record(record(record(connections.wireguard).nodes)[id]);
+        const ready = wgOn && !!row.active;
+        return (
+          <Panel
+            {...monitorLink("wireguard", name)}
+            key={id}
+            data-interface-name={name}
+            data-wg-anchor={index === 0 || undefined}
+            className={"overview-summary-card service-overview-card summary-v417 service-wireguard-interface" +
+              cardStyle("wireguard", index > 0)}
+          >
+            <SummaryHeader
+              title={name}
+              icon={<ProductIcon product="wireguard" size={20} />}
+              status={!wgOn ? "监控已关闭" : ready ? "接口已启动" : "接口已停止"}
+              tone={ready ? "accent" : "muted"}
+            />
+            <div className="service-overview-surface">
+              <SummaryMetrics
+                rows={ready ? rows.filter(row => row.id === id) : []}
+                count={ready && record(connections.wireguard).available ? (peer.count ?? 0) : null}
+                latency={ready ? samples[samples.length - 1]?.latency : undefined}
+                paused={!ready}
+              />
+            </div>
+            {index === 0 && <ErrorLine error={wg.error || wgDelay.error} />}
+          </Panel>
+        );
+      })}
+      {cards.includes("service-wireguard") && !splitWireGuard && (
         <Panel
           {...monitorLink("wireguard","WireGuard")}
           className={

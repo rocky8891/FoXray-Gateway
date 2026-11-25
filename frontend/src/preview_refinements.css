@@ -856,18 +856,21 @@ header nav .nav-tab.nav-home-fox:is(:active, .nav-home-closing) {
 header nav .nav-home-fox-icon {
   display: grid;
   place-items: center;
-  animation: home-collapse-arrive 420ms both;
 }
 header nav .nav-home-fox-icon > svg { width: 27px; height: 29px; max-height: calc(var(--menu-button-height) - 4px); overflow: visible; }
-@keyframes home-collapse-arrive {
-  0% { opacity: 0; transform: translate(8px, 4px) scale(.7); }
-  50% { opacity: 1; transform: translate(0, -3px) scale(1.09); }
-  75% { transform: translate(0, 1px) scale(.97); }
+header .brand .brand-logo, header nav .nav-home-fox-icon {
+  animation: fox-logo-arrive 760ms cubic-bezier(.25,.7,.3,1) both;
+}
+@keyframes fox-logo-arrive {
+  0% { opacity: 0; transform: translateY(8px) scale(.72); }
+  48% { opacity: 1; transform: translateY(-5px) scale(1.1); }
+  70% { transform: translateY(2px) scale(.96); }
+  86% { transform: translateY(-1px) scale(1.02); }
   100% { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .home-header-shell[data-auto-hide="true"] { transition: none !important; }
-  header nav .nav-home-fox-icon { animation: none; }
+  header .brand .brand-logo, header nav .nav-home-fox-icon { animation: none; }
 }
 .home-header-handle {
   position: fixed;
@@ -1685,4 +1688,18 @@ main[data-module-page] > .panel:nth-child(1 of .panel) > .page-heading h2,
 main[data-module-page] > :is(.module-page, .module-service-settings) > .panel:nth-child(1 of .panel) > .page-heading h2 {
   font-size: 20px;
   line-height: 28px;
+}
+
+.dashboard-exit-grid > .service-wireguard-interface { order: var(--order-service-wireguard); }
+.management-toolbar:has(.cross-zone-toolbar-actions) > .actions { order: 3; }
+.cross-zone-toolbar-actions { display: contents; }
+@media (min-width: 1000px) {
+  .overview-layout-top[data-overview-anchor="service-wireguard"] > [data-wg-anchor].service-style-metrics > .service-overview-surface > .service-metric-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: 1fr;
+  }
+  .overview-layout-sidebar[data-overview-anchor="service-wireguard"] > [data-wg-anchor].service-style-metrics > .service-overview-surface > .service-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
 }

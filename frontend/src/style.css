@@ -5343,7 +5343,7 @@ main{width:100%;max-width:1920px;margin-left:auto;margin-right:auto;padding-inli
 
 @media(min-width:1000px){.dashboard-current .overview-layout-top[data-overview-anchor="service-warp"]>.service-warp{grid-column:1/-1;grid-row:1;order:-1}.dashboard-current .overview-layout-sidebar[data-overview-anchor="service-warp"]>.service-warp{grid-column:1;grid-row:1/-1;order:-1}}
 
-@media(min-width:1000px){.dashboard-current .overview-layout-top[data-overview-anchor="service-wireguard"]>.service-wireguard{grid-column:1/-1;grid-row:1;order:-1}.dashboard-current .overview-layout-sidebar[data-overview-anchor="service-wireguard"]>.service-wireguard{grid-column:1;grid-row:1/-1;order:-1}}
+@media(min-width:1000px){.dashboard-current .overview-layout-top[data-overview-anchor="service-wireguard"]>:is(.service-wireguard,[data-wg-anchor]){grid-column:1/-1;grid-row:1;order:-1}.dashboard-current .overview-layout-sidebar[data-overview-anchor="service-wireguard"]>:is(.service-wireguard,[data-wg-anchor]){grid-column:1;grid-row:1/-1;order:-1}}
 
 main:has(.monitor-settings-tabs) .form-grid{gap:12px 16px;margin-block:12px}main:has(.monitor-settings-tabs) .form-grid>.field{margin:0}
 
@@ -6505,10 +6505,10 @@ main>.overview-page>.overview-home:has(.dashboard-nodes){display:block!important
 .overview-page .dashboard-current .dashboard-exit-grid.overview-layout-top[data-card-count][data-overview-anchor="service-warp"]>section:not(.service-warp){grid-column:auto!important;grid-row:2!important}
 .overview-page .dashboard-current .dashboard-exit-grid.overview-layout-sidebar[data-card-count][data-overview-anchor="service-warp"]>section.service-warp{grid-column:1!important;grid-row:1/-1!important}
 .overview-page .dashboard-current .dashboard-exit-grid.overview-layout-sidebar[data-card-count][data-overview-anchor="service-warp"]>section:not(.service-warp){grid-column:2!important;grid-row:auto!important}
-.overview-page .dashboard-current .dashboard-exit-grid.overview-layout-top[data-card-count][data-overview-anchor="service-wireguard"]>section.service-wireguard{grid-column:1/-1!important;grid-row:1!important}
-.overview-page .dashboard-current .dashboard-exit-grid.overview-layout-top[data-card-count][data-overview-anchor="service-wireguard"]>section:not(.service-wireguard){grid-column:auto!important;grid-row:2!important}
-.overview-page .dashboard-current .dashboard-exit-grid.overview-layout-sidebar[data-card-count][data-overview-anchor="service-wireguard"]>section.service-wireguard{grid-column:1!important;grid-row:1/-1!important}
-.overview-page .dashboard-current .dashboard-exit-grid.overview-layout-sidebar[data-card-count][data-overview-anchor="service-wireguard"]>section:not(.service-wireguard){grid-column:2!important;grid-row:auto!important}
+.overview-page .dashboard-current .dashboard-exit-grid.overview-layout-top[data-card-count][data-overview-anchor="service-wireguard"]>section:is(.service-wireguard,[data-wg-anchor]){grid-column:1/-1!important;grid-row:1!important}
+.overview-page .dashboard-current .dashboard-exit-grid.overview-layout-top[data-card-count][data-overview-anchor="service-wireguard"]>section:not(:is(.service-wireguard,[data-wg-anchor])){grid-column:auto!important;grid-row:2!important}
+.overview-page .dashboard-current .dashboard-exit-grid.overview-layout-sidebar[data-card-count][data-overview-anchor="service-wireguard"]>section:is(.service-wireguard,[data-wg-anchor]){grid-column:1!important;grid-row:1/-1!important}
+.overview-page .dashboard-current .dashboard-exit-grid.overview-layout-sidebar[data-card-count][data-overview-anchor="service-wireguard"]>section:not(:is(.service-wireguard,[data-wg-anchor])){grid-column:2!important;grid-row:auto!important}
 }
 
 .overview-surface-row>.form-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}

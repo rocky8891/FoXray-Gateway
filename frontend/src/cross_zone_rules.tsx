@@ -34,6 +34,15 @@ export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule =
   const facetLabel = (key: string, value: string) => key === "state" ? (value === "enabled" ? "启用" : "停用")
     : key === "action" ? actions[value] || policyTargets[value.toUpperCase()] || value
     : key === "protocol" ? (value === "all" ? "全部协议" : value.toUpperCase()) : value;
+  const filterSummary = [
+    query.trim() && `搜索：${query.trim()}`,
+    filter !== "all" && `范围：${filter === "managed" ? "本应用管理" : filter === "external" ? "系统 / 外部" : "显式阻断"}`,
+    ...Object.entries(filters).filter(([, value]) => value).map(([key, value]) => {
+      const labels: Record<string, string> = {source: "入口区域", destination: "出口区域", protocol: "协议", action: "动作", state: "状态"};
+      return `${labels[key]}：${facetLabel(key, value)}`;
+    }),
+    priorityOrder !== 1 && "优先级：降序",
+  ].filter(Boolean).join(" · ");
   const [form,setForm]=useState<Dict|null>(null),[operation,setOperation]=useState("add"),[ack,setAck]=useState(false);
   const [plan,setPlan]=useState<Plan|null>(null),[failure,setFailure]=useState(""),[busy,setBusy]=useState(false),[detail,setDetail]=useState<Dict|null>(null);
   const zones=Array.isArray(resource.data?.zones)?resource.data.zones.map(String):[];
@@ -87,8 +96,8 @@ export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule =
         <Button disabled={!canBatch} onClick={() => beginBatch("disable")}>停用</Button>
         <ActionMenu label="批量" triggerLabel="批量操作" showLabel items={Object.entries(batchLabels).map(([operation,label])=>({label,disabled:!canBatch,onClick:()=>beginBatch(operation)}))} />
       </>}
-      actions={<><ResetFilters active={!!query || filter !== "all" || Object.values(filters).some(Boolean) || priorityOrder !== 1} onClick={() => {selection.setSelected(new Set()); setQuery(""); setFilters({}); setPriorityOrder(1); resetFilter()}} />
-        <ExportButton rows={selection.chosen.length ? selection.chosen : rows} name="域间规则" columns={[["优先级", r => r.priority], ["名称", r => r.name || r.policy_name], ["入口区域", r => r.ingress_zone], ["出口区域", r => r.egress_zone], ["来源", r => r.source], ["目标", r => r.destination], ["协议", r => r.protocol], ["端口", r => r.port], ["动作", r => facetLabel("action", actionValue(r))]]} /></>}
+      actions={<span className="cross-zone-toolbar-actions"><ResetFilters active={!!filterSummary} summary={filterSummary} selectedCount={selection.chosen.length} onClick={() => {selection.setSelected(new Set()); setQuery(""); setFilters({}); setPriorityOrder(1); resetFilter()}} />
+        <ExportButton rows={selection.chosen.length ? selection.chosen : rows} name="域间规则" columns={[["优先级", r => r.priority], ["名称", r => r.name || r.policy_name], ["入口区域", r => r.ingress_zone], ["出口区域", r => r.egress_zone], ["来源", r => r.source], ["目标", r => r.destination], ["协议", r => r.protocol], ["端口", r => r.port], ["动作", r => facetLabel("action", actionValue(r))]]} /></span>}
     >
       <AdaptiveSearch tableWidthKey="cross-zone-rules"><Search size={15} /><input aria-label="搜索域间规则" placeholder="查询区域、IP、网段或协议" value={query} onChange={event => setQuery(event.target.value)} /></AdaptiveSearch>
     </CompactFilters>
@@ -107,6 +116,10 @@ export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule =
             <option value="">全部</option>
             {options.map(value => <option key={value} value={value}>{facetLabel(column.key, value)}</option>)}
           </select></Field>
+          <Button disabled={!filters[column.key]} onClick={() => {
+            setFilters(previous => ({...previous, [column.key]: ""}));
+            selection.setSelected(new Set());
+          }}>重置</Button>
         </ListFilter>
       </span>};
     })]} rowKey={r => text(r.id)} />
