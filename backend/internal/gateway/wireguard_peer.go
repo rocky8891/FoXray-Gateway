@@ -96,6 +96,14 @@ func rewriteWGPeerState(raw, key string, disabled bool) (string, error) {
 }
 
 func WireGuardPeerState(name, key string) error {
+	if err := iface(name); err != nil {
+		return err
+	}
+	unlock, err := lockWGPeerInterface(name)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	profile, err := readWG(name)
 	if err != nil {
 		return err
@@ -108,6 +116,11 @@ func WireGuardPeerState(name, key string) error {
 	}
 	for _, peer := range profile.Peers {
 		if peer.PublicKey == key {
+			if peer.Probe.AutoWithdraw {
+				if err := purgeWGPeerGuards(ctx, runner, name, peer); err != nil {
+					return err
+				}
+			}
 			return syncWGPeerRoutes(ctx, runner, profile, peer)
 		}
 	}

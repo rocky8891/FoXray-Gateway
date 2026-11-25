@@ -44,10 +44,14 @@ func (n *Network) batchPreview(data M) (*NetworkPlan, error) {
 		if kind == "interfaces" {
 			identity = str(item["name"])
 		}
-		if identity == "" || seen[identity] {
+		selectionKey := identity
+		if kind == "firewall" && operation == "adopt" {
+			selectionKey = str(item["zone"]) + "|" + identity
+		}
+		if identity == "" || seen[selectionKey] {
 			return nil, errors.New("规则选择包含空值或重复项")
 		}
-		seen[identity] = true
+		seen[selectionKey] = true
 		if operation == "enable" || operation == "disable" {
 			item = n.ownedItem(kind, str(item["id"]))
 			if item == nil {

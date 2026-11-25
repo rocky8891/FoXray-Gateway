@@ -43,10 +43,12 @@ type NetworkPlan struct {
 	revision                    string
 }
 type Network struct {
-	app     *App
-	mu      sync.Mutex
-	plans   map[string]*NetworkPlan
-	managed M
+	app          *App
+	mu           sync.Mutex
+	plans        map[string]*NetworkPlan
+	managed      M
+	peerHealthMu sync.RWMutex
+	peerHealth   map[string]wgPeerHealth
 }
 
 func NewNetwork(a *App) *Network {
@@ -368,14 +370,17 @@ func (n *Network) wireguard() []M {
 		names = append(names, strings.TrimSuffix(filepath.Base(p), ".conf"))
 	}
 	rows := []M{}
+	routeInventory := map[string][]M{}
 	for _, name := range uniq(names) {
 		active := false
 		for _, r := range strings.Fields(running) {
 			active = active || r == name
 		}
 		row := M{"name": name, "active": active, "configured": regular("/etc/wireguard/" + name + ".conf"), "service": a.service("wg-quick@" + name), "protected": name == "wg-home", "peers": []M{}}
+		var profile *WGProfile
 		if yes(row["configured"]) {
-			if profile, e := readWG(name); e == nil {
+			var err error
+			if profile, err = readWG(name); err == nil {
 				row["remark"] = profile.Remark
 				row["listen_port"] = profile.ListenPort
 				row["configured_addresses"] = profile.Addresses
@@ -436,6 +441,7 @@ func (n *Network) wireguard() []M {
 			}
 			row["probe_candidates"] = candidates
 		}
+		row["peers"] = n.decorateWGPeers(name, yes(row["active"]), profile, row["peers"], routeInventory)
 		rows = append(rows, row)
 	}
 	sort.Slice(rows, func(i, j int) bool { return str(rows[i]["name"]) < str(rows[j]["name"]) })

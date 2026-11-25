@@ -17,6 +17,7 @@ type crossZonePolicy struct {
 	Ingress, Egress, Rules []string
 	Extra                  bool
 	Disabled               bool
+	Masquerade             bool
 }
 
 func parseCrossZonePolicies(raw string) (map[string]crossZonePolicy, error) {
@@ -75,6 +76,9 @@ func parseCrossZonePolicies(raw string) (map[string]crossZonePolicy, error) {
 				case "disable":
 					p.Disabled = value == "yes"
 				case "masquerade", "icmp-block-inversion":
+					if key == "masquerade" {
+						p.Masquerade = value == "yes"
+					}
 					if value != "no" {
 						p.Extra = true
 					}

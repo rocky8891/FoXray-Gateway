@@ -204,6 +204,9 @@ func (n *Network) firewallSnapshotWithState(zone string, state M, contexts ...co
 		}
 		return result
 	}
+	if zone == "*" {
+		return n.firewallAllZoneSnapshot(result, managed, command)
+	}
 	if zone == "" {
 		raw, err := command(8, "", "firewall-cmd", "--get-default-zone")
 		if err != nil {
@@ -272,41 +275,7 @@ func (n *Network) firewallSnapshotWithState(zone string, state M, contexts ...co
 	if permanentErr == nil {
 		complete = addZoneInventory(entries, zone, permanentDetails, "permanent") && complete
 	}
-	directRules := func(raw string) map[string]bool {
-		rules := map[string]bool{}
-		for _, line := range textLines(raw) {
-			rules[compactRule(line)] = true
-		}
-		return rules
-	}
-	liveDirect, savedDirect := directRules(runtimeDirect), directRules(permanentDirect)
-	for _, value := range managed {
-		rule, e := normalizeFirewall(obj(value))
-		if e != nil || firewallDriver(rule) != "firewalld" || str(rule["zone"]) != zone {
-			continue
-		}
-		row := clone(rule)
-		row["managed"], row["editable"] = true, true
-		allRuntime, allPermanent := true, true
-		anyRuntime, anyPermanent := false, false
-		for _, spec := range firewallSpecs(rule) {
-			key := spec[0] + "|" + compactRule(spec[1])
-			match := entries[key]
-			live, saved := match != nil && yes(match["runtime"]), match != nil && yes(match["permanent"])
-			if spec[0] == "direct-rule" {
-				live = runtimeDirectErr == nil && liveDirect[compactRule(spec[1])]
-				saved = permanentDirectErr == nil && savedDirect[compactRule(spec[1])]
-			}
-			allRuntime, allPermanent = allRuntime && live, allPermanent && saved
-			anyRuntime, anyPermanent = anyRuntime || live, anyPermanent || saved
-			delete(entries, key)
-		}
-		row["runtime"], row["permanent"] = allRuntime, allPermanent
-		row["partial_runtime"], row["partial_permanent"] = anyRuntime && !allRuntime, anyPermanent && !allPermanent
-		row["drift"] = yes(rule["enabled"]) && (!allRuntime || !allPermanent) || !yes(rule["enabled"]) && (anyRuntime || anyPermanent)
-		entries["managed|"+str(rule["id"])] = row
-
-	}
+	mergeManagedZoneRows(entries, zone, managed, firewallDirectSet(runtimeDirect), firewallDirectSet(permanentDirect), runtimeDirectErr == nil, permanentDirectErr == nil)
 	rows := []M{}
 	servicePorts := map[string][]string{}
 	for _, row := range entries {
@@ -346,12 +315,16 @@ func (n *Network) firewallSnapshotWithState(zone string, state M, contexts ...co
 		policy["error"] = "区域运行时、永久策略或ICMP类型未完整读取"
 	}
 	result["zone_policy"] = policy
+	result["available_services"] = firewallAvailableServices()
+	return result
+}
+
+func firewallAvailableServices() []string {
 	installedServices := []string{}
 	paths, _ := filepath.Glob("/usr/lib/firewalld/services/*.xml")
 	custom, _ := filepath.Glob("/etc/firewalld/services/*.xml")
 	for _, path := range append(paths, custom...) {
 		installedServices = append(installedServices, strings.TrimSuffix(filepath.Base(path), ".xml"))
 	}
-	result["available_services"] = uniq(installedServices)
-	return result
+	return uniq(installedServices)
 }

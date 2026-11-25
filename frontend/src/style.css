@@ -7088,3 +7088,6 @@ header .brand{align-items:center}header .brand .brand-logo{width:44px;height:44p
 .monitor-master-settings .field-title{font-family:inherit;font-size:13px;font-weight:650;line-height:20px}
 
 .brand h1>.brand-name-x{color:#ff8033}
+
+.wg-peer-status-line{display:block;border:0;padding:2px 0;background:none;color:var(--accent);font:inherit;text-align:left;cursor:pointer;white-space:nowrap}
+.wg-peer-status-line:hover{text-decoration:underline}

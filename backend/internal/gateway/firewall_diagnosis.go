@@ -461,6 +461,17 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 			}
 		}
 	}
+	if pathScope == "forward" && driver == "firewalld" {
+		if raw, err := cmd(6, "", "nft", "-j", "list", "ruleset"); err == nil {
+			moduleRules := moduleSNATCandidates(raw, f, str(route["dev"]))
+			candidates = append(candidates, moduleRules...)
+			if len(moduleRules) > 0 && translated["status"] == "未确认地址转换" {
+				translated["status"] = "存在运行时模块伪装候选，源地址转换未确认"
+			}
+		} else {
+			warnings = append(warnings, "未能读取内核 NAT 链，模块伪装无法核实。")
+		}
+	}
 	if driver == "firewalld" {
 		hasOverlap := false
 		for _, candidate := range candidates {

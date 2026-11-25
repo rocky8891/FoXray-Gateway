@@ -4,7 +4,7 @@ import { FirewallServiceSelect } from "./firewall_service_select";
 import { AdaptiveSearch } from "./adaptive_search";
 import { FirewallAuditFields,FirewallDestinationField,ZoneSourceEditor,ZonePolicyEditor,RichRuleEditor,FirewallChangeDetails,FirewallRuleSummary } from "./firewall_editors";
 import { FirewallWorkspace } from "./firewall_workspace";
-import { firewallViewState } from "./firewall_view_state";
+import { ALL_FIREWALL_ZONES, firewallBindings, firewallRuleOrigin, firewallRuleOriginLabel, firewallViewState } from "./firewall_view_state";
 import { MultiSelect } from "./multi_select";
 import { ResetFilters } from "./list_controls";
 import { ExportButton } from "./resource_controls";
@@ -67,7 +67,8 @@ export function FirewallPage({ act }: { act: Act }) {
     [status, setStatus] = useState("all"),
     [owner, setOwner] = useState("all"),
     [ruleAction, setRuleAction] = useState("all"),
-    [configScope,setConfigScope]=useState("all");
+    [configScope,setConfigScope]=useState("all"),
+    [origin,setOrigin]=useState("all");
   const diagnosing = category === "diagnosis";
   const resource = useResource<Dict>(
     "/api/network/firewall?driver=" +
@@ -80,6 +81,7 @@ export function FirewallPage({ act }: { act: Act }) {
   const serviceResource=useResource<Dict>("/api/network/firewall/service?driver="+encodeURIComponent(driver),5000,!diagnosing);
   const crossZone = category === "cross-zone";
   const crossResource = useResource<Dict>("/api/network/firewall/cross-zone", 30000, crossZone);
+  const originResource = useResource<Dict>("/api/network/firewall/origins", 30000, driver === "firewalld" && !diagnosing && origin !== "firewalld");
   const [crossFilter, setCrossFilter] = useState("all");
   const [lastRead, setLastRead] = useState(0), [refreshing, setRefreshing] = useState(false);
   useEffect(()=>{if(resource.data)setLastRead(Date.now())},[resource.data]);
@@ -92,12 +94,43 @@ export function FirewallPage({ act }: { act: Act }) {
     [detail, setDetail] = useState<unknown>(null),
     [ack, setAck] = useState(false),
     [sort, setSort] = useState({ key: "priority", direction: 1 });
+  const allZones = driver === "firewalld" && zone === ALL_FIREWALL_ZONES;
   const view = firewallViewState(resource.data, driver, zone, resource.error || "");
-  const all = (view.current && !resource.error ? list(resource.data?.entries) : []).filter(r=>configScope==="runtime" ? !!(r.runtime||r.partial_runtime) : configScope==="permanent" ? !!(r.permanent||r.partial_permanent) : configScope==="difference" ? !!(r.drift||r.partial_runtime||r.partial_permanent||!!r.runtime!==!!r.permanent) : true),
-    zones = Array.isArray(resource.data?.zones) ? resource.data.zones.map(String) : [zone],
+  const moduleRows = driver === "firewalld" && origin !== "firewalld"
+    ? list(originResource.data?.entries).filter(row => origin === "all" || firewallRuleOrigin(row, driver) === origin)
+    : [];
+  const crossItems = [
+    ...(origin === "all" || origin === "firewalld" ? list(crossResource.data?.items) : []),
+    ...moduleRows.filter(row => row.kind === "cross-zone"),
+  ];
+  const originsNotice = driver === "firewalld" && origin !== "firewalld"
+    ? originResource.error || (originResource.data?.complete === false ? "部分模块规则未读到，列表可能不完整" : "")
+    : "";
+  const crossDisplay = crossResource.data ? {...crossResource.data, items: crossItems} : null;
+  const scopedModules = moduleRows.filter(row => row.kind !== "cross-zone" && (allZones || row.zone === zone));
+  const zoneRows = view.current && !resource.error && (origin === "all" || origin === "firewalld") ? list(resource.data?.entries) : [];
+  const all = [...zoneRows, ...scopedModules].filter(r=>configScope==="runtime" ? !!(r.runtime||r.partial_runtime) : configScope==="permanent" ? !!(r.permanent||r.partial_permanent) : configScope==="difference" ? !!(r.drift||r.partial_runtime||r.partial_permanent||!!r.runtime!==!!r.permanent) : true),
+    zones = Array.isArray(resource.data?.zones) ? resource.data.zones.map(String) : allZones ? [] : [zone],
     running = view.native ? view.canManage : view.running,
     native = view.native,
     writable = view.canManage;
+  const rowKey = (r: Dict) => allZones ? `${String(r.zone || "")}::${String(r.id)}` : String(r.id);
+  const renderZoneBinding = (r: Dict) => {
+    const name = text(r.zone || "区域未确认");
+    const device = String((category === "masquerade" ? r.out_interface : r.in_interface) || "");
+    const binding = allZones
+      ? record(record(resource.data?.zone_bindings)[String(r.zone || "")])
+      : view.current && r.zone === zone ? record(resource.data?.zone_info) : {};
+    const interfaces = firewallBindings(binding.interfaces);
+    const sources = firewallBindings(binding.sources);
+    return <div className="firewall-row-zone">
+      <strong>{name}</strong>
+      {device ? <small>{device}（规则指定）</small> : interfaces.length > 1 ? (
+        <details><summary>{interfaces.length} 个接口（区域绑定）</summary><small>{interfaces.join("、")}</small></details>
+      ) : interfaces.length === 1 ? <small>{interfaces[0]}（区域绑定）</small> : sources.length === 0 && <small>接口未确认</small>}
+      {!device && sources.length > 0 && <small>来源归属 {sources.join("、")}</small>}
+    </div>;
+  };
   const categoryLabel = categories.find(([key]) => key === category)?.[1] ?? "域内规则";
   const ruleHeading = category === "masquerade" || category === "forward" ? `${categoryLabel} 规则` : categoryLabel;
   const ruleAnchor = useRef<HTMLDivElement>(null);
@@ -132,7 +165,7 @@ export function FirewallPage({ act }: { act: Act }) {
   const selectable = rows.filter(
     (r) => r.managed || (!native && r.editable !== false),
   );
-  const chosen = rows.filter((r) => selected.has(String(r.id)));
+  const chosen = rows.filter((r) => selected.has(rowKey(r)));
   const managedChosen = chosen.filter((r) => r.managed),
     externalChosen = chosen.filter((r) => !r.managed);
   const [interfaces, setInterfaces] = useState<string[]>([]);
@@ -194,7 +227,7 @@ export function FirewallPage({ act }: { act: Act }) {
     kind,
     ...(kind === "rich" ? {rich_match:"port",family:"ipv4",storage:"rich-rule"} : {}),
     driver,
-    zone: native ? "host" : zone,
+    zone: native ? "host" : allZones ? String(record(resource.data?.zone_policy).default_zone || zones[0] || "") : zone,
     protocol: "tcp",
     port: "",
     source: "",
@@ -227,7 +260,7 @@ export function FirewallPage({ act }: { act: Act }) {
   const movePriority = (row: Dict, offset: number) => {
     const field = driver === "nftables" ? "hook_priority" : "priority";
     const current = Number(row[field] ?? 0);
-    const scope = rows.filter(item => item.id !== row.id && item[field] != null && (!native || item.kind === row.kind));
+    const scope = rows.filter(item => rowKey(item) !== rowKey(row) && (!allZones || item.zone === row.zone) && item[field] != null && (!native || item.kind === row.kind));
     const neighbor = scope.map(item => Number(item[field])).filter(value => offset < 0 ? value <= current : value >= current)
       .sort((a,b) => offset < 0 ? b-a : a-b)[0];
     const priority = (neighbor ?? current) + offset;
@@ -354,7 +387,7 @@ export function FirewallPage({ act }: { act: Act }) {
           onChange={(e) =>
             setSelected(
               e.target.checked
-                ? new Set(selectable.map((r) => String(r.id)))
+                ? new Set(selectable.map(rowKey))
                 : new Set(),
             )
           }
@@ -365,13 +398,13 @@ export function FirewallPage({ act }: { act: Act }) {
           type="checkbox"
           aria-label={"选择规则 " + text(r.port || r.source)}
           disabled={!r.managed && (native || r.editable === false)}
-          checked={selected.has(String(r.id))}
+          checked={selected.has(rowKey(r))}
           onChange={(e) =>
             setSelected((old) => {
               const next = new Set(old);
               e.target.checked
-                ? next.add(String(r.id))
-                : next.delete(String(r.id));
+                ? next.add(rowKey(r))
+                : next.delete(rowKey(r));
               return next;
             })
           }
@@ -383,8 +416,14 @@ export function FirewallPage({ act }: { act: Act }) {
       render: row => row.priority != null && (native || canPrioritize(row)) ? text(row.priority) : "—",
     } : { key: "serial", label: "序号", render: (_, i) => i + 1 },
   ];
+  const showZoneBinding = !native && (allZones || scopedModules.length > 0);
+  if (showZoneBinding) columns.push({
+    key: "zone",
+    label: category === "masquerade" ? "出口区域 / 出接口" : category === "forward" ? "入口区域 / 入接口" : "入口区域 / 接口",
+    render: renderZoneBinding,
+  });
   if (category === "all") columns.push(
-    {key:"name",label:"名称／类型",heading:heading("kind","名称／类型"),render:r=><><strong>{text(r.service || (r.kind === "system" ? [r.family, r.table, r.chain].filter(Boolean).join(" / ") : "") || r.port || r.source || (r.kind === "masquerade" ? "地址转换" : "规则"))}</strong><small>{r.kind === "system" ? "系统规则（只读）" : r.editable===false ? "未知规则（只读）" : [...zoneRuleTypes,...categories].find(([id])=>id===r.kind)?.[1] || String(r.kind || "系统规则")}</small></>},
+    {key:"name",label:"名称／类型",heading:heading("kind","名称／类型"),render:r=><><strong>{text(r.service || (r.kind === "system" ? [r.family, r.table, r.chain].filter(Boolean).join(" / ") : "") || r.port || r.source || (r.kind === "masquerade" ? "地址转换" : "规则"))}</strong><small>{r.kind === "system" ? "系统规则（只读）" : r.editable===false ? "只读规则" : [...zoneRuleTypes,...categories].find(([id])=>id===r.kind)?.[1] || String(r.kind || "系统规则")}</small></>},
     {key:"protocol",label:"协议／端口",heading:heading("protocol","协议／端口"),render:r=>r.service ? (
       <div>
         {Array.isArray(r.service_ports) && r.service_ports.length ? r.service_ports.map(String).join("、") : "端口未列出"}
@@ -455,11 +494,11 @@ export function FirewallPage({ act }: { act: Act }) {
         render: (r) =>
           r.action === "snat" ? text(r.to_source) : "自动使用出接口地址",
       },
-      {
+      ...(!showZoneBinding ? [{
         key: "out_interface",
         label: "出接口",
-        render: (r) => text(r.out_interface || "区域出接口"),
-      },
+        render: (r: Dict) => text(r.out_interface || "区域出接口"),
+      }] : []),
     );
   else if (category !== "service-rule")
     columns.push({
@@ -468,7 +507,7 @@ export function FirewallPage({ act }: { act: Act }) {
       heading: heading("action", "策略"),
       render: (r) => (
         <span className={r.action === "accept" ? "accent" : ["drop","reject"].includes(String(r.action)) ? "poor" : "muted"}>
-          {r.editable === false && r.kind !== "system"
+          {r.editable === false && r.kind !== "system" && !r.rule_origin
             ? "高级策略"
             : strategies[String(r.action)] || ({masquerade:"地址伪装",snat:"源地址转换"} as Record<string,string>)[String(r.action)] || text(r.action)}
         </span>
@@ -486,6 +525,11 @@ export function FirewallPage({ act }: { act: Act }) {
           text(r.packets)
         ),
     });
+  if (!native) columns.push({
+    key: "rule_origin",
+    label: "规则来源",
+    render: r => <><span>{firewallRuleOriginLabel(r)}</span><small>{r.editable === false ? "只读" : r.managed ? "可编辑" : "纳管后可编辑"}</small></>,
+  });
   columns.push(
     {
       key: "state",
@@ -500,7 +544,7 @@ export function FirewallPage({ act }: { act: Act }) {
             <span className="muted">已停用</span>
           )}
           <small>
-            {r.permanent ? "已持久化" : "仅运行时"}
+            {r.permanent ? "已持久化" : r.runtime ? "仅运行时" : "未载入"}
             {r.drift ? " · 与运行状态不一致" : ""}
           </small>
         </>
@@ -544,9 +588,9 @@ export function FirewallPage({ act }: { act: Act }) {
                 ))}
             </div>
         </SecondaryNav>
-        {!diagnosing && <FirewallWorkspace crossZone={crossZone} serviceData={serviceResource.data} serviceError={serviceResource.error || ""} rulesLoading={crossZone ? crossResource.loading : resource.loading} data={crossZone ? (crossResource.data ? {...serviceResource.data, ...crossResource.data, zone, driver, entries:crossResource.data.items} : null) : resource.data ? {...resource.data,entries:all} : null} error={(crossZone ? crossResource.error : resource.error) || ""} driver={driver} zone={zone} lastRead={lastRead} refreshing={refreshing}
-          refresh={()=>{setRefreshing(true);void Promise.all([(crossZone ? crossResource : resource).refresh(),serviceResource.refresh()]).finally(()=>setRefreshing(false))}}
-          changeDriver={value=>{setDriver(value);setCategory("all");setRuleType("all");localStorage.setItem("foxray.firewall.driver",value);setZone(value==="firewalld"?"public":"host");setSelected(new Set());setQuery("");setProtocol("all");setStatus("all");setOwner("all");setRuleAction("all");setConfigScope("all");setForm(null);setPlan(null);setFailure("")}}
+        {!diagnosing && <FirewallWorkspace crossZone={crossZone} serviceData={serviceResource.data} serviceError={serviceResource.error || ""} rulesLoading={crossZone ? crossResource.loading : resource.loading} data={crossZone ? (crossResource.data ? {...serviceResource.data, ...crossDisplay, zone, driver, entries:crossItems} : null) : resource.data ? {...resource.data,entries:all} : null} error={(crossZone ? crossResource.error : resource.error) || ""} driver={driver} zone={zone} lastRead={lastRead} refreshing={refreshing}
+          refresh={()=>{setRefreshing(true);void Promise.all([(crossZone ? crossResource : resource).refresh(),serviceResource.refresh(),...(driver === "firewalld" && origin !== "firewalld" ? [originResource.refresh()] : [])]).finally(()=>setRefreshing(false))}}
+          changeDriver={value=>{setDriver(value);setOrigin("all");setCategory("all");setRuleType("all");localStorage.setItem("foxray.firewall.driver",value);setZone(value==="firewalld"?"public":"host");setSelected(new Set());setQuery("");setProtocol("all");setStatus("all");setOwner("all");setRuleAction("all");setConfigScope("all");setForm(null);setPlan(null);setFailure("")}}
           changeZone={value=>{setZone(value);setSelected(new Set());setQuery("");setProtocol("all");setStatus("all");setOwner("all");setRuleAction("all");setConfigScope("all");setForm(null);setPlan(null);setFailure("")}}
           manageInterfaces={()=>start("add",{kind:"zone-interface",zone,interfaces:[],driver})}
           serviceAction={action=>start(action,{kind:"service",driver})}
@@ -554,17 +598,19 @@ export function FirewallPage({ act }: { act: Act }) {
           filterRules={filter=>{if(crossZone){setCrossFilter(filter);document.getElementById("cross-zone-rules")?.scrollIntoView({behavior:"smooth",block:"start"});return}setCategory("all");setOwner(filter==="managed"?"managed":filter==="external"?"external":"all");setRuleAction(filter==="blocked"?"blocked":"all");setQuery("");setProtocol("all");setStatus("all");setSelected(new Set());ruleAnchor.current?.scrollIntoView({behavior:"smooth",block:"start"})}}
           viewRules={kind=>{setCategory(kind);setOwner("all");setRuleAction("all");setQuery("");setProtocol("all");setStatus("all");setSelected(new Set());ruleAnchor.current?.scrollIntoView({behavior:"smooth",block:"start"})}}
           addService={()=>start("add",{...defaultRule(),kind:"service-rule",service:""})}
+          origin={origin} changeOrigin={value=>{setOrigin(value);setSelected(new Set())}}
           configScope={configScope} changeScope={value=>{setConfigScope(value);setSelected(new Set());setQuery("")}}
           manageSources={()=>start("add",{kind:"zone-source",driver,zone,source:"",binding_action:"bind"})}
           editDefault={()=>start("add",{kind:"zone-default",driver,zone:String(record(resource.data?.zone_policy).default_zone||zone)})}
           editPolicy={()=>{const policy=record(resource.data?.zone_policy),runtime=record(policy.runtime),permanent=record(policy.permanent);start("add",{kind:"zone-policy",driver,zone,target:String(permanent.target||runtime.target||"default"),target_apply:"permanent",target_ack:false,reload_ack:false,masquerade:runtime.masquerade===true,icmp_blocks:Array.isArray(runtime.icmp_blocks)?runtime.icmp_blocks:[],icmp_inversion:runtime.icmp_inversion===true,forward:typeof runtime.forward==="boolean"?runtime.forward:undefined})}}
         />}
-      {diagnosing ? <FirewallDiagnosis initialDriver={driver} act={act} /> : crossZone ? <CrossZoneRules linkedRule={linkedCategory === "cross-zone" ? linkedRule : ""} act={act} resource={crossResource} filter={crossFilter} resetFilter={()=>setCrossFilter("all")} /> : <Panel className="firewall-main-panel management-panel">
+      {originsNotice && !diagnosing && <ErrorLine error={originsNotice} />}
+      {diagnosing ? <FirewallDiagnosis initialDriver={driver} act={act} /> : crossZone ? <CrossZoneRules linkedRule={linkedCategory === "cross-zone" ? linkedRule : ""} act={act} resource={{...crossResource,data:crossDisplay}} filter={crossFilter} resetFilter={()=>setCrossFilter("all")} /> : <Panel className="firewall-main-panel management-panel">
         <ErrorLine error={resource.error || failure} />
         {!!resource.data?.error && (
           <p className="hint">{text(resource.data.error)}</p>
         )}
-        <div className="firewall-rules-heading" ref={ruleAnchor}><h3>{labelIcon(categoryLabel, 20)}{ruleHeading} <span>{native ? driver : zone}</span></h3><span className="muted">{native ? "当前工具规则快照" : ({all:"运行时与永久配置 · 合并展示",runtime:"运行时配置",permanent:"永久配置",difference:"存在差异的配置"} as Record<string,string>)[configScope]}</span></div>
+        <div className="firewall-rules-heading" ref={ruleAnchor}><h3>{labelIcon(categoryLabel, 20)}{ruleHeading} <span>{native ? driver : allZones ? "所有区域" : zone}</span></h3><span className="muted">{native ? "当前工具规则快照" : ({all:"运行时与永久配置 · 合并展示",runtime:"运行时配置",permanent:"永久配置",difference:"存在差异的配置"} as Record<string,string>)[configScope]}</span></div>
         <CompactFilters
           before={
             <>
@@ -738,7 +784,7 @@ export function FirewallPage({ act }: { act: Act }) {
                 }
               : c,
           )}
-          rowKey={(r) => String(r.id)}
+          rowKey={rowKey}
         />
       </Panel>}
       {form && (
@@ -758,12 +804,17 @@ export function FirewallPage({ act }: { act: Act }) {
           onClose={() => setForm(null)}
           wide
         >
+            {allZones && operation === "add" && !String(form.kind).startsWith("zone-") && <Field label="所属区域">
+              <select value={String(form.zone || "")} onChange={event => update("zone", event.target.value)}>
+                {zones.map(candidate => <option key={candidate}>{candidate}</option>)}
+              </select>
+            </Field>}
           {adopting ? (
             <>
               <p>将 {adoptionItems.length || 1} 条现有规则纳入 FoXray 管理。纳管只登记归属，现有规则保持生效。</p>
               <ul>
                 {(adoptionItems.length ? adoptionItems : [form]).map(rule => (
-                  <li key={String(rule.id)}>
+                  <li key={rowKey(rule)}>
                     {text(rule.zone)} · {text(rule.raw || rule.name || rule.id)}
                   </li>
                 ))}
@@ -804,6 +855,7 @@ export function FirewallPage({ act }: { act: Act }) {
                 请核对管理连接的影响，确认后生成变更预览；未完成网络确认时将按预览方案回退。
             </p>
           ) : (
+            <>
             <FirewallForm
               value={form}
               onChange={update}
@@ -813,6 +865,7 @@ export function FirewallPage({ act }: { act: Act }) {
                   : []
               }
             />
+            </>
           )}
           <label className="check risk">
             <input

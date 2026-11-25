@@ -1,3 +1,4 @@
+import { HomeHeaderToggleIcon } from "./home_header";
 import { AdaptiveSearch } from "./adaptive_search";
 import { Search } from "lucide-react";
 import { ProductIcon } from "./product_icons";
@@ -2122,7 +2123,8 @@ function ManagerServicePanel({ state, act }: { state: State; act: Act }) {
   return (
     <Panel className="component-service-panel manager-service-panel">
       <PageHeader
-        title="FoXray 服务管理"
+        title="服务管理"
+        icon={<HomeHeaderToggleIcon />}
         description={
           <>
             管理应用本身；核心服务与 VPN

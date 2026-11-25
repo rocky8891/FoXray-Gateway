@@ -223,6 +223,20 @@ func WireGuardNetwork(action, name string) error {
 	}
 
 	if action == "down" {
+		profile, err := readWG(name)
+		if err == nil && wgProfileAutoWithdraw(profile) {
+			for _, peer := range profile.Peers {
+				if !peer.Probe.AutoWithdraw {
+					continue
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				err := purgeWGPeerGuards(ctx, SystemRunner{}, profile.Name, peer)
+				cancel()
+				if err != nil {
+					return err
+				}
+			}
+		}
 		return undo()
 	}
 	if len(state.Undo) > 0 {

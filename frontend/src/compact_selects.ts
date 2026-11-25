@@ -25,13 +25,14 @@ export function useCompactSelects() {
           fitOptions = el.classList.contains("firewall-driver-select"),
           labels = fitOptions ? Array.from(el.options, option => option.label) : [el.selectedOptions[0]?.label || ""],
           font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`,
-          padding = fitOptions ? parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 2 : 32,
-          key = font + "|" + padding + "|" + labels.join("\n");
+          gap = parseFloat(style.letterSpacing) || 0,
+          padding = fitOptions ? parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 8 : 32,
+          key = font + "|" + gap + "|" + padding + "|" + labels.join("\n");
         el.dataset.compactSelect = "true";
         if (cache.get(el) === key) continue;
         context.font = font;
         const width = Math.ceil(
-          Math.max(0, ...labels.map(label => context.measureText(label).width)) +
+          Math.max(0, ...labels.map(label => context.measureText(label).width + (fitOptions ? Math.max(0, gap) * label.length : 0))) +
             padding +
             parseFloat(style.borderLeftWidth || "0") +
             parseFloat(style.borderRightWidth || "0"),

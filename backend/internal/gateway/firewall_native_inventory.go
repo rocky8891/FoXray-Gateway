@@ -129,6 +129,22 @@ func nftablesInventory(raw string, owned map[string]bool, counters map[string]M)
 			for _, action := range []string{"accept", "drop", "reject", "jump", "goto", "return", "masquerade", "snat", "dnat", "redirect"} {
 				if _, ok := expr[action]; ok {
 					row["action"] = action
+					if action == "dnat" || action == "redirect" || action == "snat" {
+						nat := obj(expr[action])
+						if addr := str(nat["addr"]); addr != "" {
+							if action == "snat" {
+								row["to_source"] = addr
+							} else {
+								row["target_ip"] = addr
+							}
+						}
+						if nat["port"] != nil && (action == "dnat" || action == "redirect") {
+							switch nat["port"].(type) {
+							case string, float64:
+								row["target_port"] = strOrNumber(nat["port"])
+							}
+						}
+					}
 					if target := str(obj(expr[action])["target"]); target != "" {
 						row["action"] = action + " " + target
 					}
@@ -154,6 +170,12 @@ func nftablesInventory(raw string, owned map[string]bool, counters map[string]M)
 			}
 			if right == "" {
 				continue
+			}
+			switch str(obj(obj(match["left"])["meta"])["key"]) {
+			case "iifname":
+				row["in_interface"] = right
+			case "oifname":
+				row["out_interface"] = right
 			}
 			switch str(payload["field"]) {
 			case "saddr", "daddr":

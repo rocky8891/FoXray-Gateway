@@ -1,3 +1,4 @@
+import { HomeHeaderToggleIcon } from "./home_header";
 import type { OverviewView } from "./overview_policy";
 import { ConnectionIcon } from "./monitor_icons";
 import { monitorEnabled } from "./monitor_items";
@@ -96,7 +97,7 @@ export function ModuleHeading({
             aria-selected={value === id}
             onClick={() => onChange(id)}
           >
-            {labelIcon(label, 14)}
+            {id === "global" && title === "设置" ? <HomeHeaderToggleIcon /> : labelIcon(label, 14)}
             {label}
             {["global", "xray", "warp", "wireguard"].includes(id) && (
               <UpdateBadge service={id === "global" ? "foxray" : id} />

@@ -283,6 +283,8 @@ func (a *App) getAPI(w http.ResponseWriter, r *http.Request) {
 		writeResponse(w, 200, result)
 	case path == "/api/network/firewall/service":
 		writeResponse(w, 200, a.network.FirewallServiceState(q.Get("driver")))
+	case path == "/api/network/firewall/origins":
+		writeResponse(w, 200, a.network.FirewallOrigins(r.Context()))
 	case path == "/api/network/firewall/cross-zone":
 		writeResponse(w, 200, a.network.CrossZoneSnapshot(r.Context()))
 	case path == "/api/network/firewall":
@@ -608,6 +610,8 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 		}
 		j, e := a.submitUI(uiAction, "重新执行历史诊断", "diagnostic.run", func(ctx context.Context, j *Job) error { return a.diagnose(ctx, j, params) })
 		return M{"ok": e == nil, "id": j}, e
+	case "/api/network/wireguard/test-peer-probe":
+		return a.network.testWGPeerProbe(r.Context(), str(d["name"]), str(d["public_key"]), str(d["target"]))
 	case "/api/network/wireguard/keys":
 		return a.newWGKey(str(d["name"]))
 	case "/api/network/plan":

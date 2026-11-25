@@ -13,13 +13,14 @@ import (
 )
 
 type WGPeer struct {
-	Disabled        bool     `json:"disabled"`
-	PublicKey       string   `json:"public_key"`
-	AllowedIPs      []string `json:"allowed_ips"`
-	Endpoint        string   `json:"endpoint"`
-	Keepalive       int      `json:"keepalive"`
-	PresharedKey    string   `json:"-"`
-	HasPresharedKey bool     `json:"has_preshared_key"`
+	Probe           WGPeerProbe `json:"probe"`
+	Disabled        bool        `json:"disabled"`
+	PublicKey       string      `json:"public_key"`
+	AllowedIPs      []string    `json:"allowed_ips"`
+	Endpoint        string      `json:"endpoint"`
+	Keepalive       int         `json:"keepalive"`
+	PresharedKey    string      `json:"-"`
+	HasPresharedKey bool        `json:"has_preshared_key"`
 }
 type WGProfile struct {
 	Remark        string     `json:"remark"`
@@ -65,6 +66,10 @@ func parseWG(name, raw string) (*WGProfile, error) {
 			if json.Unmarshal([]byte(strings.TrimPrefix(line, wgMetadataPrefix)), &v) == nil {
 				p.Network = &v
 			}
+			continue
+		}
+		if peer >= 0 && section == "[peer]" && strings.HasPrefix(line, wgPeerProbePrefix) {
+			_ = json.Unmarshal([]byte(strings.TrimPrefix(line, wgPeerProbePrefix)), &p.Peers[peer].Probe)
 			continue
 		}
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -158,7 +163,7 @@ func (p *WGProfile) render() string {
 	if len(p.DNS) > 0 {
 		b.WriteString("DNS = " + strings.Join(p.DNS, ", ") + "\n")
 	}
-	if p.Network != nil && (p.Network.RouteMode == "manual" || p.Network.SNAT || p.Network.allowsLANForward()) {
+	if p.Network != nil && (p.Network.RouteMode == "manual" || p.Network.SNAT || p.Network.allowsLANForward()) || wgProfileAutoWithdraw(p) {
 		b.WriteString("PostUp = /opt/foxray/foxray --wireguard-network up --interface %i\nPreDown = /opt/foxray/foxray --wireguard-network down --interface %i\n")
 	}
 	for _, line := range p.extras {
@@ -179,6 +184,10 @@ func (p *WGProfile) render() string {
 			b.WriteString("PresharedKey = " + v.PresharedKey + "\n")
 		}
 		b.WriteString("AllowedIPs = " + strings.Join(v.AllowedIPs, ", ") + "\n")
+		if v.Probe.Enabled || v.Probe.Target != "" || len(v.Probe.Routes) > 0 {
+			data, _ := json.Marshal(v.Probe)
+			b.WriteString(wgPeerProbePrefix + string(data) + "\n")
+		}
 		if v.Endpoint != "" {
 			b.WriteString("Endpoint = " + v.Endpoint + "\n")
 		}
@@ -422,6 +431,7 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 		for _, oldPeer := range old.Peers {
 			if oldPeer.PublicKey == peer.PublicKey {
 				peer.PresharedKey = oldPeer.PresharedKey
+				peer.Probe = oldPeer.Probe
 			}
 		}
 		if value := str(m["preshared_key"]); value != "" {
@@ -461,6 +471,12 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 		}
 		if len(peer.AllowedIPs) == 0 {
 			return errors.New("Peer 缺少 AllowedIPs")
+		}
+		if input, specified := m["probe"]; specified {
+			raw, _ := json.Marshal(input)
+			if err := json.Unmarshal(raw, &peer.Probe); err != nil {
+				return errors.New("Peer 探测配置无效")
+			}
 		}
 		p.Peers = append(p.Peers, peer)
 	}
@@ -508,6 +524,9 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 		if network.SNAT {
 			plan.Warnings = append(plan.Warnings, "SNAT 仅匹配指定 LAN 网段与该 VPN 出接口；回程可无需配置 LAN 路由。已有连接停止后会中断，其他 VPN 不变")
 		}
+	}
+	if err := validateWGPeerProbes(p); err != nil {
+		return err
 	}
 	if op == "replace" {
 		newName := firstNonempty(str(item["new_name"]), name)

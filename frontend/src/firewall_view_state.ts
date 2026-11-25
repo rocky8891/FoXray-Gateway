@@ -1,5 +1,23 @@
 import type { Dict } from "./api";
 
+export const ALL_FIREWALL_ZONES = "*";
+
+export const firewallOrigins = [
+  ["firewalld", "firewalld"],
+  ["wireguard", "WireGuard"],
+  ["warp", "WARP"],
+  ["docker", "Docker"],
+];
+
+export function firewallRuleOrigin(row: Dict, driver = "firewalld") {
+  return String(row.rule_origin || driver).toLowerCase();
+}
+
+export function firewallRuleOriginLabel(row: Dict, driver = "firewalld") {
+  const key = firewallRuleOrigin(row, driver);
+  return firewallOrigins.find(([origin]) => origin === key)?.[1] || key;
+}
+
 export function firewallViewState(data: Dict | null, driver: string, zone: string, error = "") {
   const native = driver !== "firewalld";
   const service = (data?.firewalld || {}) as Dict;

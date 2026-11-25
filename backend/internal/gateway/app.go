@@ -465,6 +465,7 @@ func (a *App) Start() {
 			go a.periodic()
 			go a.icmpAutomatic()
 			go a.wgMonitorLoop()
+			go a.network.wgPeerMonitorLoop()
 			go a.warpAutomatic()
 			go a.warpMonitorLoop()
 			go a.ruleSetLoop()

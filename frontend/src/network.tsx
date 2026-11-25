@@ -1,3 +1,4 @@
+import { MultiSelect } from "./multi_select";
 import { remainingPlanSeconds } from "./network_display";
 import { AdaptiveSearch } from "./adaptive_search";
 import { ResetFilters } from "./list_controls";
@@ -72,6 +73,7 @@ export function NetworkPage({
     [plan, setPlan] = useState<Plan | null>(null),
     [failure, setFailure] = useState(""),
     [details, setDetails] = useState<unknown>(null),
+    [peerDetails, setPeerDetails] = useState<{ name: string; key: string; label: string } | null>(null),
     [query, setQuery] = useState(""),
     [family, setFamily] = useState("4"),
     [section, setSection] = useState("managed");
@@ -310,17 +312,24 @@ export function NetworkPage({
       { key: "peer_addresses", label: "AllowedIPs", render: r => list(r.peers).map((p,i)=><div key={i}><small>Peer {i+1}{p.disabled ? " · 已停用" : ""}</small>{(Array.isArray(p.allowed_ips) ? p.allowed_ips.map(String) : String(p.allowed_ips||"").split(/[\s,]+/)).filter(Boolean).map(ip=><div key={ip}>{ip}</div>)}</div>) },
       {
         key: "peers",
-        label: "Peer / 最近握手",
-        render: (r) => (
-          <>
-            {list(r.peers).length} 个
-            {list(r.peers).map((p, i) => (
-              <small key={i}>
-                Peer {i + 1}：{p.disabled ? "已停用" : timestamp(p.handshake)}
-              </small>
-            ))}
-          </>
-        ),
+        label: "Peer / 隧道状态",
+        render: (r) => {
+          const peers = list(r.peers);
+          const healthy = peers.filter(peer => ["隧道正常", "目标可达"].includes(String(record(peer.health).status))).length;
+          const disconnected = peers.filter(peer => ["隧道不可达", "目标不可达"].includes(String(record(peer.health).status))).length;
+          return <>
+            <small>{peers.length} 个 Peer{healthy > 0 && ` · ${healthy} 正常`}{disconnected > 0 && ` · ${disconnected} 不可达`}</small>
+            {peers.map((peer, index) => {
+              const health = record(peer.health);
+              const status = String(health.status || (peer.disabled ? "已停用" : Number(peer.handshake) ? "握手成功" : "未握手"));
+              const label = [`Peer ${index + 1}`, health.tunnel, status].filter(Boolean).join(" · ");
+              return <button type="button" className="wg-peer-status-line" key={String(peer.public_key || index)}
+                onClick={() => setPeerDetails({ name: String(r.name), key: String(peer.public_key), label })}>
+                {label}{status === "握手成功" && ` · ${timestamp(peer.handshake)}`}
+              </button>;
+            })}
+          </>;
+        },
       },
       {
         key: "transfer",
@@ -694,6 +703,12 @@ export function NetworkPage({
           rowKey={(r) => String(r.id || r.name || JSON.stringify(r))}
         />
       </Panel>
+      {peerDetails && <WireGuardPeerStatusDetail
+        name={peerDetails.name}
+        label={peerDetails.label}
+        peer={list(list(data?.items).find(row => row.name === peerDetails.name)?.peers).find(candidate => candidate.public_key === peerDetails.key)}
+        onClose={() => setPeerDetails(null)}
+      />}
       {form && operation === "peers" && (
         <WireGuardPeerManager
           name={String(form.name)}
@@ -1015,6 +1030,9 @@ function NetworkForm({
           onChange={(network) => set("network", network)}
         />
         <PeerEditor
+          name={String(value.name || "")}
+          routing={record(value.network)}
+          table={String(value.table || "auto")}
           peers={list(value.peers)}
           onTogglePeer={onTogglePeer}
           savedPeers={savedPeers}
@@ -1335,12 +1353,113 @@ function WGClientTemplates({ name, peers }: { name: string; peers: Dict[] }) {
     </section>
   );
 }
+function wireGuardPrefixes(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String) : String(value || "").split(/[\s,，;；]+/).filter(Boolean);
+}
+
+function WireGuardPeerProbeEditor({ name, peer, routing, table, saved, onChange }: {
+  name: string;
+  peer: Dict;
+  routing: Dict;
+  table: string;
+  saved: boolean;
+  onChange: (value: Dict) => void;
+}) {
+  const probe = record(peer.probe);
+  const [result, setResult] = useState<{ target: string; key: string; ok: boolean; message: string } | null>(null);
+  const [testing, setTesting] = useState(false);
+  const target = String(probe.target || "");
+  const key = String(peer.public_key || "");
+  const applicable = result?.target === target && result?.key === key ? result : null;
+  const selected = wireGuardPrefixes(probe.routes);
+  const manual = routing.route_mode === "manual";
+  const candidates = (manual ? wireGuardPrefixes(routing.routes) : wireGuardPrefixes(peer.allowed_ips))
+    .filter(prefix => !prefix.endsWith("/0") && prefix !== target && prefix !== `${target}/32` && prefix !== `${target}/128`);
+  const supported = manual ? ["254", "auto", "main"].includes(String(routing.route_table || "254")) : routing.route_mode !== "off" && ["254", "auto", ""].includes(table);
+  async function test() {
+    setTesting(true);
+    try {
+      const r = await api<Dict>("/api/network/wireguard/test-peer-probe", { name, public_key: key, target });
+      const latency = Number(r.latency);
+      setResult({ target, key, ok: r.ok === true, message: r.ok === true ? (latency >= 0 ? `目标可达 · ${latency.toFixed(1)} ms` : "目标可达") : "未收到 ICMP 回复" });
+    } catch (error) {
+      setResult({ target, key, ok: false, message: errorMessage(error) });
+    } finally {
+      setTesting(false);
+    }
+  }
+  return <details className="wg-peer-probe-editor">
+    <summary>状态探测{probe.enabled === true ? " · 已启用" : ""}</summary>
+    <label className="check"><input type="checkbox" checked={probe.enabled === true}
+      onChange={event => onChange({ ...probe, enabled: event.target.checked, auto_withdraw: event.target.checked && probe.auto_withdraw === true })}/>
+      启用主动探测
+    </label>
+    <div className="form-grid">
+      <Field label="探测目标 IP" hint="推荐对端隧道 IP，也可填写经该 Peer 可达的远端主机 IP">
+        <input value={target} onChange={event => onChange({ ...probe, target: event.target.value.trim(), auto_withdraw: false })}/>
+      </Field>
+      <Button disabled={!saved || !target || testing} onClick={() => void test()}>{testing ? "探测中" : "测试探测"}</Button>
+    </div>
+    {!saved && <p className="hint">保存并启用 Peer 后可测试当前路径。</p>}
+    {applicable && <p role="status">{applicable.message}</p>}
+    <label className="check"><input type="checkbox" checked={probe.auto_withdraw === true}
+      disabled={probe.auto_withdraw !== true && (probe.enabled !== true || applicable?.ok !== true || !supported)}
+      onChange={event => onChange({ ...probe, auto_withdraw: event.target.checked })}/>
+      失联时自动撤销路由
+    </label>
+    {probe.auto_withdraw === true && <>
+      <p className="hint">连续超时 10 次后阻断选定的业务前缀，连续成功 3 次后恢复。探测路径保持可用。</p>
+      <MultiSelect label="待撤销的托管路由" options={[...new Set([...candidates, ...selected])]} value={selected}
+        onChange={routes => onChange({ ...probe, routes })} />
+    </>}
+  </details>;
+}
+
+function WireGuardPeerStatusDetail({ name, label, peer, onClose }: {
+  name: string;
+  label: string;
+  peer?: Dict;
+  onClose: () => void;
+}) {
+  const health = record(peer?.health);
+  const probe = record(peer?.probe);
+  const transfer = String(peer?.transfer || "").trim().split(/\s+/).filter(Boolean);
+  return <Modal title={`${name} · ${label}`} onClose={onClose} wide>
+    {!peer ? <p>此 Peer 当前不可用。</p> : <>
+      <dl>
+        <dt>状态</dt><dd>{text(health.status)}{health.reason ? ` · ${text(health.reason)}` : ""}</dd>
+        <dt>最近握手</dt><dd>{timestamp(peer.handshake)}</dd>
+        <dt>累计接收／发送</dt><dd>{transfer.length === 2 ? `${formatCapacity(Number(transfer[0]))} / ${formatCapacity(Number(transfer[1]))}` : "—"}</dd>
+        {probe.enabled ? <>
+          <dt>探测目标 IP</dt><dd>{text(health.target)}</dd>
+          <dt>最近探测</dt><dd>{timestamp(health.last_probe)}</dd>
+          <dt>最近成功</dt><dd>{timestamp(health.last_success)}</dd>
+          <dt>最近成功延迟</dt><dd>{health.latency == null ? "—" : `${Number(health.latency).toFixed(1)} ms`}</dd>
+          <dt>连续超时</dt><dd>{Number(health.failures || 0)}/10</dd>
+          <dt>连续成功</dt><dd>{Number(health.recoveries || 0)}/3</dd>
+        </> : <><dt>探测模式</dt><dd>主动探测未开启</dd></>}
+      </dl>
+      <h3>路由状态</h3>
+      {health.auto_withdraw !== true && <p>自动撤销未开启</p>}
+      {list(health.routes).length ? <ul>{list(health.routes).map(route => <li key={String(route.prefix)}>
+        {text(route.prefix)} · {text(route.status)}{route.changed_at ? ` · ${timestamp(route.changed_at)}` : ""}{route.error ? ` · ${text(route.error)}` : ""}
+      </li>)}</ul> : <p>暂无已核实的业务路由。</p>}
+    </>}
+  </Modal>;
+}
+
 function PeerEditor({
+  name,
+  routing,
+  table,
   peers,
   onChange,
   onTogglePeer,
   savedPeers,
 }: {
+  name: string;
+  routing: Dict;
+  table: string;
   peers: Dict[];
   onTogglePeer?: (peer: Dict) => void;
   savedPeers: Dict[];
@@ -1417,6 +1536,14 @@ function PeerEditor({
               />
             </Field>
           </div>
+          <WireGuardPeerProbeEditor
+            name={name}
+            peer={peer}
+            routing={routing}
+            table={table}
+            saved={savedPeers.some(saved => saved.public_key === peer.public_key && !saved.disabled)}
+            onChange={probe => change(i, "probe", probe)}
+          />
           <div className="actions">
           {onTogglePeer && <Button
             disabled={!savedPeers.some(saved => saved.public_key === peer.public_key)}
