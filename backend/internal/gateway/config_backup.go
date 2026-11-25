@@ -31,7 +31,7 @@ const backupLimit = 64 << 20
 const passwordBackupMagic = "FOXRAY-CONFIG-2\n"
 const backupKDFRounds = 600_000
 
-var appBackupFiles = strings.Fields(`config.json components.json engine.json core.json manager-settings.json service-preferences.json auto-bypass.json host-monitor-policy.json icmp-policy.json log-retention-policy.json monitor-data-policy.json monitoring-items.json traffic-history-policy.json traffic-monitor-modules.json traffic-monitor-policy.json warp-endpoints.json private/nodes.json private/network-managed.json private/traffic-policy.json private/warp-auto.json`)
+var appBackupFiles = strings.Fields(`config.json components.json engine.json core.json manager-settings.json service-preferences.json auto-bypass.json host-monitor-policy.json icmp-policy.json log-retention-policy.json monitor-data-policy.json monitoring-items.json traffic-history-policy.json traffic-monitor-modules.json traffic-monitor-policy.json warp-endpoints.json private/nodes.json private/network-managed.json private/traffic-policy.json private/warp-auto.json private/management-users.json private/management-https.json`)
 var systemBackupFiles = strings.Fields(`etc/foxray/topology.json etc/foxray/warp-netns-resolv.conf etc/netns/foxray-warp/resolv.conf etc/systemd/system/foxray-engine.service etc/systemd/system/foxray-warp-netns.service etc/systemd/system/foxray-warp-network.service etc/systemd/system/komari.service etc/nftables.conf etc/firewalld/firewalld.conf etc/sysconfig/nftables.conf etc/sysconfig/iptables etc/sysconfig/ip6tables var/lib/cloudflare-warp/conf.json var/lib/cloudflare-warp/consumer-settings.json var/lib/cloudflare-warp/final-overrides-settings.json var/lib/cloudflare-warp/reg.json var/lib/cloudflare-warp/settings.json var/lib/cloudflare-warp/warp.db var/lib/foxray-scout/account.json opt/komari/data/komari.db opt/komari/data/plugin/state.json`)
 var systemBackupPatterns = []string{
 	"etc/wireguard/*.conf", "etc/wireguard/*.private", "etc/wireguard/*.public", "etc/wireguard/*.key",
@@ -439,7 +439,7 @@ func StageConfigBackup(backup, keyPath, dest string, readPassword func() (string
 	return extractConfigBackup(archive, dest)
 }
 
-func (a *App) exportConfigBackup(w http.ResponseWriter, password string) {
+func (a *App) exportConfigBackup(w http.ResponseWriter, password, directory string) {
 	if len(password) > 1024 {
 		writeResponse(w, 400, M{"error": "备份密码过长"})
 		return
@@ -488,6 +488,42 @@ func (a *App) exportConfigBackup(w http.ResponseWriter, password string) {
 	if password != "" {
 		ext = ".foxbackup"
 	}
-	w.Header().Set("Content-Disposition", `attachment; filename="foxray-config-`+time.Now().UTC().Format("20060102-150405")+ext+`"`)
+	name := "foxray-config-" + time.Now().UTC().Format("20060102-150405.000000000") + ext
+	if directory != "" {
+		if !filepath.IsAbs(directory) || filepath.Clean(directory) != directory {
+			writeResponse(w, 400, M{"error": "请输入已存在的服务器绝对目录"})
+			return
+		}
+		resolved, err := filepath.EvalSymlinks(directory)
+		web, webErr := filepath.EvalSymlinks(a.ui)
+		if err != nil || resolved != directory || (webErr == nil && (resolved == web || insideBase(web, resolved))) {
+			writeResponse(w, 400, M{"error": "请选择非 Web 目录的服务器绝对路径"})
+			return
+		}
+		root, err := os.OpenRoot(directory)
+		if err != nil {
+			writeResponse(w, 400, M{"error": "无法打开指定的服务器目录"})
+			return
+		}
+		defer root.Close()
+		file, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err != nil {
+			writeResponse(w, 400, M{"error": "无法在指定目录创建备份"})
+			return
+		}
+		_, err = file.Write(payload)
+		if err == nil {
+			err = file.Sync()
+		}
+		closeErr := file.Close()
+		if err != nil || closeErr != nil {
+			_ = root.Remove(name)
+			writeResponse(w, 500, M{"error": "写入备份失败"})
+			return
+		}
+		writeResponse(w, 200, M{"path": filepath.Join(directory, name)})
+		return
+	}
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
 	_, _ = w.Write(payload)
 }

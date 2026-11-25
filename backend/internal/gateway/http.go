@@ -79,7 +79,8 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			allowed = allowed || h != "" && h == requestHost
 		}
 		media, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
-		if !allowed || media != "application/json" || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+		authorized, _ := r.Context().Value(managementAuthorizedKey{}).(bool)
+		if (!allowed && !authorized) || media != "application/json" || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
 			writeResponse(w, 403, M{"error": "来源或内容类型无效"})
 			return
 		}
@@ -95,7 +96,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				writeResponse(w, 403, M{"error": "请通过 SSH 隧道打开本机 FoXray 页面后导出"})
 				return
 			}
-			a.exportConfigBackup(w, str(d["password"]))
+			a.exportConfigBackup(w, str(d["password"]), "")
 			return
 		}
 		result, err := a.postAPI(r, d)

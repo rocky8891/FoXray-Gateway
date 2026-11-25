@@ -1,3 +1,4 @@
+import { ManagementUserSettings, ManagementHTTPSSettings } from "./management_security";
 import { ConfigBackupSettings } from "./config_backup";
 import { hasChanges } from "./settings_save";
 import type { OverviewView } from "./overview_policy";
@@ -297,6 +298,8 @@ export function GlobalMonitoringSettings({ act }: { act: Act }) {
       <PresentationSettings act={act} />
       <DisplaySettings act={act} />
       <DataPolicyCard module="all" kind="" title="监控数据默认设置" act={act} />
+      <ManagementUserSettings />
+      <ManagementHTTPSSettings />
       <ConfigBackupSettings />
     </SettingsSaveProvider>
   );

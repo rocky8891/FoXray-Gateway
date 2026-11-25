@@ -1,3 +1,4 @@
+import { ManagementGate } from "./management_security";
 import { applyPageBackground } from "./page_background";
 import { SettingsIcon } from "./requirement_icons";
 import { ThemedSelects } from "./themed_selects";
@@ -710,4 +711,4 @@ function App() {
   );
 }
 applyPageBackground();
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(<ManagementGate><App /></ManagementGate>);

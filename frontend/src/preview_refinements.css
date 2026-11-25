@@ -1777,3 +1777,12 @@ main[data-module-page] > :is(.module-page, .module-service-settings) > .panel:nt
 @media (max-width: 640px) {
   .page-background-options { grid-template-columns: minmax(0, 1fr); }
 }
+
+.management-login-screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.management-login-card { width: min(100%, 420px); }
+.management-login-card form > .button { width: 100%; }

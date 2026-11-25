@@ -207,6 +207,7 @@ export async function api<T>(
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
     });
+    if (response.status === 401) window.dispatchEvent(new Event("foxray:auth-expired"));
     const data = await response.json();
     if (!response.ok)
       throw new Error(

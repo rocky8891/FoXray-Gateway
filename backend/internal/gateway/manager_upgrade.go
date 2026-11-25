@@ -219,7 +219,7 @@ func (a *App) prepareManagerUpgrade(ctx context.Context, j *Job, expected string
 			checks[name] = hex.EncodeToString(sha256sum(data))
 		}
 	}
-	plan := M{"file_sha256": checks, "version": version, "binary": bin, "web": web, "previous_binary": oldBin, "previous_web": oldWeb, "health": "http://" + net.JoinHostPort(host, port) + "/api/state", "created_at": now(), "binary_sha256": hex.EncodeToString(sha256sum(files["foxray_v"+version]))}
+	plan := M{"file_sha256": checks, "version": version, "binary": bin, "web": web, "previous_binary": oldBin, "previous_web": oldWeb, "health": "http://" + net.JoinHostPort(host, port) + "/api/health", "created_at": now(), "binary_sha256": hex.EncodeToString(sha256sum(files["foxray_v"+version]))}
 	planPath := filepath.Join(a.base, "private", "manager-upgrade-plan.json")
 	if err = writeJSON(planPath, plan); err != nil {
 		return err

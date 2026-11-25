@@ -172,14 +172,19 @@ func main() {
 		return
 	}
 	app.ConfigureListener(*listen)
+	security, err := gateway.NewManagementSecurity(app, *listen)
+	if err != nil {
+		log.Fatal("无法加载管理登录：", err)
+	}
+	defer security.Close()
 	app.Start()
-	srv := &http.Server{Addr: *listen, Handler: app, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384}
+	srv := &http.Server{Addr: *listen, Handler: security, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384}
 	// Reuse the UI on loopback for SSH-forwarded backup exports even when LAN binds to a specific IPv4 address.
 	var loopback *http.Server
 	if host, port, splitErr := net.SplitHostPort(*listen); splitErr == nil && !*readonly {
 		if ip := net.ParseIP(host); ip != nil && !ip.IsUnspecified() && !ip.IsLoopback() {
 			if local, listenErr := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", port)); listenErr == nil {
-				loopback = &http.Server{Handler: app, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384}
+				loopback = &http.Server{Handler: security, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384}
 				go func() {
 					if e := loopback.Serve(local); e != nil && e != http.ErrServerClosed {
 						log.Print("本机备份监听停止：", e)
