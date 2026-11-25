@@ -1,9 +1,11 @@
+import { createPortal } from "react-dom";
 import { ActionMenu } from "./action_menu";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { LockKeyhole, LogOut, Shield, UserCircle, Users } from "lucide-react";
 import { Button, ErrorLine, Field, Modal, PageHeader, Panel, useResource } from "./ui";
 
-type Session = { authenticated: boolean; username: string; initial: boolean };
+type LoginMode = "account" | "password" | "off";
+type Session = { authenticated: boolean; username: string; initial: boolean; mode: LoginMode };
 export async function managementRequest<T>(path: string, data: Record<string, string>): Promise<T> {
   const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
   const result = await response.json();
@@ -27,7 +29,7 @@ export function ManagementGate({ children }: { children: ReactNode }) {
     finally { setChecking(false); }
   }
   useEffect(() => {
-    const expired = () => setSession({ authenticated: false, initial: false, username: "" });
+    const expired = () => { setSession(undefined); void check(); };
     const restored = (event: PageTransitionEvent) => { if (event.persisted) void check(); };
     void check();
     window.addEventListener("foxray:auth-expired", expired);
@@ -40,7 +42,7 @@ export function ManagementGate({ children }: { children: ReactNode }) {
     if (busy) return;
     const form = event.currentTarget;
     const fields = new FormData(form);
-    const username = String(fields.get("username") || "");
+    const username = String(fields.get("username") || session?.username || "");
     const password = String(fields.get("password") || "");
     setBusy(true);
     setError("");
@@ -48,7 +50,7 @@ export function ManagementGate({ children }: { children: ReactNode }) {
       if (session?.initial) {
         if (password !== fields.get("confirmation")) throw new Error("两次输入的密码不一致");
         await managementRequest("/api/management/users", { old_name: session.username, username, password });
-        setSession({ authenticated: false, initial: false, username });
+        setSession({ authenticated: false, initial: false, username, mode: session.mode });
       } else {
         setSession(await managementRequest<Session>("/api/management/login", { username, password }));
       }
@@ -59,11 +61,17 @@ export function ManagementGate({ children }: { children: ReactNode }) {
   return (
     <div className="management-login-screen">
       <Panel className="management-login-card">
-        <PageHeader title={session?.initial ? "设置管理密码" : "登录 FoXray Gateway"} icon={<LockKeyhole size={20} />} />
+        <div className="management-login-brand">
+          <svg viewBox="105 83 292 349" aria-hidden="true">
+            <image href="/foxray-icon.svg?v=0.9.4" width="512" height="512" />
+          </svg>
+          <h1>Fo<span className="brand-name-x">X</span>ray Gateway</h1>
+        </div>
+        {session?.initial && <h2 className="management-login-setup">设置管理密码</h2>}
         {session ? (
           <form key={String(session.initial)} onSubmit={submit}>
-            <Field label="用户名"><input name="username" autoComplete="username" defaultValue={session.username || "admin"} required maxLength={32} /></Field>
-            <Field label={session.initial ? "新密码" : "密码"}><input name="password" type="password" required maxLength={256} minLength={session.initial ? 8 : undefined} autoComplete={session.initial ? "new-password" : "current-password"} /></Field>
+            {(session.mode !== "password" || session.initial) && <Field label="用户名"><input name="username" autoComplete="username" defaultValue={session.username || "admin"} required maxLength={32} /></Field>}
+            <Field label={session.initial ? "新密码" : "密码"}><input name="password" type="password" required maxLength={256} autoComplete={session.initial ? "new-password" : "current-password"} /></Field>
             {session.initial && <Field label="确认新密码"><input name="confirmation" type="password" autoComplete="new-password" required maxLength={256} /></Field>}
             <ErrorLine error={error} />
             <Button type="submit" variant="primary" disabled={busy}>{session.initial ? "保存并重新登录" : "登录"}</Button>
@@ -75,11 +83,25 @@ export function ManagementGate({ children }: { children: ReactNode }) {
 }
 
 export function ManagementUserSettings() {
-  const status = useResource<{ users: string[]; current: string }>("/api/management/users", 15000);
+  const status = useResource<{ users: string[]; current: string; mode: LoginMode; password_account: string }>("/api/management/users", 15000);
   const [target, setTarget] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [modeDraft, setMode] = useState<LoginMode>();
+  const [accountDraft, setAccount] = useState<string>();
+  const mode = modeDraft ?? status.data?.mode ?? "account";
+  const account = accountDraft ?? (status.data?.password_account || status.data?.current || status.data?.users[0] || "");
+  async function saveMode() {
+    if (busy || !status.data) return;
+    setBusy(true);
+    setError("");
+    try {
+      await managementRequest("/api/management/login-mode", {mode, password_account: account});
+      window.location.reload();
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "保存登录方式失败"); }
+    finally { setBusy(false); }
+  }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -97,6 +119,20 @@ export function ManagementUserSettings() {
   }
   return <Panel className="presentation-settings">
     <PageHeader title="管理用户" icon={<Users size={20} />} />
+    <div className="settings-section">
+      <div className="form-grid">
+        <Field label="登录方式"><select value={mode} disabled={busy} onChange={event => setMode(event.target.value as LoginMode)}>
+          <option value="account">用户名和密码</option>
+          <option value="password">仅密码登录</option>
+          <option value="off">关闭认证登录</option>
+        </select></Field>
+        {mode === "password" && <Field label="使用该账号的密码"><select value={account} disabled={busy} onChange={event => setAccount(event.target.value)}>
+          {status.data?.users.map(user => <option key={user} value={user}>{user}</option>)}
+        </select></Field>}
+      </div>
+      {mode === "off" && <p className="hint">关闭后，能访问管理地址的人无需登录即可操作 FoXray。</p>}
+      <div className="save-card-footer"><Button onClick={() => void saveMode()} disabled={busy || !status.data || (mode === "password" && !account) || (mode === status.data?.mode && (mode !== "password" || account === status.data.password_account))}>保存登录方式</Button></div>
+    </div>
     <form onSubmit={save}>
       <div className="settings-section form-grid">
         <Field label="用户"><select value={target} onChange={event => {setTarget(event.target.value);setName(event.target.value);}}>
@@ -104,12 +140,12 @@ export function ManagementUserSettings() {
           {status.data?.users.map(user => <option key={user} value={user}>{user}</option>)}
         </select></Field>
         <Field label="用户名"><input value={name} onChange={event => setName(event.target.value)} required maxLength={32} autoComplete="off" /></Field>
-        <Field label="新密码" hint={target ? "留空保留该用户的密码" : "至少 8 个字符"}><input name="password" type="password" autoComplete="new-password" minLength={8} maxLength={256} required={!target} /></Field>
+        <Field label="新密码" hint={target ? "留空保留该用户的密码" : "填写该用户的密码"}><input name="password" type="password" autoComplete="new-password" maxLength={256} required={!target} /></Field>
       </div>
       <ErrorLine error={error || status.error} />
       <div className="save-card-footer">
         <Button type="submit" variant="primary" disabled={busy || !status.data}>保存用户</Button>
-        <Button disabled={busy} onClick={() => void managementRequest("/api/management/logout", {}).then(() => window.dispatchEvent(new Event("foxray:auth-expired"))).catch(() => setError("退出失败"))}>退出登录</Button>
+        {status.data?.mode !== "off" && <Button disabled={busy} onClick={() => void managementRequest("/api/management/logout", {}).then(() => window.dispatchEvent(new Event("foxray:auth-expired"))).catch(() => setError("退出失败"))}>退出登录</Button>}
       </div>
     </form>
   </Panel>;
@@ -132,19 +168,20 @@ export function ManagementUserMenu() {
     catch (failure) { setError(failure instanceof Error ? failure.message : "修改密码失败"); }
     finally { setBusy(false); }
   }
+  if (session.data?.mode === "off") return null;
   return <div className="management-user-menu">
     <ActionMenu label="" triggerLabel="用户菜单" triggerIcon={<UserCircle size={20} />} items={[
       {label: "修改密码", icon: <LockKeyhole size={16} />, disabled: !username, onClick: () => {setError(""); setOpen(true);}},
       {label: "退出登录", icon: <LogOut size={16} />, onClick: () => void managementRequest("/api/management/logout", {}).then(signedOut).catch(() => {setError("退出登录失败，请重试"); setOpen(true);})},
     ]} />
-    {open && <Modal title="修改密码" onClose={() => {if (!busy) setOpen(false);}}>
+    {open && createPortal(<Modal className="management-password-dialog" title="修改密码" onClose={() => {if (!busy) setOpen(false);}}>
       <form onSubmit={change}>
-        <Field label="新密码"><input type="password" name="password" minLength={8} maxLength={256} autoComplete="new-password" required /></Field>
+        <Field label="新密码"><input type="password" name="password" maxLength={256} autoComplete="new-password" required /></Field>
         <Field label="确认新密码"><input type="password" name="confirm" maxLength={256} autoComplete="new-password" required /></Field>
         <ErrorLine error={error} />
         <div className="modal-actions"><Button disabled={busy} onClick={() => setOpen(false)}>取消</Button><Button type="submit" variant="primary" disabled={busy}>保存并重新登录</Button></div>
       </form>
-    </Modal>}
+    </Modal>, document.body)}
   </div>;
 }
 
@@ -189,7 +226,7 @@ export function ManagementHTTPSSettings() {
         <Field label="证书来源"><select value={mode} onChange={event => setMode(event.target.value)} disabled={busy}>
           {status.data?.enabled && <option value="keep">保留现有证书</option>}
           <option value="self">自签名证书</option><option value="import">导入第三方证书</option>
-          <option value="acme-http">Let’s Encrypt · HTTP 验证</option><option value="cloudflare">Let’s Encrypt · Cloudflare DNS 验证</option><option value="off">关闭 HTTPS</option>
+          <option value="acme-http">Let's Encrypt · HTTP</option><option value="cloudflare">Let's Encrypt · Cloudflare DNS</option><option value="off">关闭 HTTPS</option>
         </select></Field>
         {mode !== "off" && <>
           <Field label="HTTPS 端口"><input name="port" type="number" min={1} max={65535} key={`port-${status.data?.port}`} defaultValue={status.data?.port || 18443} required /></Field>

@@ -32,6 +32,12 @@ type managementUser struct {
 	Salt   []byte `json:"salt"`
 	Digest []byte `json:"digest"`
 }
+type managementAccounts struct {
+	Users           map[string]managementUser `json:"users"`
+	Mode            string                    `json:"mode"`
+	PasswordAccount string                    `json:"password_account,omitempty"`
+}
+
 type managementSession struct {
 	Username string
 	Expires  time.Time
@@ -42,24 +48,40 @@ type loginAttempt struct {
 }
 
 type ManagementSecurity struct {
-	app      *App
-	mu       sync.Mutex
-	users    map[string]managementUser
-	sessions map[[32]byte]managementSession
-	attempts map[string]loginAttempt
-	logins   chan struct{}
-	tls      *managementTLS
+	app             *App
+	mu              sync.Mutex
+	users           map[string]managementUser
+	mode            string
+	passwordAccount string
+	generation      uint64
+	sessions        map[[32]byte]managementSession
+	attempts        map[string]loginAttempt
+	logins          chan struct{}
+	tls             *managementTLS
 }
 
 func NewManagementSecurity(app *App, address string) (*ManagementSecurity, error) {
-	guard := &ManagementSecurity{app: app, sessions: make(map[[32]byte]managementSession), attempts: make(map[string]loginAttempt), logins: make(chan struct{}, 2)}
+	guard := &ManagementSecurity{app: app, sessions: make(map[[32]byte]managementSession), attempts: make(map[string]loginAttempt), mode: "account", logins: make(chan struct{}, 2)}
 	raw, err := os.ReadFile(guard.userPath())
 	if errors.Is(err, os.ErrNotExist) {
 		guard.users = map[string]managementUser{"admin": {}}
 	} else if err != nil {
 		return nil, err
-	} else if err = json.Unmarshal(raw, &guard.users); err != nil || len(guard.users) == 0 {
+	} else {
+		var saved managementAccounts
+		if json.Unmarshal(raw, &saved) == nil && saved.Users != nil {
+			guard.users, guard.mode, guard.passwordAccount = saved.Users, saved.Mode, saved.PasswordAccount
+		} else if err = json.Unmarshal(raw, &guard.users); err != nil {
+			return nil, errors.New("管理账号文件无效")
+		}
+	}
+	if len(guard.users) == 0 || !validLoginMode(guard.mode) {
 		return nil, errors.New("管理账号文件无效")
+	}
+	if guard.mode == "password" {
+		if user, ok := guard.users[guard.passwordAccount]; !ok || len(user.Digest) == 0 {
+			return nil, errors.New("仅密码登录账号无效")
+		}
 	}
 	for name, user := range guard.users {
 		if !usernamePattern.MatchString(name) || (len(user.Digest) != 32 || len(user.Salt) != 16) && !(name == "admin" && len(user.Digest) == 0 && len(user.Salt) == 0) {
@@ -72,6 +94,18 @@ func NewManagementSecurity(app *App, address string) (*ManagementSecurity, error
 
 func (g *ManagementSecurity) userPath() string {
 	return filepath.Join(g.app.base, "private", "management-users.json")
+}
+
+func validLoginMode(mode string) bool {
+	return mode == "account" || mode == "password" || mode == "off"
+}
+
+func (g *ManagementSecurity) saveAccounts(users map[string]managementUser, mode, account string) error {
+	payload, err := json.Marshal(managementAccounts{Users: users, Mode: mode, PasswordAccount: account})
+	if err != nil {
+		return err
+	}
+	return atomicFile(g.userPath(), payload, 0600)
 }
 
 func matchesManagementPassword(user managementUser, password string) bool {
@@ -87,21 +121,24 @@ func matchesManagementPassword(user managementUser, password string) bool {
 	return subtle.ConstantTimeCompare(digest, user.Digest) == 1
 }
 
-func (g *ManagementSecurity) readSession(r *http.Request) (string, bool, bool) {
-	cookie, err := r.Cookie(authCookie)
-	if err != nil || len(cookie.Value) != 64 {
-		return "", false, false
-	}
-	id := sha256.Sum256([]byte(cookie.Value))
+func (g *ManagementSecurity) readSession(r *http.Request) (string, bool, bool, string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	if g.mode == "off" {
+		return "", false, true, g.mode
+	}
+	cookie, err := r.Cookie(authCookie)
+	if err != nil || len(cookie.Value) != 64 {
+		return "", false, false, g.mode
+	}
+	id := sha256.Sum256([]byte(cookie.Value))
 	session, ok := g.sessions[id]
 	user, exists := g.users[session.Username]
 	if !ok || !exists || time.Now().After(session.Expires) {
 		delete(g.sessions, id)
-		return "", false, false
+		return "", false, false, g.mode
 	}
-	return session.Username, len(user.Digest) == 0, true
+	return session.Username, len(user.Digest) == 0, true, g.mode
 }
 
 func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -146,9 +183,9 @@ func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	username, initial, authenticated := g.readSession(r)
+	username, initial, authenticated, mode := g.readSession(r)
 	if route == "/api/management/session" && r.Method == http.MethodGet {
-		writeResponse(w, 200, M{"authenticated": authenticated, "username": username, "initial": initial})
+		writeResponse(w, 200, M{"authenticated": authenticated, "username": username, "initial": initial, "mode": mode})
 		return
 	}
 	if route == "/api/management/login" && r.Method == http.MethodPost {
@@ -167,7 +204,9 @@ func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if route == "/api/management/logout" && r.Method == http.MethodPost {
 		cookie, _ := r.Cookie(authCookie)
 		g.mu.Lock()
-		delete(g.sessions, sha256.Sum256([]byte(cookie.Value)))
+		if cookie != nil {
+			delete(g.sessions, sha256.Sum256([]byte(cookie.Value)))
+		}
 		g.mu.Unlock()
 		http.SetCookie(w, &http.Cookie{Name: authCookie, Path: "/", MaxAge: -1, HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteStrictMode})
 		writeResponse(w, 200, M{"ok": true})
@@ -181,15 +220,20 @@ func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeResponse(w, 403, M{"error": "请先设置新的管理密码"})
 		return
 	}
+	if route == "/api/management/login-mode" && r.Method == http.MethodPost && !g.app.readonly {
+		g.changeLoginMode(w, r, username, mode)
+		return
+	}
 	if route == "/api/management/users" && r.Method == http.MethodGet {
 		g.mu.Lock()
 		users := make([]string, 0, len(g.users))
 		for name := range g.users {
 			users = append(users, name)
 		}
+		passwordAccount := g.passwordAccount
 		g.mu.Unlock()
 		sort.Strings(users)
-		writeResponse(w, 200, M{"users": users, "current": username})
+		writeResponse(w, 200, M{"users": users, "current": username, "mode": mode, "password_account": passwordAccount})
 		return
 	}
 	if route == "/api/management/https" {
@@ -243,6 +287,40 @@ func managementInput(w http.ResponseWriter, r *http.Request, limit int64) (M, er
 	return input, err
 }
 
+func (g *ManagementSecurity) changeLoginMode(w http.ResponseWriter, r *http.Request, actor, previousMode string) {
+	input, err := managementInput(w, r, 8192)
+	mode, account := str(input["mode"]), str(input["password_account"])
+	if err != nil || !validLoginMode(mode) {
+		writeResponse(w, 400, M{"error": "请选择有效的登录方式"})
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	_, actorExists := g.users[actor]
+	if previousMode != g.mode || (g.mode != "off" && !actorExists) {
+		writeResponse(w, 409, M{"error": "登录方式已变化，请刷新"})
+		return
+	}
+	if mode == "password" {
+		if user, ok := g.users[account]; !ok || len(user.Digest) == 0 {
+			writeResponse(w, 400, M{"error": "请选择已设置密码的账号"})
+			return
+		}
+	} else {
+		account = ""
+	}
+	if mode != g.mode || account != g.passwordAccount {
+		if err = g.saveAccounts(g.users, mode, account); err != nil {
+			writeResponse(w, 500, M{"error": "无法保存登录方式"})
+			return
+		}
+		g.mode, g.passwordAccount = mode, account
+		g.generation++
+		clear(g.sessions)
+	}
+	writeResponse(w, 200, M{"ok": true})
+}
+
 func (g *ManagementSecurity) login(w http.ResponseWriter, r *http.Request, host string) {
 	select {
 	case g.logins <- struct{}{}:
@@ -259,6 +337,15 @@ func (g *ManagementSecurity) login(w http.ResponseWriter, r *http.Request, host 
 	name, password := str(input["username"]), str(input["password"])
 	now := time.Now()
 	g.mu.Lock()
+	mode, generation := g.mode, g.generation
+	if mode == "off" {
+		g.mu.Unlock()
+		writeResponse(w, 200, M{"authenticated": true, "username": "", "initial": false, "mode": mode})
+		return
+	}
+	if mode == "password" {
+		name = g.passwordAccount
+	}
 	for ip, entry := range g.attempts {
 		if now.After(entry.Until) {
 			delete(g.attempts, ip)
@@ -290,7 +377,7 @@ func (g *ManagementSecurity) login(w http.ResponseWriter, r *http.Request, host 
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	current, ok := g.users[name]
-	if !ok || !strings.EqualFold(hex.EncodeToString(user.Digest), hex.EncodeToString(current.Digest)) {
+	if !ok || generation != g.generation || subtle.ConstantTimeCompare(user.Digest, current.Digest) != 1 {
 		writeResponse(w, 409, M{"error": "账号已更新，请重新登录"})
 		return
 	}
@@ -306,15 +393,15 @@ func (g *ManagementSecurity) login(w http.ResponseWriter, r *http.Request, host 
 	}
 	g.sessions[sha256.Sum256([]byte(value))] = managementSession{name, now.Add(8 * time.Hour)}
 	http.SetCookie(w, &http.Cookie{Name: authCookie, Value: value, Path: "/", MaxAge: 8 * 3600, SameSite: http.SameSiteStrictMode, HttpOnly: true, Secure: r.TLS != nil})
-	writeResponse(w, 200, M{"authenticated": true, "username": name, "initial": len(user.Digest) == 0})
+	writeResponse(w, 200, M{"authenticated": true, "username": name, "initial": len(user.Digest) == 0, "mode": mode})
 }
 
 func (g *ManagementSecurity) saveUser(w http.ResponseWriter, r *http.Request, actor string, initial bool) {
 	input, err := managementInput(w, r, 8192)
 	oldName, name, password := str(input["old_name"]), str(input["username"]), str(input["password"])
-	invalid := err != nil || !usernamePattern.MatchString(name) || (password != "" && (len(password) < 8 || len(password) > 1024 || matchesManagementPassword(managementUser{}, password)))
+	invalid := err != nil || !usernamePattern.MatchString(name) || (password != "" && len(password) > 1024)
 	if invalid || initial && (oldName != actor || password == "") || oldName == "" && password == "" {
-		writeResponse(w, 400, M{"error": "请填写有效的用户名和至少 8 字符的新密码"})
+		writeResponse(w, 400, M{"error": "请填写有效的用户名和非空密码"})
 		return
 	}
 	if password != "" {
@@ -328,7 +415,7 @@ func (g *ManagementSecurity) saveUser(w http.ResponseWriter, r *http.Request, ac
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if _, ok := g.users[actor]; !ok {
+	if _, ok := g.users[actor]; !ok && !(actor == "" && g.mode == "off") {
 		writeResponse(w, 401, M{"error": "请重新登录"})
 		return
 	}
@@ -357,21 +444,22 @@ func (g *ManagementSecurity) saveUser(w http.ResponseWriter, r *http.Request, ac
 		}
 	}
 	next[name] = user
-	payload, err := json.Marshal(next)
-	if err == nil {
-		err = atomicFile(g.userPath(), payload, 0600)
+	account := g.passwordAccount
+	if account != "" && account == oldName {
+		account = name
 	}
+	err = g.saveAccounts(next, g.mode, account)
 	if err != nil {
 		writeResponse(w, 500, M{"error": "无法保存账号文件"})
 		return
 	}
-	g.users = next
+	g.users, g.passwordAccount = next, account
 	for id, session := range g.sessions {
 		if session.Username == oldName {
 			delete(g.sessions, id)
 		}
 	}
-	writeResponse(w, 200, M{"ok": true, "relogin": oldName == actor})
+	writeResponse(w, 200, M{"ok": true, "relogin": actor != "" && oldName == actor})
 }
 
 func (g *ManagementSecurity) Close() { g.tls.close() }

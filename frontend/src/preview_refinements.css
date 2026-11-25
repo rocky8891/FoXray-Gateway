@@ -1786,3 +1786,15 @@ main[data-module-page] > :is(.module-page, .module-service-settings) > .panel:nt
 }
 .management-login-card { width: min(100%, 420px); }
 .management-login-card form > .button { width: 100%; }
+
+.management-login-brand {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.management-login-brand > svg { width: 42px; height: 48px; flex: none; }
+.management-login-brand > h1 { font-size: clamp(18px, 5vw, 25px); line-height: 1.2; margin: 0; }
+.management-login-brand .brand-name-x { color: #ff8033; }
+.management-login-setup { font-size: 15px; margin: 0 0 8px; }

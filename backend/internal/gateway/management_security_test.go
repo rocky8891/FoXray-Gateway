@@ -55,7 +55,7 @@ func TestManagementAuthentication(t *testing.T) {
 	if got := request("GET", "/api/management/users", nil, cookie).Code; got != 200 {
 		t.Fatal(got)
 	}
-	if got := request("POST", "/api/management/users", M{"old_name": "", "username": "new-fixture", "password": "synthetic password"}, cookie); got.Code != 200 {
+	if got := request("POST", "/api/management/users", M{"old_name": "", "username": "new-fixture", "password": "x"}, cookie); got.Code != 200 {
 		t.Fatal(got)
 	}
 	if got := request("POST", "/api/management/users", M{"old_name": "fixture", "username": "renamed", "password": "synthetic changed"}, cookie).Code; got != 200 {
@@ -64,6 +64,35 @@ func TestManagementAuthentication(t *testing.T) {
 	if got := request("GET", "/api/management/users", nil, cookie).Code; got != 401 {
 		t.Fatal(got)
 	}
+	login = request("POST", "/api/management/login", M{"username": "renamed", "password": "synthetic changed"}, nil)
+	if login.Code != 200 {
+		t.Fatal(login.Code)
+	}
+	cookie = login.Result().Cookies()[0]
+	if got := request("POST", "/api/management/login-mode", M{"mode": "password", "password_account": "new-fixture"}, cookie).Code; got != 200 {
+		t.Fatal(got)
+	}
+	if got := request("GET", "/api/management/users", nil, cookie).Code; got != 401 {
+		t.Fatal(got)
+	}
+	login = request("POST", "/api/management/login", M{"password": "x"}, nil)
+	if login.Code != 200 {
+		t.Fatal(login.Code)
+	}
+	cookie = login.Result().Cookies()[0]
+	if got := request("POST", "/api/management/login-mode", M{"mode": "off"}, cookie).Code; got != 200 {
+		t.Fatal(got)
+	}
+	if got := request("GET", "/api/management/users", nil, nil).Code; got != 200 {
+		t.Fatal(got)
+	}
+	if got := request("POST", "/api/management/login-mode", M{"mode": "account"}, nil).Code; got != 200 {
+		t.Fatal(got)
+	}
+	if got := request("GET", "/api/management/users", nil, nil).Code; got != 401 {
+		t.Fatal(got)
+	}
+
 }
 
 func TestManagementSelfSignedHTTPS(t *testing.T) {

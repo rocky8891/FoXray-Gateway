@@ -781,13 +781,6 @@ export function ServiceCard({
                 ? "WARP 服务"
                 : "WARP 服务与隧道"}
           </h3>
-          <span className={state === "active" ? "accent" : "muted"}>
-            {state === "active"
-              ? "运行中"
-              : state === "inactive"
-                ? "已停止"
-                : state}
-          </span>
         </div>
       )}
       <div className="service-control-frame">
@@ -934,7 +927,6 @@ export function ServicePanel({
   act: Act;
   error?: string;
 }) {
-  const status = String(data?.state || "unknown");
   return (
     <Panel className={"component-service-panel " + service + "-service-panel"}>
       <PageHeader
@@ -944,19 +936,6 @@ export function ServicePanel({
           service === "xray"
             ? "启动／停止／重启分别执行 systemctl start／stop／restart foxray-engine.service，影响核心连接；启用／停用分别执行 systemctl enable／disable foxray-engine.service，仅修改开机自启。代理接管单独控制。"
             : "启动／停止／重启分别执行 systemctl start／stop／restart warp-svc.service；启用／停用分别执行 systemctl enable／disable warp-svc.service，仅修改开机自启。隧道连接在隧道管理中通过 warp-cli --accept-tos connect／disconnect 控制。"
-        }
-        actions={
-          <span
-            className={status === "active" ? "accent small" : "muted small"}
-          >
-            {status === "active"
-              ? "运行中"
-              : status === "inactive"
-                ? "已停止"
-                : data
-                  ? status
-                  : "正在读取"}
-          </span>
         }
       />
       {data ? (
@@ -2134,19 +2113,6 @@ function ManagerServicePanel({ state, act }: { state: State; act: Act }) {
             foxray.service，仅修改开机启动状态。
           </>
         }
-        actions={
-          <span
-            className={
-              data?.state === "active" ? "accent small" : "muted small"
-            }
-          >
-            {data?.state === "active"
-              ? "运行中"
-              : data?.state === "inactive"
-                ? "已停止"
-                : text(data?.state)}
-          </span>
-        }
       />
       <div className="service-control-frame">
         <dl className="service-values">
@@ -2265,8 +2231,8 @@ export function Settings({ state, act }: { state: State; act: Act }) {
   return (
     <SettingsSaveProvider>
       <ManagerServicePanel state={state} act={act} />
-      <GlobalPreferencesCards act={act} />
       <ModuleSettings state={state} act={act} />
+      <GlobalPreferencesCards act={act} />
     </SettingsSaveProvider>
   );
 }
