@@ -232,12 +232,14 @@ export function ActionMenu({
   items,
   triggerLabel = "操作",
   showLabel = false,
+  triggerIcon,
 }: {
   label: string;
   primary?: MenuAction;
   items: MenuAction[];
   triggerLabel?: string;
   showLabel?: boolean;
+  triggerIcon?: ReactNode;
 }) {
   const actions = primary ? [primary, ...items] : items;
   const [open, setOpen] = useState(false),
@@ -293,7 +295,7 @@ export function ActionMenu({
             <ChevronRight size={16} className="batch-chevron" />
           </>
         ) : (
-          <MoreHorizontal size={18} aria-hidden="true" />
+          triggerIcon ?? <MoreHorizontal size={18} aria-hidden="true" />
         )}
       </button>
       {open && anchor.current && (

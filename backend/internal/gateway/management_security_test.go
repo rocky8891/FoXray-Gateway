@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -103,5 +104,31 @@ func TestManagementSelfSignedHTTPS(t *testing.T) {
 	response.Body.Close()
 	if response.StatusCode != 204 {
 		t.Fatal(response.StatusCode)
+	}
+}
+
+func TestManagementHTTPTransition(t *testing.T) {
+	manager := &managementTLS{address: "127.0.0.1:18443", server: &http.Server{}, config: managementTLSConfig{Port: 19443, Redirect: 18080}}
+	request := func(method string, port int) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(method, "http://example.test/?q=1", nil)
+		r = r.WithContext(context.WithValue(r.Context(), http.LocalAddrContextKey, &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: port}))
+		w := httptest.NewRecorder()
+		if !manager.handlePlainHTTP(w, r) {
+			t.Fatal("HTTP was allowed while TLS was active")
+		}
+		return w
+	}
+	if w := request(http.MethodGet, 18080); w.Code != http.StatusTemporaryRedirect || w.Header().Get("Location") != "https://example.test:19443/?q=1" {
+		t.Fatal(w.Code, w.Header())
+	}
+	if w := request(http.MethodGet, 18880); w.Code != http.StatusUpgradeRequired {
+		t.Fatal(w.Code)
+	}
+	if w := request(http.MethodPost, 18080); w.Code != http.StatusUpgradeRequired {
+		t.Fatal(w.Code)
+	}
+	manager.config.Redirect = 0
+	if w := request(http.MethodGet, 18080); w.Code != http.StatusUpgradeRequired {
+		t.Fatal(w.Code)
 	}
 }

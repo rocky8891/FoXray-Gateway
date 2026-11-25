@@ -206,7 +206,7 @@ func validatePresentation(p M) error {
 	if s := str(p["nodes_layout"]); s != "grid" && s != "top" && s != "sidebar" && s != "single" {
 		return errors.New("节点一览排列方式无效")
 	}
-	if s := str(p["services_style"]); s != "metrics" && s != "metrics-left" && s != "radial" && s != "radial-diamond" && s != "radial-diamond-compact" && s != "radial-wave" && s != "radial-lightning" && s != "radial-square" && s != "radial-mixed" {
+	if s := str(p["services_style"]); s != "metrics" && s != "metrics-left" && s != "radial" && s != "radial-diamond" && s != "radial-diamond-compact" && s != "radial-wave" && s != "radial-lightning" && s != "radial-reverse-lightning" && s != "radial-square" && s != "radial-mixed" {
 		return errors.New("服务总览卡片样式无效")
 	}
 	for _, key := range []string{"services_host_style", "services_xray_style", "services_warp_style", "services_wireguard_layout"} {
@@ -214,7 +214,7 @@ func validatePresentation(p M) error {
 		if v == "radial-vertical" && key != "services_wireguard_layout" && str(p["services_layout"]) != "sidebar" {
 			return errors.New("四圆竖排仅用于左右布局")
 		}
-		if _, ok := p[key].(string); !ok || (v != "" && v != "metrics" && v != "metrics-left" && v != "radial" && v != "radial-diamond" && v != "radial-diamond-compact" && v != "radial-wave" && v != "radial-lightning" && v != "radial-square" && v != "radial-mixed" && v != "radial-vertical") {
+		if _, ok := p[key].(string); !ok || (v != "" && v != "metrics" && v != "metrics-left" && v != "radial" && v != "radial-diamond" && v != "radial-diamond-compact" && v != "radial-wave" && v != "radial-lightning" && v != "radial-reverse-lightning" && v != "radial-square" && v != "radial-mixed" && v != "radial-vertical") {
 			return errors.New("服务卡片独立样式无效")
 		}
 	}

@@ -1,4 +1,3 @@
-import { PageBackgroundSettings } from "./page_background";
 import { HomeHeaderToggleIcon } from "./home_header";
 import { AdaptiveSearch } from "./adaptive_search";
 import { Search } from "lucide-react";
@@ -11,7 +10,6 @@ import { ExportButton, PaginatedCards } from "./resource_controls";
 import { NodeManagementIcon } from "./requirement_icons";
 import { TrueLatencyIcon } from "./requirement_icons";
 import { useMonitorSections } from "./monitor_sections";
-import { PageWidthSettings } from "./presentation_settings";
 import {
   HistoryIntervalSettings,
   type HistorySettingsActions,
@@ -26,7 +24,7 @@ import { LogRetentionSettings } from "./log_settings";
 import { NumberInput } from "./ui";
 import { labelIcon } from "./ui_icons";
 import { VersionPanel, versionLabel } from "./version_panel";
-import { DisplaySettings } from "./monitoring_settings";
+import { GlobalPreferencesCards } from "./monitoring_settings";
 import { useTimeRange, TimeRangeControl, type TimeRange } from "./time_range";
 import { TimeAxisTick, timeTicks, formatAxisTime } from "./chart_layout";
 import { ModuleSettings } from "./modules";
@@ -2265,11 +2263,9 @@ function ManagerServicePanel({ state, act }: { state: State; act: Act }) {
 
 export function Settings({ state, act }: { state: State; act: Act }) {
   return (
-    <SettingsSaveProvider expected={7}>
+    <SettingsSaveProvider>
       <ManagerServicePanel state={state} act={act} />
-      <PageWidthSettings act={act} />
-      <PageBackgroundSettings />
-      <DisplaySettings act={act} />
+      <GlobalPreferencesCards act={act} />
       <ModuleSettings state={state} act={act} />
     </SettingsSaveProvider>
   );

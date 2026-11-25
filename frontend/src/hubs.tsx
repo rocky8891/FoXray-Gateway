@@ -26,7 +26,6 @@ import { Nodes, Subscriptions, type Act } from "./nodes";
 import { TrafficPage } from "./traffic";
 import { HostHistoryPage } from "./host";
 import {
-  GlobalMonitoringSettings,
   MonitoringSettings,
   monitoringSettingsTabs,
 } from "./monitoring_settings";
@@ -345,7 +344,6 @@ export function GlobalSettingsHub({ state, act }: { state: State; act: Act }) {
     ...(state.components.warp ? [["warp", "WARP"]] : []),
     ...(state.components.wireguard ? [["wireguard", "WireGuard"]] : []),
     ["global", "FoXray"],
-    ["preferences", "全局"],
   ];
   const active = tabs.some(([id]) => id === tab) ? tab : "global";
   return (
@@ -366,8 +364,6 @@ export function GlobalSettingsHub({ state, act }: { state: State; act: Act }) {
         <WarpSettings act={act} />
       ) : active === "monitoring" ? (
         <MonitoringSettings state={state} act={act} module={settingsTarget} />
-      ) : active === "preferences" ? (
-        <GlobalMonitoringSettings act={act} />
       ) : active === "logs" ? (
         <LogSettings state={state} act={act} />
       ) : (

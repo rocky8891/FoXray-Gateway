@@ -106,6 +106,7 @@ export const SERVICE_CIRCLE_STYLES = [
   "radial-diamond-compact",
   "radial-wave",
   "radial-lightning",
+  "radial-reverse-lightning",
   "radial-mixed",
   "radial-vertical",
 ];
@@ -123,7 +124,7 @@ export function serviceStyleAvailable(
       ? style === "metrics" || SERVICE_CIRCLE_STYLES.includes(style)
       : ["metrics", "radial"].includes(style);
   if (style === "radial-vertical") return layout === "sidebar" && anchor;
-  if (style === "metrics" || style === "radial" || style === "radial-lightning") return true;
+  if (style === "metrics" || style === "radial" || style === "radial-lightning" || style === "radial-reverse-lightning") return true;
   if (!style.startsWith("radial")) return false;
   if (layout === "sidebar" && !anchor) return false;
   if (

@@ -68,12 +68,14 @@
   --menu-selected-fill: rgba(145, 235, 189, .18);
   --menu-selected-edge: rgba(170, 247, 207, .20);
   --menu-selected-glass: blur(8px) saturate(1.2);
-  --menu-selected-nav-text: #fff;
+  --menu-selected-nav-text: #00d3a7;
+  --menu-selected-nav-fill: #163c35;
 }
 :root[data-theme="light"] {
   --menu-selected-fill: rgba(132, 219, 172, .30);
   --menu-selected-edge: rgba(63, 149, 104, .22);
-  --menu-selected-nav-text: var(--text);
+  --menu-selected-nav-text: #00634d;
+  --menu-selected-nav-fill: #d5f3e7;
 }
 :is(.app-select-options, .firewall-service-options, .managed-icon-select-menu .menu-scroll-content, .icon-select-menu, .overview-view-menu) > button[aria-selected="true"],
 .service-theme-menu button[aria-selected="true"],
@@ -96,9 +98,16 @@
 :root .secondary-nav .module-tab-dropdown[data-active="true"] .icon-select-trigger:not(:disabled),
 :root header nav .nav-tab.nav-home-fox:is(:active, .nav-home-closing):not(:disabled) {
   color: var(--menu-selected-nav-text) !important;
-  background: var(--menu-selected-fill) !important;
-  border-color: var(--menu-selected-edge) !important;
-  box-shadow: inset 0 0 0 1px var(--menu-selected-edge) !important;
+  background: var(--menu-selected-nav-fill) !important;
+  border-color: var(--menu-selected-nav-text) !important;
+  box-shadow: none !important;
   -webkit-backdrop-filter: var(--menu-selected-glass);
   backdrop-filter: var(--menu-selected-glass);
+}
+
+header .header-status > .header-tools { grid-template-columns: 56px repeat(3, 36px); }
+header .management-user-menu .more-actions-trigger { width: 36px; height: 36px; padding: 4px; }
+@media (max-width: 599px) {
+  header .header-status > .header-tools { grid-template-columns: repeat(4, 32px); }
+  header .management-user-menu .more-actions-trigger { width: 32px; }
 }

@@ -1140,6 +1140,9 @@ function OverviewLayoutSettings({
                                 {serviceStyleAvailable(p, module, "radial-lightning") && (
                                   <option value="radial-lightning">四圆闪电</option>
                                 )}
+                                {serviceStyleAvailable(p, module, "radial-reverse-lightning") && (
+                                  <option value="radial-reverse-lightning">四圆电闪</option>
+                                )}
                                 {serviceStyleAvailable(
                                   p,
                                   module,

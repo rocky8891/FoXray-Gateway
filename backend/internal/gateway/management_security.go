@@ -107,6 +107,9 @@ func (g *ManagementSecurity) readSession(r *http.Request) (string, bool, bool) {
 func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+	if g.tls != nil && g.tls.serveChallenge(w, r) {
+		return
+	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	ip := net.ParseIP(host)
 	if err != nil || !(ip.IsLoopback() || ip.IsPrivate()) {
@@ -114,6 +117,15 @@ func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	route := r.URL.Path
+	if route == "/api/health" && r.Method == http.MethodGet {
+		if r.TLS != nil || g.localHealthProbe(r, ip) {
+			g.app.ServeHTTP(w, r)
+			return
+		}
+	}
+	if g.tls != nil && g.tls.handlePlainHTTP(w, r) {
+		return
+	}
 	if strings.HasPrefix(filepath.Base(route), "foxray-config-") && (strings.HasSuffix(route, ".zip") || strings.HasSuffix(route, ".foxbackup")) {
 		writeResponse(w, 404, M{"error": "备份请通过管理界面或 SFTP 获取"})
 		return
@@ -198,6 +210,15 @@ func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g.app.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), managementAuthorizedKey{}, true)))
+}
+
+func (g *ManagementSecurity) localHealthProbe(r *http.Request, peer net.IP) bool {
+	local, ok := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
+	if !ok {
+		return false
+	}
+	host, _, err := net.SplitHostPort(local.String())
+	return err == nil && peer.Equal(net.ParseIP(host))
 }
 
 func (g *ManagementSecurity) legacyUpgradeProbe(r *http.Request, peer net.IP) bool {

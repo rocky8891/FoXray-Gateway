@@ -58,7 +58,8 @@ export function circleLayout(width: number, height: number, style: string, match
       "grid",
     );
   }
-  if (style === "radial-lightning") {
+  if (style === "radial-lightning" || style === "radial-reverse-lightning") {
+    const reverse = style === "radial-reverse-lightning";
     const stagger = 0.44;
     const diameter = Math.max(1, Math.min((w - gap * 3) / 4, h / (1 + stagger)));
     const offset = diameter * stagger / 2;
@@ -66,9 +67,9 @@ export function circleLayout(width: number, height: number, style: string, match
       diameter,
       Array.from({ length: 4 }, (_, index) => [
         padding + (w * (index + 0.5)) / 4,
-        cy + (index % 2 === 0 ? offset : -offset),
+        cy + ((index % 2 === 0) !== reverse ? offset : -offset),
       ]),
-      "lightning-row",
+      reverse ? "reverse-lightning-row" : "lightning-row",
       4,
     );
   }

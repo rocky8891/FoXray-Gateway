@@ -22,6 +22,8 @@ export function cardNeighbor(
             { r: 2, c: 2 },
             { r: 1, c: 3 },
           ][i]
+        : layout === "reverse-lightning-row"
+          ? { r: i % 2, c: i }
         : layout === "lightning-row"
           ? { r: 1 - (i % 2), c: i }
         : layout === "wave-row"

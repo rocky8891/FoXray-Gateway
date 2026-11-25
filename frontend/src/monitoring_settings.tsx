@@ -292,15 +292,15 @@ export function MonitoringSettings({
   );
 }
 
-export function GlobalMonitoringSettings({ act }: { act: Act }) {
+export function GlobalPreferencesCards({ act }: { act: Act }) {
   return (
-    <SettingsSaveProvider expected={6}>
+    <>
       <PresentationSettings act={act} />
       <DisplaySettings act={act} />
       <DataPolicyCard module="all" kind="" title="监控数据默认设置" act={act} />
       <ManagementUserSettings />
       <ManagementHTTPSSettings />
       <ConfigBackupSettings />
-    </SettingsSaveProvider>
+    </>
   );
 }

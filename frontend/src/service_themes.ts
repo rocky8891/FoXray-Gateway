@@ -39,6 +39,7 @@ const ARRANGED_THEMES = arrangements.flatMap(([layout, arrangement]) => [
     ["radial-diamond-compact", "四圆心形"],
     ["radial-wave", "四圆波浪"],
     ["radial-lightning", "四圆闪电"],
+    ["radial-reverse-lightning", "四圆电闪"],
     ["radial-mixed", "四圆混合"],
     ...(layout === "sidebar" ? [["radial-vertical", "四圆竖排"]] : []),
   ].flatMap(([style, shape]) =>

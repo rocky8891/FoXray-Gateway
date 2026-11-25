@@ -1,4 +1,4 @@
-import { ManagementGate } from "./management_security";
+import { ManagementGate, ManagementUserMenu } from "./management_security";
 import { applyPageBackground } from "./page_background";
 import { SettingsIcon } from "./requirement_icons";
 import { ThemedSelects } from "./themed_selects";
@@ -613,6 +613,7 @@ function App() {
                 <SettingsIcon size={20} />
                 <UpdateBadge />
               </Button>
+              <ManagementUserMenu />
             </div>
           </div>
         </header>

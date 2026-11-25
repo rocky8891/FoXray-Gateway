@@ -238,7 +238,7 @@ function SummaryHeader({
           !!card.closest('.overview-layout-top[data-overview-anchor="service-host"]');
         // Wave and mixed styles interpret user font settings at a 200px circle;
         // mixed large circles use the wave-circle type size for the same surface.
-        const responsiveType = fit.layout === "mixed" || fit.layout === "wave-row" || fit.layout === "lightning-row";
+        const responsiveType = fit.layout === "mixed" || fit.layout === "wave-row" || fit.layout === "lightning-row" || fit.layout === "reverse-lightning-row";
         circleTypeScale = responsiveType
           ? Math.max(hostTopAnchor ? 1 : 0.5, fit.diameter / (hostTopAnchor ? 400 : 200))
           : 1;
