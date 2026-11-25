@@ -96,8 +96,8 @@ export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule =
         <Button disabled={!canBatch} onClick={() => beginBatch("disable")}>停用</Button>
         <ActionMenu label="批量" triggerLabel="批量操作" showLabel items={Object.entries(batchLabels).map(([operation,label])=>({label,disabled:!canBatch,onClick:()=>beginBatch(operation)}))} />
       </>}
-      actions={<span className="cross-zone-toolbar-actions"><ResetFilters active={!!filterSummary} summary={filterSummary} selectedCount={selection.chosen.length} onClick={() => {selection.setSelected(new Set()); setQuery(""); setFilters({}); setPriorityOrder(1); resetFilter()}} />
-        <ExportButton rows={selection.chosen.length ? selection.chosen : rows} name="域间规则" columns={[["优先级", r => r.priority], ["名称", r => r.name || r.policy_name], ["入口区域", r => r.ingress_zone], ["出口区域", r => r.egress_zone], ["来源", r => r.source], ["目标", r => r.destination], ["协议", r => r.protocol], ["端口", r => r.port], ["动作", r => facetLabel("action", actionValue(r))]]} /></span>}
+      actions={<span className="cross-zone-toolbar-actions"><ExportButton rows={selection.chosen.length ? selection.chosen : rows} name="域间规则" columns={[["优先级", r => r.priority], ["名称", r => r.name || r.policy_name], ["入口区域", r => r.ingress_zone], ["出口区域", r => r.egress_zone], ["来源", r => r.source], ["目标", r => r.destination], ["协议", r => r.protocol], ["端口", r => r.port], ["动作", r => facetLabel("action", actionValue(r))]]} />
+        <ResetFilters active={!!filterSummary} summary={filterSummary} selectedCount={selection.chosen.length} onClick={() => {selection.setSelected(new Set()); setQuery(""); setFilters({}); setPriorityOrder(1); resetFilter()}} /></span>}
     >
       <AdaptiveSearch tableWidthKey="cross-zone-rules"><Search size={15} /><input aria-label="搜索域间规则" placeholder="查询区域、IP、网段或协议" value={query} onChange={event => setQuery(event.target.value)} /></AdaptiveSearch>
     </CompactFilters>

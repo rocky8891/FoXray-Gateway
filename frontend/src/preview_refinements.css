@@ -1703,3 +1703,24 @@ main[data-module-page] > :is(.module-page, .module-service-settings) > .panel:nt
     grid-template-rows: repeat(2, minmax(0, 1fr));
   }
 }
+
+.service-wireguard-interface .service-overview-title-row > h2 {
+  min-width: 0;
+  overflow: hidden;
+}
+.service-wg-peer-identity {
+  display: flex;
+  gap: 8px;
+  margin-inline: auto 6px;
+  padding-inline-start: 8px;
+  min-width: 0;
+  align-items: center;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.service-wg-peer-identity > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.service-wg-peer-identity > time { flex: none; }

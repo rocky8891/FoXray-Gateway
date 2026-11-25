@@ -1070,7 +1070,7 @@ function OverviewLayoutSettings({
                         <Field
                           key={module}
                           label={title + (standalone ? "接口" : "") + "卡片样式"}
-                          info="每张卡片独立保存样式，可自由组合。圆形按可用宽高自动缩放并调整间距和位置，空间不足时统一缩小字号，保持单行完整。小圆环的圆心名称会移到上方。无适用样式时，矩形回退为对称矩形、圆形回退为四圆横排。指标和接口子卡片可在主页编辑模式拖动交换位置。竖排只用于左右布局左侧的大卡片，右侧保持横排。"
+                          info={standalone ? "独立接口卡片在所有总览布局中均可使用完整样式。" : "每张卡片独立保存样式，可自由组合。圆形按可用宽高自动缩放并调整间距和位置，空间不足时统一缩小字号，保持单行完整。小圆环的圆心名称会移到上方。无适用样式时，矩形回退为对称矩形、圆形回退为四圆横排。指标和接口子卡片可在主页编辑模式拖动交换位置。竖排只用于左右布局左侧的大卡片，右侧保持横排。"}
                         >
                           <select
                             aria-label={title + (standalone ? "接口" : "") + "卡片样式"}
@@ -1114,8 +1114,7 @@ function OverviewLayoutSettings({
                                     四圆方形
                                   </option>
                                 )}
-                                {scoped.layout === "sidebar" &&
-                                  cards[0] === "service-" + module && (
+                                {serviceStyleAvailable(p, module, "radial-vertical") && (
                                     <option value="radial-vertical">
                                       四圆竖排
                                     </option>

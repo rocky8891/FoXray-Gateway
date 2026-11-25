@@ -38,6 +38,7 @@ function SummaryHeader({
   status,
   tone = "muted",
   identity,
+  identityBeforeStatus,
   controls,
   titleExtra,
 }: {
@@ -46,6 +47,7 @@ function SummaryHeader({
   status: string;
   tone?: string;
   identity?: ReactNode;
+  identityBeforeStatus?: ReactNode;
   controls?: ReactNode;
   titleExtra?: ReactNode;
 }) {
@@ -433,6 +435,7 @@ function SummaryHeader({
             <span className="service-title-extra">{titleExtra}</span>
           )}
         </h2>
+        {identityBeforeStatus}
         {status && (
           <span
             className={
@@ -445,14 +448,14 @@ function SummaryHeader({
           />
         )}
       </div>
-      <div className="service-overview-identity-row">
+      {!identityBeforeStatus && <div className="service-overview-identity-row">
         <div className="service-overview-identity">
           {identity || <span className="muted">—</span>}
         </div>
         {controls && (
           <div className="service-overview-pagination">{controls}</div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -642,8 +645,8 @@ export function ServiceOverviewCards({
   const hostOrder = (record(state.manager_settings.presentation)
     .services_host_order as string[]) || ["cpu", "load", "memory", "root"];
   const presentation = record(state.manager_settings.presentation);
-  const cardStyle = (module: string, secondary = false) => {
-    const style = serviceStyle(presentation, module, secondary);
+  const cardStyle = (module: string) => {
+    const style = serviceStyle(presentation, module);
     return ` service-style-${style}` + (style.startsWith("radial-") && style !== "radial-diamond"
       ? " service-style-radial-diamond" : "");
   };
@@ -849,6 +852,14 @@ export function ServiceOverviewCards({
         const samples = list(record(wgDelay.data?.series)[id]);
         const peer = record(record(record(connections.wireguard).nodes)[id]);
         const ready = wgOn && !!row.active;
+        const enabledPeers = list(row.peers).filter(peer => !peer.disabled);
+        const latestPeer = row.active ? enabledPeers.reduce<Dict | undefined>((latest, peer) => {
+          const handshake = Number(peer.handshake);
+          return Number.isFinite(handshake) && handshake > Number(latest?.handshake || 0) ? peer : latest;
+        }, undefined) : undefined;
+        const endpointPeer = latestPeer ?? (enabledPeers.length === 1 ? enabledPeers[0] : undefined);
+        const endpoint = String(endpointPeer?.endpoint || "");
+        const handshake = latestPeer ? new Date(Number(latestPeer.handshake) * 1000) : null;
         return (
           <Panel
             {...monitorLink("wireguard", name)}
@@ -856,13 +867,23 @@ export function ServiceOverviewCards({
             data-interface-name={name}
             data-wg-anchor={index === 0 || undefined}
             className={"overview-summary-card service-overview-card summary-v417 service-wireguard-interface" +
-              cardStyle("wireguard", index > 0)}
+              cardStyle("wireguard")}
           >
             <SummaryHeader
               title={name}
               icon={<ProductIcon product="wireguard" size={20} />}
               status={!wgOn ? "监控已关闭" : ready ? "接口已启动" : "接口已停止"}
               tone={ready ? "accent" : "muted"}
+              identityBeforeStatus={
+                <div className="service-wg-peer-identity">
+                  {endpoint && endpoint !== "(none)" && <span title={`Endpoint ${endpoint}`}>{endpoint}</span>}
+                  {handshake ? (
+                    <time dateTime={handshake.toISOString()} title={`最近握手 ${handshake.toLocaleString()}`}>
+                      最近握手 {handshake.toLocaleTimeString()}
+                    </time>
+                  ) : <span>{row.active ? "尚未握手" : "未连接"}</span>}
+                </div>
+              }
             />
             <div className="service-overview-surface">
               <SummaryMetrics

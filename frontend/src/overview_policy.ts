@@ -74,7 +74,7 @@ export function splitWireGuardCards(value: unknown): boolean {
       SERVICE_CARDS.some(card => !cards.includes(card)));
 }
 
-export function serviceStyle(value: unknown, module: string, secondary = false): string {
+export function serviceStyle(value: unknown, module: string): string {
   const p = record(value);
   // Older versions saved the circle choice independently of the global style.
   if (
@@ -92,7 +92,7 @@ export function serviceStyle(value: unknown, module: string, secondary = false):
       DEFAULT_SERVICE_THEME[SERVICE_STYLE_FIELDS[module]] ||
       "metrics",
   );
-  return serviceStyleAvailable(p, module, style, secondary)
+  return serviceStyleAvailable(p, module, style)
     ? style
     : style.startsWith("radial")
       ? "radial"
@@ -114,12 +114,13 @@ export function serviceStyleAvailable(
   value: unknown,
   module: string,
   style: string,
-  secondary = false,
 ): boolean {
   const { layout, cards } = overviewPolicy(value, "services");
-  const anchor = !secondary && cards[0] === "service-" + module;
-  if (module === "wireguard" && !splitWireGuardCards(value))
-    return ["metrics", "radial"].includes(style);
+  const anchor = cards[0] === "service-" + module;
+  if (module === "wireguard")
+    return splitWireGuardCards(value)
+      ? style === "metrics" || SERVICE_CIRCLE_STYLES.includes(style)
+      : ["metrics", "radial"].includes(style);
   if (style === "radial-vertical") return layout === "sidebar" && anchor;
   if (style === "metrics" || style === "radial") return true;
   if (!style.startsWith("radial")) return false;
@@ -141,7 +142,7 @@ export function wireguardNameStyle(value: unknown): string {
 export function normalizeServiceLayoutChange(p: Dict, layout: string): Dict {
   const patch: Dict = { services_layout: layout };
   if (layout !== "sidebar")
-    for (const module of ["host", "xray", "warp", "wireguard"]) {
+    for (const module of ["host", "xray", "warp"]) {
       const key = SERVICE_STYLE_FIELDS[module];
       if (p[key] === "radial-vertical") patch[key] = "radial";
     }

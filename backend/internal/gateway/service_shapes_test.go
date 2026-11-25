@@ -22,9 +22,12 @@ func TestServiceShapeRestrictionsAndScopedSaves(t *testing.T) {
 			t.Fatal("invalid shape changed settings", bad)
 		}
 	}
-	patch := M{"services_layout": "grid", "services_host_style": "radial-square", "services_xray_style": "radial-square", "services_warp_style": "radial-square", "services_wireguard_layout": "radial-square"}
+	patch := M{"services_layout": "grid", "services_host_style": "radial-square", "services_xray_style": "radial-square", "services_warp_style": "radial-square"}
 	if err := a.savePresentation(patch); err != nil {
 		t.Fatal(err)
+	}
+	if str(obj(a.settings["presentation"])["services_wireguard_layout"]) != "radial-vertical" {
+		t.Fatal("WireGuard vertical style must survive a grid layout change")
 	}
 	if len(runner.calls) != calls {
 		t.Fatal("style save ran service commands")
