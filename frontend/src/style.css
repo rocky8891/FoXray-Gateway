@@ -6335,7 +6335,8 @@ header nav .nav-icon>svg{display:block;max-width:20px;max-height:20px}
 .theme-branch button:disabled{opacity:.45;cursor:not-allowed}
 
 /* preview 12: one viewport-based navigation frame on every page. */
-main,main:has(>.overview-page){width:min(var(--content-width,99%),calc(100% - 104px))!important;max-width:none!important;padding:var(--group-gap) 0!important}
+main{width:var(--content-width,99%)!important;max-width:none!important;padding:var(--group-gap) 0!important}
+main:has(>.overview-page){width:min(var(--content-width,99%),calc(100% - 104px))!important}
 main>.main-page-heading,main:has(>.overview-page>.overview-home>.dashboard-current)>.main-page-heading{display:grid!important;grid-template-columns:minmax(160px,1fr) minmax(0,auto);align-items:center;height:72px!important;min-height:72px!important;flex:none!important;padding:0 0 var(--group-gap)!important;margin:0 0 var(--group-gap)!important;border-bottom:1px solid var(--line);gap:16px!important;box-sizing:border-box}
 main>.main-page-heading>.page-heading{height:48px;min-height:48px;align-items:center}
 main>.main-page-heading>.page-heading h2{line-height:28px;white-space:nowrap}
@@ -6357,7 +6358,7 @@ main>.main-page-heading>.page-heading p{white-space:nowrap;overflow:hidden;text-
  main>.main-page-heading,main:has(>.overview-page>.overview-home>.dashboard-current)>.main-page-heading{height:116px!important;min-height:116px!important;grid-template-columns:minmax(0,1fr);grid-template-rows:48px 42px;gap:8px!important}
  #secondary-navigation{justify-content:flex-start;min-height:42px}
 }
-@media(max-width:999px){main,main:has(>.overview-page){width:calc(100% - 24px)!important}.overview-page .dashboard-nodes{margin-top:0!important}}
+@media(max-width:999px){main:has(>.overview-page){width:calc(100% - 24px)!important}.overview-page .dashboard-nodes{margin-top:0!important}}
 .overview-editing [data-overview-editable]{touch-action:none;user-select:none;cursor:grab}
 .overview-pointer-drag{cursor:grabbing!important;user-select:none}
 .overview-pointer-ghost{position:fixed;z-index:13000;pointer-events:none;padding:12px 18px;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--card);color:var(--text);border:2px solid var(--accent);border-radius:var(--radius);box-shadow:0 8px 28px #0004}

@@ -155,7 +155,11 @@ export function ListFilter({
     place();
     const resizeObserver = new ResizeObserver(place);
     if (popup.current) resizeObserver.observe(popup.current);
-    popup.current?.querySelector<HTMLElement>("input,select,button")?.focus();
+    const control = popup.current?.querySelector<HTMLElement>(".filter-fields input:not(:disabled), .filter-fields select:not(:disabled), .filter-fields button:not(:disabled)");
+    control?.focus({ preventScroll: true });
+    if (control instanceof HTMLSelectElement && !control.multiple && control.size <= 1) {
+      control.dispatchEvent(new Event("foxray:open-select", { bubbles: true }));
+    }
     const outside = (e: PointerEvent) => {
       if (
         !popup.current?.contains(e.target as Node) &&

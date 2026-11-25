@@ -1448,7 +1448,7 @@ function WireGuardPeerStatusDetail({ name, label, peer, onClose }: {
       <h3>路由状态</h3>
       {health.auto_withdraw !== true && <p>自动撤销未开启</p>}
       {list(health.routes).length ? <ul>{list(health.routes).map(route => <li key={String(route.prefix)}>
-        {text(route.prefix)} · {text(route.status)}{route.changed_at ? ` · ${timestamp(route.changed_at)}` : ""}{route.error ? ` · ${text(route.error)}` : ""}
+        {text(route.prefix)} · {text(route.status)}{route.covering_prefix ? `（${text(route.covering_prefix)}）` : ""}{route.changed_at ? ` · ${timestamp(route.changed_at)}` : ""}{route.error ? ` · ${text(route.error)}` : ""}
       </li>)}</ul> : <p>暂无已核实的业务路由。</p>}
     </>}
   </Modal>;

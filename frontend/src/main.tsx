@@ -151,7 +151,10 @@ function App() {
   const [headerOrigin, setHeaderOrigin] = useState("calc(100vw - 30px) 150px");
   const headerCollapsed = hideHomeHeader && !headerExpanded;
   const [headerClosing, setHeaderClosing] = useState(false);
-  const showNavFox = headerAutoHide && (headerExpanded || headerClosing);
+  const showNavFox = headerAutoHide;
+  const presentation = record(state?.manager_settings.presentation);
+  const widthSetting = page === "overview" ? "content_width_percent" : "module_width_percent";
+  const contentWidth = Math.min(100, Math.max(80, Number(presentation[widthSetting] ?? (page === "overview" ? 99 : 95))));
   const collapseInNav = hideHomeHeader && headerExpanded && page === "overview";
   useLayoutEffect(() => {
     if (!headerClosing) return;
@@ -491,7 +494,7 @@ function App() {
         className="home-header-shell"
         data-auto-hide={hideHomeHeader || undefined}
         data-expanded={headerExpanded || undefined}
-        data-nav-fox={showNavFox || undefined}
+        data-nav-fox={headerAutoHide && (headerExpanded || headerClosing) || undefined}
         style={{"--home-header-origin": headerOrigin} as React.CSSProperties}
       >
         <header ref={header} inert={headerCollapsed}>
@@ -610,14 +613,14 @@ function App() {
               }
             >
               <main
-                data-home-fullwidth={page === "overview" && Number(record(state?.manager_settings.presentation).content_width_percent || 99) === 100 || undefined}
+                data-home-fullwidth={page === "overview" && contentWidth === 100 || undefined}
                 className={page === "monitoring" && hideHomeHeader ? "monitoring-shortcut-page" : undefined}
                 data-module-page={page === "overview" ? undefined : page}
                 style={
                   {
                     "--overview-label-size": `${Number(record(record(state?.manager_settings.presentation).overview_text).label_size || 14)}px`,
                     "--overview-value-size": `${Number(record(record(state?.manager_settings.presentation).overview_text).value_size || 24)}px`,
-                    "--content-width": `${Math.min(100, Math.max(80, Number(record(state?.manager_settings.presentation).content_width_percent || 99)))}%`,
+                    "--content-width": `${contentWidth}%`,
                   } as React.CSSProperties
                 }
               >

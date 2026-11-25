@@ -71,3 +71,18 @@ func TestWGPeerRemoteProbeKeepsSpecificHostRoute(t *testing.T) {
 		t.Fatalf("missing probe host route: %v", runner.calls)
 	}
 }
+
+func TestWGPeerRouteInventoryShowsConnectedCoverage(t *testing.T) {
+	a, _ := fixture(t)
+	profile := &WGProfile{Name: "wg-test"}
+	peer := WGPeer{AllowedIPs: []string{"10.24.255.2/32", "10.24.255.3/32", "192.0.2.7/32"}}
+	inventory := map[string][]M{"-4|254": {
+		{"dst": "10.24.255.0/24", "dev": "wg-test", "protocol": "kernel", "scope": "link"},
+		{"dst": "10.24.255.3", "dev": "wg-test"},
+		{"dst": "192.0.2.0/24", "dev": "eth0", "protocol": "kernel", "scope": "link"},
+	}}
+	rows := a.network.wgPeerRouteInventory(profile, peer, inventory)
+	if len(rows) != 3 || rows[0]["status"] != "由直连网段覆盖" || rows[0]["covering_prefix"] != "10.24.255.0/24" || rows[1]["status"] != "已安装" || rows[2]["status"] != "未安装精确路由" {
+		t.Fatal(rows)
+	}
+}

@@ -139,6 +139,7 @@ export function PageWidthSettings({ act }: { act: Act }) {
     [draft, setDraft] = useState<Dict | null>(null);
   const saved = {
       content_width_percent: Number(resource.data?.content_width_percent ?? 99),
+      module_width_percent: Number(resource.data?.module_width_percent ?? 95),
       home_header_auto_hide: resource.data?.home_header_auto_hide === true,
     },
     value = { ...saved, ...draft };
@@ -147,16 +148,16 @@ export function PageWidthSettings({ act }: { act: Act }) {
       <PageHeader
         title="页面显示范围"
         icon={<PageDisplayRangeIcon size={20} />}
-        description="设置页面宽度与首页标题栏显示方式；不影响其他页面导航。"
+        description="分别设置首页和非首页的内容宽度。"
       />
       <SettingsSection>
         <div className="form-grid">
           <Field
-            label="页面显示宽度（%）"
+            label="首页显示宽度（%）"
             info="80% 保留两侧留白。首页右侧放不下工具按钮时，工具栏自动收起。悬停、点击或聚焦右上角标识即可展开。"
           >
             <NumberInput
-              aria-label="页面显示宽度（%）"
+              aria-label="首页显示宽度（%）"
               min={80}
               max={100}
               value={value.content_width_percent}
@@ -168,9 +169,18 @@ export function PageWidthSettings({ act }: { act: Act }) {
               }
             />
           </Field>
+          <Field label="非首页显示宽度（%）" info="适用于监控、设置等非首页，按页面可用宽度计算。">
+            <NumberInput
+              aria-label="非首页显示宽度（%）"
+              min={80}
+              max={100}
+              value={value.module_width_percent}
+              onChange={(e) => setDraft({ ...value, module_width_percent: Number(e.target.value) })}
+            />
+          </Field>
           <Field
             label="隐藏首页标题栏"
-            info="开启后默认收起首页标题栏；点击侧边工具栏的 FoXray 图标展开或收起，悬停不会展开。其他页面保持显示。"
+            info="开启后默认收起首页标题栏；点击侧边工具栏的 FoXray 图标展开或收起，悬停不会展开。其他页面的标题栏保持显示，首页入口改用 FoXray 图标。"
           >
             <select
               aria-label="隐藏首页标题栏"
@@ -193,12 +203,12 @@ export function PageWidthSettings({ act }: { act: Act }) {
         dirty={hasChanges(draft, saved)}
         disabled={
           !resource.data ||
-          !Number.isInteger(value.content_width_percent) ||
-          value.content_width_percent < 80 ||
-          value.content_width_percent > 100
+          [value.content_width_percent, value.module_width_percent].some(width =>
+            !Number.isInteger(width) || width < 80 || width > 100
+          )
         }
         defaults={() =>
-          setDraft({ content_width_percent: 99, home_header_auto_hide: false })
+          setDraft({ content_width_percent: 99, module_width_percent: 95, home_header_auto_hide: false })
         }
         discard={() => setDraft(null)}
         save={async () => {

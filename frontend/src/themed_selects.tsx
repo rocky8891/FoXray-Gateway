@@ -121,6 +121,10 @@ export function ThemedSelects() {
         event.preventDefault(); open(element, event.key);
       }
     };
+    const openRequested = (event: Event) => {
+      if (event.target instanceof HTMLSelectElement && isDropdown(event.target)) open(event.target);
+    };
+    document.addEventListener("foxray:open-select", openRequested);
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("pointerdown", pointer, true);
     document.addEventListener("mousedown", mouse, true);
@@ -129,6 +133,7 @@ export function ThemedSelects() {
     document.addEventListener("input", input, true);
     return () => {
       observer.disconnect(); cancelAnimationFrame(pending);
+      document.removeEventListener("foxray:open-select", openRequested);
       document.removeEventListener("pointerdown", outside, true);
       document.removeEventListener("pointerdown", pointer, true);
       document.removeEventListener("mousedown", mouse, true);
@@ -142,6 +147,7 @@ export function ThemedSelects() {
     };
   }, []);
 
+  const filterFields = target?.closest(".list-filter-popup .filter-fields");
   const options = target ? choices(target) : [];
   const search = !!target && isSelect(target) && (options.length > 8 || typedSearch);
   const rows = options.filter(option => (option.label + " " + option.value + " " + option.group).toLowerCase().includes(query.toLowerCase()));
@@ -166,6 +172,7 @@ export function ThemedSelects() {
     target.setAttribute("aria-controls", id); target.setAttribute("aria-expanded", "true");
     const place = () => {
       if (!target.isConnected || target.disabled) { close(); return; }
+      if (filterFields) return;
       const r = target.getBoundingClientRect(), m = menu.current;
       if (!m) return;
       if (r.bottom < 0 || r.top > innerHeight) { close(); return; }
@@ -205,11 +212,11 @@ export function ThemedSelects() {
       if (oldControls == null) target.removeAttribute("aria-controls"); else target.setAttribute("aria-controls", oldControls);
       if (oldExpanded == null) target.removeAttribute("aria-expanded"); else target.setAttribute("aria-expanded", oldExpanded);
     };
-  }, [target, search]);
+  }, [target, search, filterFields]);
 
   if (!target) return null;
   return createPortal(<div ref={menu} id={id} role="dialog" aria-label={label + "选项"}
-    className="icon-select-menu app-select-menu" style={position}
+    className={"icon-select-menu app-select-menu" + (filterFields ? " filter-inline-options" : "")} style={filterFields ? undefined : position}
     onKeyDown={event => {
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(true); return; }
       if (event.key === "Tab") { close(true); return; }
@@ -233,5 +240,5 @@ export function ThemedSelects() {
       </button>)}
     </MenuScrollArea>
     {!rows.length && <p className="small muted" role="status">{options.length ? "没有匹配的选项" : "暂无可选项"}</p>}
-  </div>, target.closest(".list-filter-popup,.detection-options-popup,.multi-select-popup,.service-theme-menu,.metric-picker-menu,.action-menu-popup,details[open]:not(.firewall-diagnosis-advanced),dialog[open]") || document.body);
+  </div>, filterFields || target.closest(".list-filter-popup,.detection-options-popup,.multi-select-popup,.service-theme-menu,.metric-picker-menu,.action-menu-popup,details[open]:not(.firewall-diagnosis-advanced),dialog[open]") || document.body);
 }

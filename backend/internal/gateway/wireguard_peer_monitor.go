@@ -591,27 +591,43 @@ func (n *Network) wgPeerRouteInventory(profile *WGProfile, peer WGPeer, inventor
 			}
 			inventory[key] = routes
 		}
-		state := "未安装"
+		row := M{"prefix": destination, "status": "未安装精确路由"}
 		if routes == nil {
-			state = "未确认"
+			row["status"] = "未确认"
 		}
+		var covering netip.Prefix
 		for _, route := range routes {
+			if str(route["dev"]) != profile.Name {
+				continue
+			}
 			routeDestination := str(route["dst"])
-			if routeDestination == "default" && prefix.Bits() == 0 && str(route["dev"]) == profile.Name {
-				state = "已安装"
+			if routeDestination == "default" && prefix.Bits() == 0 {
+				row["status"] = "已安装"
 				break
 			}
-			if !strings.Contains(routeDestination, "/") {
-				if addr, err := netip.ParseAddr(routeDestination); err == nil {
-					routeDestination = netip.PrefixFrom(addr, addr.BitLen()).String()
-				}
+			if addr, err := netip.ParseAddr(routeDestination); err == nil {
+				routeDestination = netip.PrefixFrom(addr, addr.BitLen()).String()
 			}
-			if routeDestination == prefix.String() && str(route["dev"]) == profile.Name {
-				state = "已安装"
+			_, installed, err := canonicalSource(routeDestination)
+			if err != nil {
+				continue
+			}
+			if installed == prefix {
+				row["status"] = "已安装"
 				break
+			}
+			// A directly connected kernel subnet can cover a host AllowedIPs entry.
+			if str(route["protocol"]) == "kernel" && str(route["scope"]) == "link" &&
+				installed.Bits() < prefix.Bits() && installed.Contains(prefix.Addr()) &&
+				(!covering.IsValid() || installed.Bits() > covering.Bits()) {
+				covering = installed
 			}
 		}
-		report = append(report, M{"prefix": destination, "status": state})
+		if row["status"] == "未安装精确路由" && covering.IsValid() {
+			row["status"] = "由直连网段覆盖"
+			row["covering_prefix"] = covering.String()
+		}
+		report = append(report, row)
 	}
 	return report
 }

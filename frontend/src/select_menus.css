@@ -41,3 +41,19 @@
 
 .multi-select-popup > .multi-select-search > input { width: 100%; min-width: 0; flex: 1; box-shadow: none !important; outline: none !important; }
 .multi-select-popup > .multi-select-search:focus-within { border-color: var(--accent); }
+
+/* An open filter's choices take up space above its action row. */
+.list-filter-popup .app-select-menu.filter-inline-options {
+  position: static;
+  width: 100%;
+  max-height: min(220px, 28dvh);
+  margin-block-start: 6px;
+  box-shadow: none !important;
+}
+.list-filter-popup:has(.filter-inline-options) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.list-filter-popup:has(.filter-inline-options) .filter-fields { min-height: 0; overflow: auto; }
+.list-filter-popup:has(.filter-inline-options) .filter-actions { flex: none; }
