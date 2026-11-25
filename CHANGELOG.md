@@ -1,5 +1,11 @@
 # FoXray Gateway 发行记录
 
+## v0.9.52 — 2026-11-25
+
+- 在线和离线安装自动部署 Certbot 与 DNS Cloudflare 插件。
+- FoXray 设置新增 Cloudflare 和 DuckDNS 的 IPv4 动态更新，域名由管理员填写。
+- HTTPS 申请可手填或选择 DDNS 域名，Cloudflare DNS 验证复用对应域名令牌，每 12 小时检查续期。
+
 ## v0.9.51 — 2026-11-25
 
 - 对齐服务控制与版本信息卡片，移除标题中重复的运行状态。

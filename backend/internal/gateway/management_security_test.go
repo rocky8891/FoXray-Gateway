@@ -95,6 +95,62 @@ func TestManagementAuthentication(t *testing.T) {
 
 }
 
+func TestManagementAuthenticationAfterHTTPSDisabled(t *testing.T) {
+	app, _ := fixture(t)
+	guard, err := NewManagementSecurity(app, "127.0.0.1:18880")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer guard.Close()
+	salt := []byte("fixture-salt-123")
+	guard.users = map[string]managementUser{"fixture": {Salt: salt, Digest: passwordBackupKey("synthetic fixture", salt)}}
+	request := func(scheme, method, path string, body M, cookies ...*http.Cookie) *httptest.ResponseRecorder {
+		raw, _ := json.Marshal(body)
+		origin := scheme + "://192.168.1.8"
+		r := httptest.NewRequest(method, origin+path, bytes.NewReader(raw))
+		r.RemoteAddr = "192.168.1.10:49200"
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Origin", origin)
+		for _, cookie := range cookies {
+			r.AddCookie(cookie)
+		}
+		w := httptest.NewRecorder()
+		guard.ServeHTTP(w, r)
+		return w
+	}
+	login := func(scheme string) *http.Cookie {
+		w := request(scheme, "POST", "/api/management/login", M{"username": "fixture", "password": "synthetic fixture"})
+		cookies := w.Result().Cookies()
+		if w.Code != http.StatusOK || len(cookies) != 1 {
+			t.Fatalf("%s login returned %d with %d cookies", scheme, w.Code, len(cookies))
+		}
+		return cookies[0]
+	}
+	httpsCookie := login("https")
+	httpCookie := login("http")
+	// Browsers reject an HTTP cookie that would overwrite an HTTPS cookie.
+	if !httpsCookie.Secure || httpCookie.Secure || httpsCookie.Name == httpCookie.Name {
+		t.Fatal("HTTP login would conflict with the existing HTTPS cookie")
+	}
+	if got := request("http", "GET", "/api/state", nil, httpsCookie).Code; got != http.StatusUnauthorized {
+		t.Fatalf("HTTP accepted the HTTPS cookie: %d", got)
+	}
+	if got := request("http", "GET", "/api/state", nil, httpCookie).Code; got != http.StatusOK {
+		t.Fatalf("HTTP rejected its session: %d", got)
+	}
+	logout := request("http", "POST", "/api/management/logout", nil, httpCookie)
+	cleared := logout.Result().Cookies()
+	if logout.Code != http.StatusOK || len(cleared) != 1 || cleared[0].Name != httpCookie.Name || cleared[0].MaxAge >= 0 {
+		t.Fatal("HTTP logout did not clear its session cookie")
+	}
+	if got := request("http", "GET", "/api/state", nil, httpCookie).Code; got != http.StatusUnauthorized {
+		t.Fatalf("HTTP accepted a logged-out session: %d", got)
+	}
+	if got := request("https", "GET", "/api/state", nil, httpCookie, httpsCookie).Code; got != http.StatusOK {
+		t.Fatalf("HTTPS rejected its session: %d", got)
+	}
+}
+
 func TestManagementSelfSignedHTTPS(t *testing.T) {
 	pem, err := selfSignedManagement("127.0.0.1")
 	if err != nil {

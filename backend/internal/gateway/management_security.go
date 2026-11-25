@@ -23,7 +23,13 @@ import (
 
 type managementAuthorizedKey struct{}
 
-const authCookie = "foxray_session"
+func managementCookieName(r *http.Request) string {
+	if r.TLS != nil {
+		return "foxray_session"
+	}
+	return "foxray_http_session"
+}
+
 const defaultPasswordDigest = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
 
 var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,31}$`)
@@ -58,6 +64,7 @@ type ManagementSecurity struct {
 	attempts        map[string]loginAttempt
 	logins          chan struct{}
 	tls             *managementTLS
+	ddns            *managementDDNS
 }
 
 func NewManagementSecurity(app *App, address string) (*ManagementSecurity, error) {
@@ -88,7 +95,12 @@ func NewManagementSecurity(app *App, address string) (*ManagementSecurity, error
 			return nil, errors.New("管理账号文件含无效记录")
 		}
 	}
+	guard.ddns, err = newManagementDDNS(app.base, app.readonly)
+	if err != nil {
+		return nil, errors.New("无法加载 DDNS 配置")
+	}
 	guard.tls = newManagementTLS(app.base, address, guard)
+	guard.tls.ddns = guard.ddns
 	return guard, nil
 }
 
@@ -127,7 +139,7 @@ func (g *ManagementSecurity) readSession(r *http.Request) (string, bool, bool, s
 	if g.mode == "off" {
 		return "", false, true, g.mode
 	}
-	cookie, err := r.Cookie(authCookie)
+	cookie, err := r.Cookie(managementCookieName(r))
 	if err != nil || len(cookie.Value) != 64 {
 		return "", false, false, g.mode
 	}
@@ -202,13 +214,13 @@ func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if route == "/api/management/logout" && r.Method == http.MethodPost {
-		cookie, _ := r.Cookie(authCookie)
+		cookie, _ := r.Cookie(managementCookieName(r))
 		g.mu.Lock()
 		if cookie != nil {
 			delete(g.sessions, sha256.Sum256([]byte(cookie.Value)))
 		}
 		g.mu.Unlock()
-		http.SetCookie(w, &http.Cookie{Name: authCookie, Path: "/", MaxAge: -1, HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteStrictMode})
+		http.SetCookie(w, &http.Cookie{Name: managementCookieName(r), Path: "/", MaxAge: -1, HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteStrictMode})
 		writeResponse(w, 200, M{"ok": true})
 		return
 	}
@@ -234,6 +246,10 @@ func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		g.mu.Unlock()
 		sort.Strings(users)
 		writeResponse(w, 200, M{"users": users, "current": username, "mode": mode, "password_account": passwordAccount})
+		return
+	}
+	if route == "/api/management/ddns" {
+		g.ddns.serve(w, r, g.app.readonly)
 		return
 	}
 	if route == "/api/management/https" {
@@ -392,7 +408,7 @@ func (g *ManagementSecurity) login(w http.ResponseWriter, r *http.Request, host 
 		return
 	}
 	g.sessions[sha256.Sum256([]byte(value))] = managementSession{name, now.Add(8 * time.Hour)}
-	http.SetCookie(w, &http.Cookie{Name: authCookie, Value: value, Path: "/", MaxAge: 8 * 3600, SameSite: http.SameSiteStrictMode, HttpOnly: true, Secure: r.TLS != nil})
+	http.SetCookie(w, &http.Cookie{Name: managementCookieName(r), Value: value, Path: "/", MaxAge: 8 * 3600, SameSite: http.SameSiteStrictMode, HttpOnly: true, Secure: r.TLS != nil})
 	writeResponse(w, 200, M{"authenticated": true, "username": name, "initial": len(user.Digest) == 0, "mode": mode})
 }
 
@@ -462,7 +478,7 @@ func (g *ManagementSecurity) saveUser(w http.ResponseWriter, r *http.Request, ac
 	writeResponse(w, 200, M{"ok": true, "relogin": actor != "" && oldName == actor})
 }
 
-func (g *ManagementSecurity) Close() { g.tls.close() }
+func (g *ManagementSecurity) Close() { g.ddns.cancel(); g.tls.close() }
 
 func managementPort(address string) string {
 	host, _, err := net.SplitHostPort(address)

@@ -1,3 +1,4 @@
+import { ManagementDDNSSettings } from "./management_ddns";
 import { ManagementUserSettings, ManagementHTTPSSettings } from "./management_security";
 import { ConfigBackupSettings } from "./config_backup";
 import { hasChanges } from "./settings_save";
@@ -299,6 +300,7 @@ export function GlobalPreferencesCards({ act }: { act: Act }) {
       <DisplaySettings act={act} />
       <DataPolicyCard module="all" kind="" title="监控数据默认设置" act={act} />
       <ManagementUserSettings />
+      <ManagementDDNSSettings />
       <ManagementHTTPSSettings />
       <ConfigBackupSettings />
     </>

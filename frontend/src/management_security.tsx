@@ -1,3 +1,4 @@
+import type { DDNSItem } from "./management_ddns";
 import { createPortal } from "react-dom";
 import { ActionMenu } from "./action_menu";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
@@ -6,7 +7,7 @@ import { Button, ErrorLine, Field, Modal, PageHeader, Panel, useResource } from 
 
 type LoginMode = "account" | "password" | "off";
 type Session = { authenticated: boolean; username: string; initial: boolean; mode: LoginMode };
-export async function managementRequest<T>(path: string, data: Record<string, string>): Promise<T> {
+export async function managementRequest<T>(path: string, data: Record<string, string | boolean>): Promise<T> {
   const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || "请求失败");
@@ -187,6 +188,7 @@ export function ManagementUserMenu() {
 
 type HTTPSStatus = { enabled: boolean; mode: string; domain: string; expires?: string; port: number; redirect_port: number; description?: string; warning?: string; busy?: boolean };
 export function ManagementHTTPSSettings() {
+  const ddns = useResource<{ items: DDNSItem[] }>("/api/management/ddns", 15000);
   const status = useResource<HTTPSStatus>("/api/management/https", 15000);
   const [draftMode, setMode] = useState<string>();
   const mode = draftMode ?? (status.data?.enabled ? "keep" : "self");
@@ -211,7 +213,11 @@ export function ManagementHTTPSSettings() {
       }
       const result = await managementRequest<{enabled: boolean; port: number; http_port?: number}>("/api/management/https", body);
       const next = new URL(location.href);
-      if (result.enabled) { next.protocol = "https:"; next.port = String(result.port || 18443); }
+      if (result.enabled) {
+        next.protocol = "https:";
+        next.port = String(result.port || 18443);
+        if (acme && body.domain.trim()) next.hostname = body.domain.trim();
+      }
       else if (result.http_port) { next.protocol = "http:"; next.port = String(result.http_port); }
       if (next.origin !== location.origin) { location.assign(next.toString()); return; }
       form.reset(); setMode(undefined);
@@ -232,10 +238,11 @@ export function ManagementHTTPSSettings() {
           <Field label="HTTPS 端口"><input name="port" type="number" min={1} max={65535} key={`port-${status.data?.port}`} defaultValue={status.data?.port || 18443} required /></Field>
           <Field label="HTTP 跳转端口" hint="留空关闭 HTTP。填写后该端口仅跳转到 HTTPS。"><input name="redirect_port" type="number" min={1} max={65535} key={`redirect-${status.data?.redirect_port}`} defaultValue={status.data?.redirect_port || ""} /></Field>
         </>}
-        {(mode === "self" || acme) && <Field label={mode === "self" ? "域名或 IP 地址" : "证书域名"}><input key={mode} name="domain" required defaultValue={mode === "self" ? location.hostname : status.data?.domain} placeholder={acme ? "支持 DDNS 域名" : undefined} /></Field>}
+        {(mode === "self" || acme) && <Field label={mode === "self" ? "域名或 IP 地址" : "证书域名"}><input key={mode} name="domain" required defaultValue={mode === "self" ? location.hostname : status.data?.domain} list={acme ? "management-acme-domains" : undefined} placeholder={acme ? "填写证书域名或选择已配置的 DDNS" : undefined} /></Field>}
+        {acme && <datalist id="management-acme-domains">{ddns.data?.items.filter(item => mode !== "cloudflare" || item.provider === "cloudflare").map(item => <option key={item.domain} value={item.domain} />)}</datalist>}
         {acme && <>
           <Field label="描述（可选）"><input name="description" maxLength={120} defaultValue={status.data?.description || ""} /></Field>
-          <Field label="电子邮箱" hint={mode === "acme-http" ? "公网 80 端口须转发到网关，签发后自动续期" : "需配置 Certbot Cloudflare 插件和凭据，签发后自动续期"}><input type="email" name="email" required /></Field>
+          <Field label="电子邮箱" hint={mode === "acme-http" ? "公网 80 端口须转发到网关，签发后自动续期" : "使用同域名的 Cloudflare DDNS 令牌，签发后每 12 小时检查续期"}><input type="email" name="email" required /></Field>
         </>}
         {mode === "import" && <><Field label="PEM 证书及证书链"><input type="file" name="certificate" required /></Field><Field label="PEM 私钥"><input type="file" name="key" required /></Field></>}
       </div>

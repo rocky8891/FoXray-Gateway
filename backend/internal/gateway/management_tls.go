@@ -47,6 +47,7 @@ type managementTLS struct {
 	busy                       bool
 	warning                    string
 	cancel                     context.CancelFunc
+	ddns                       *managementDDNS
 }
 
 func newManagementTLS(base, address string, handler http.Handler) *managementTLS {
@@ -259,9 +260,22 @@ func (t *managementTLS) acmeCertificate(ctx context.Context, mode, name, email s
 	args := []string{"certonly", "--server", "https://acme-v02.api.letsencrypt.org/directory", "--config-dir", config, "--work-dir", filepath.Join(state, "work"), "--logs-dir", filepath.Join(state, "logs"), "--non-interactive", "--agree-tos", "--email", email, "--cert-name", certName, "--keep-until-expiring", "-d", name}
 	if mode == "cloudflare" {
 		credentials := filepath.Join(state, "cloudflare.ini")
+		if t.ddns != nil {
+			if token := t.ddns.cloudflareToken(name); token != "" {
+				credentials = filepath.Join(state, "cloudflare", strings.ToLower(name)+".ini")
+				if err := atomicFile(credentials, []byte("dns_cloudflare_api_token = "+token+"\n"), 0600); err != nil {
+					return "", errors.New("无法写入 Cloudflare 证书凭据")
+				}
+			} else {
+				saved := filepath.Join(state, "cloudflare", strings.ToLower(name)+".ini")
+				if regular(saved) {
+					credentials = saved
+				}
+			}
+		}
 		info, err := os.Lstat(credentials)
 		if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
-			return "", errors.New("请配置权限为 0600 的 cloudflare.ini 并安装 Certbot Cloudflare 插件")
+			return "", errors.New("请先在 DDNS 保存同域名的 Cloudflare 令牌，或配置 cloudflare.ini")
 		}
 		args = append(args, "--dns-cloudflare", "--dns-cloudflare-credentials", credentials, "--dns-cloudflare-propagation-seconds", "30")
 	} else {
