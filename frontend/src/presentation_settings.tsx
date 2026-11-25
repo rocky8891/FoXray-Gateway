@@ -138,7 +138,7 @@ export function PageWidthSettings({ act }: { act: Act }) {
   const resource = useResource<Dict>("/api/monitoring/presentation", 15000),
     [draft, setDraft] = useState<Dict | null>(null);
   const saved = {
-      content_width_percent: Number(resource.data?.content_width_percent ?? 80),
+      content_width_percent: Number(resource.data?.content_width_percent ?? 99),
       home_header_auto_hide: resource.data?.home_header_auto_hide === true,
     },
     value = { ...saved, ...draft };
@@ -198,7 +198,7 @@ export function PageWidthSettings({ act }: { act: Act }) {
           value.content_width_percent > 100
         }
         defaults={() =>
-          setDraft({ content_width_percent: 80, home_header_auto_hide: false })
+          setDraft({ content_width_percent: 99, home_header_auto_hide: false })
         }
         discard={() => setDraft(null)}
         save={async () => {
@@ -689,7 +689,7 @@ function OverviewLayoutSettings({
             ref={(el) => el?.showPopover()}
             role="region"
             aria-label="快捷布局预览"
-            style={{ width: `${Number(p.content_width_percent || 80)}%` }}
+            style={{ width: `${Number(p.content_width_percent || 99)}%` }}
           >
             <div className="overview-peek-hint">
               布局预览 · 松开 Ctrl + Shift 返回设置
@@ -1580,7 +1580,7 @@ function OverviewPreview({
       const width =
         (readonly ? frame.current.clientWidth : box?.width) ||
         (document.body.clientWidth *
-          Number(presentation.content_width_percent || 80)) /
+          Number(presentation.content_width_percent || 99)) /
           100;
       const nodes =
         root.current?.querySelector<HTMLElement>(

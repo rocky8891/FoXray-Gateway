@@ -143,7 +143,7 @@ export function FirewallPage({ act }: { act: Act }) {
             (protocol === "all" || r.protocol === protocol) &&
             (status === "all" || !!r.enabled === (status === "enabled")) &&
             (owner === "all" || !!r.managed === (owner === "managed")) &&
-            (ruleAction === "all" || (ruleAction === "blocked" ? ["drop","reject"].includes(String(r.action).toLowerCase()) : String(r.action).toLowerCase() === ruleAction)) &&
+            (ruleAction === "all" || (ruleAction === "blocked" ? ["drop","reject"].includes(String(r.action).toLowerCase()) : (category === "masquerade" ? (r.action === "snat" ? "snat" : "masquerade") : String(r.action).toLowerCase()) === ruleAction)) &&
             (linkedRule && query === linkedRule ? String(r.id) === linkedRule : JSON.stringify(r).toLowerCase().includes(query.toLowerCase())),
         )
         .sort((a, b) => {
@@ -328,7 +328,7 @@ export function FirewallPage({ act }: { act: Act }) {
         </select>
       </Field>
     ),
-    action: <Field label="规则动作"><select aria-label="防火墙动作筛选" value={ruleAction} onChange={e=>setRuleAction(e.target.value)}><option value="all">全部动作</option><option value="accept">允许</option><option value="drop">丢弃</option><option value="reject">拒绝</option><option value="blocked">阻断（丢弃／拒绝）</option></select></Field>,
+    action: <Field label="规则动作"><select aria-label="防火墙动作筛选" value={ruleAction} onChange={e=>setRuleAction(e.target.value)}><option value="all">全部动作</option>{category === "masquerade" ? <><option value="snat">SNAT</option><option value="masquerade">MASQUERADE</option></> : <><option value="accept">允许</option><option value="drop">丢弃</option><option value="reject">拒绝</option><option value="blocked">阻断（丢弃／拒绝）</option></>}</select></Field>,
     protocol: (
       <Field label="协议">
         <select
@@ -416,7 +416,7 @@ export function FirewallPage({ act }: { act: Act }) {
       render: row => row.priority != null && (native || canPrioritize(row)) ? text(row.priority) : "—",
     } : { key: "serial", label: "序号", render: (_, i) => i + 1 },
   ];
-  const showZoneBinding = !native && (allZones || scopedModules.length > 0);
+  const showZoneBinding = !native;
   const zoneBindingColumn: Column<Dict> = {
     key: "zone",
     label: category === "masquerade" ? "出口区域 / 出接口" : category === "forward" ? "入口区域 / 入接口" : "入口区域 / 接口",
@@ -438,7 +438,11 @@ export function FirewallPage({ act }: { act: Act }) {
       heading: heading("service", "服务"),
       render: (r) => <strong>{text(r.service)}</strong>,
     });
-  if (category === "port" || category === "forward" || category==="rich")
+  if (category === "forward") columns.push({
+    key: "protocol", label: "协议 / 端口", heading: heading("protocol", "协议 / 端口"),
+    render: r => [r.protocol && String(r.protocol).toUpperCase(), r.port].filter(Boolean).join(" / ") || "—",
+  });
+  if (category === "port" || category === "rich")
     columns.push(
       {
         key: "port",
@@ -463,7 +467,7 @@ export function FirewallPage({ act }: { act: Act }) {
       </span>
     ),
   });
-  if (all.some(r => r.destination) && category !== "service-rule")
+  if ((category === "all" || category === "forward" || all.some(r => r.destination)) && category !== "service-rule")
     columns.push({
       key: "destination",
       label: "目标 IP",
@@ -473,11 +477,11 @@ export function FirewallPage({ act }: { act: Act }) {
   if (category === "forward")
     columns.push({
       key: "target",
-      label: "转换目标",
+      label: "转换目标 / 端口",
       render: (r) => (
         <>
           {text(r.target_ip || "本机")}
-          <small>{r.target_port ? "端口 " + text(r.target_port) : "保留原端口"}</small>
+          <small>{r.target_port ? "转换后端口 " + text(r.target_port) : "保留原端口"}</small>
         </>
       ),
     }, ...(showZoneBinding ? [zoneBindingColumn] : []));
@@ -490,7 +494,7 @@ export function FirewallPage({ act }: { act: Act }) {
       },
       {
         key: "to_source",
-        label: "转换后源地址",
+        label: "转换源",
         render: (r) =>
           r.action === "snat" ? text(r.to_source) : "自动使用出接口地址",
       },
@@ -503,16 +507,28 @@ export function FirewallPage({ act }: { act: Act }) {
   else if (category !== "service-rule")
     columns.push(...(showZoneBinding ? [zoneBindingColumn] : []), {
       key: "action",
-      label: "策略",
-      heading: heading("action", "策略"),
+      label: "动作",
+      heading: heading("action", "动作"),
       render: (r) => (
         <span className={r.action === "accept" ? "accent" : ["drop","reject"].includes(String(r.action)) ? "poor" : "muted"}>
           {r.editable === false && r.kind !== "system" && !r.rule_origin
-            ? "高级策略"
+            ? "查看规则详情"
             : strategies[String(r.action)] || ({masquerade:"地址伪装",snat:"源地址转换"} as Record<string,string>)[String(r.action)] || text(r.action)}
         </span>
       ),
     });
+  const reorderedKeys = category === "forward" ? ["source", "destination", "protocol", "zone", "target"]
+    : category === "all" ? ["source", "destination", "protocol", "zone", "action"]
+    : category === "masquerade" ? ["to_source", "zone", "out_interface", "action"] : [];
+  if (reorderedKeys.length) {
+    const first = columns.findIndex(column => reorderedKeys.includes(column.key));
+    if (first >= 0) {
+      const group = reorderedKeys.flatMap(key => columns.filter(column => column.key === key));
+      const rest = columns.filter(column => !reorderedKeys.includes(column.key));
+      rest.splice(first, 0, ...group);
+      columns.splice(0, columns.length, ...rest);
+    }
+  }
   if (native)
     columns.push({
       key: "packets",

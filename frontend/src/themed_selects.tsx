@@ -233,5 +233,5 @@ export function ThemedSelects() {
       </button>)}
     </MenuScrollArea>
     {!rows.length && <p className="small muted" role="status">{options.length ? "没有匹配的选项" : "暂无可选项"}</p>}
-  </div>, target.closest(".list-filter-popup,.detection-options-popup,.multi-select-popup,.service-theme-menu,.metric-picker-menu,.action-menu-popup,details[open],dialog[open]") || document.body);
+  </div>, target.closest(".list-filter-popup,.detection-options-popup,.multi-select-popup,.service-theme-menu,.metric-picker-menu,.action-menu-popup,details[open]:not(.firewall-diagnosis-advanced),dialog[open]") || document.body);
 }

@@ -1160,7 +1160,7 @@ header nav .nav-home-fox-icon > svg { width: 27px; height: 29px; max-height: cal
   }
 }
 main:has(> .overview-page) {
-  width: var(--content-width, 80%) !important;
+  width: var(--content-width, 99%) !important;
 }
 /* Narrow utility edges, evenly distributed data columns. */
 .table-wrap table.balanced-columns {

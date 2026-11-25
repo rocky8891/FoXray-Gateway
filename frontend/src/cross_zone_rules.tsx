@@ -38,9 +38,9 @@ export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule =
     {key:"name",label:"规则名称",render:r=><><strong>{text(r.name||r.policy_name||r.chain)}</strong><small>{r.managed?"本应用管理":"系统 / 外部 · 只读"}</small></>},
     {key:"source",label:"入口区域 / IP",render:r=><><strong>{text(r.ingress_zone)}</strong><small>{[r.in_interface, r.source].filter(Boolean).join(" · ") || "未指定源 IP"}</small></>},
     {key:"destination",label:"出口区域 / IP",render:r=><><strong>{text(r.egress_zone)}</strong><small>{[r.out_interface, r.destination].filter(Boolean).join(" · ") || "未指定目标 IP"}</small></>},
-    {key:"protocol",label:"协议 / 端口 / 动作",render:r=><>
-      <strong>{[r.protocol === "all" ? "全部协议" : r.protocol, r.port,
-        r.action ? actions[text(r.action)] || text(r.action) : r.policy_target ? policyTargets[text(r.policy_target)] || text(r.policy_target) : "动作未解析"].filter(Boolean).join(" · ")}</strong>
+    {key:"protocol",label:"协议 / 端口",render:r=>[r.protocol === "all" ? "全部协议" : r.protocol && String(r.protocol).toUpperCase(), r.port].filter(Boolean).join(" / ") || "—"},
+    {key:"action",label:"动作",render:r=><>
+      <strong>{r.action ? actions[text(r.action)] || text(r.action) : r.policy_target ? policyTargets[text(r.policy_target)] || text(r.policy_target) : "动作未解析"}</strong>
       {r.masquerade === true && <small>已启用地址伪装</small>}
       {Array.isArray(r.policy_rules) && r.policy_rules.length > 0 && <small>{r.policy_rules.length} 条富规则</small>}
     </>},

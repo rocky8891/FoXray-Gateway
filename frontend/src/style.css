@@ -5757,7 +5757,7 @@ main{width:80%!important;max-width:none!important;padding-inline:0;margin-inline
 @media(max-width:599px){.overview-page .dashboard-nodes .overview-node-card{height:360px;min-height:360px}}
 .task-center-trigger>svg{display:block!important;flex:none}
 /* independent service-summary geometry. */
-main{width:var(--content-width,80%)!important}
+main{width:var(--content-width,99%)!important}
 .overview-page .summary-v417{--summary-value-size:clamp(16px,1.45vw,28px);--summary-label-size:clamp(10px,.75vw,14px);container-type:normal!important;container-name:none!important;position:relative}
 .overview-page .summary-v417 .service-overview-heading{display:block!important;position:relative;height:28px;min-height:28px;grid-template-rows:none;flex:none;margin:0 0 6px;gap:0}
 .overview-page .summary-v417 .service-overview-title-row{height:28px;display:flex;align-items:center;justify-content:space-between}.overview-page .summary-v417 .service-overview-title-row>h2{font-size:18px;line-height:26px;gap:7px;white-space:nowrap}
@@ -6140,7 +6140,7 @@ main{width:var(--content-width,80%)!important}
 @media(max-width:1199px){.overview-layout-settings .settings-section>.field{width:calc((100% - 16px)/2)}}
 @media(max-width:599px){.overview-layout-settings .settings-section>.field{width:100%}.overview-layout-footer .save-card-footer{width:100%}}
 
-@media(min-width:1000px){main:has(>.overview-page){width:min(var(--content-width,80%),calc(100% - 104px))!important}}
+@media(min-width:1000px){main:has(>.overview-page){width:min(var(--content-width,99%),calc(100% - 104px))!important}}
 
 /* preview 2: aligned overview frames, colored tools and layered glass. */
 .overview-side-tools>.button,.overview-side-tools .icon-select-trigger,.overview-side-tools .overview-time-tool>.button{background:var(--button)!important;border:1px solid var(--line)!important;box-shadow:none}
@@ -6335,7 +6335,7 @@ header nav .nav-icon>svg{display:block;max-width:20px;max-height:20px}
 .theme-branch button:disabled{opacity:.45;cursor:not-allowed}
 
 /* preview 12: one viewport-based navigation frame on every page. */
-main,main:has(>.overview-page){width:min(var(--content-width,80%),calc(100% - 104px))!important;max-width:none!important;padding:var(--group-gap) 0!important}
+main,main:has(>.overview-page){width:min(var(--content-width,99%),calc(100% - 104px))!important;max-width:none!important;padding:var(--group-gap) 0!important}
 main>.main-page-heading,main:has(>.overview-page>.overview-home>.dashboard-current)>.main-page-heading{display:grid!important;grid-template-columns:minmax(160px,1fr) minmax(0,auto);align-items:center;height:72px!important;min-height:72px!important;flex:none!important;padding:0 0 var(--group-gap)!important;margin:0 0 var(--group-gap)!important;border-bottom:1px solid var(--line);gap:16px!important;box-sizing:border-box}
 main>.main-page-heading>.page-heading{height:48px;min-height:48px;align-items:center}
 main>.main-page-heading>.page-heading h2{line-height:28px;white-space:nowrap}
@@ -7144,3 +7144,19 @@ header .brand{align-items:center}header .brand .brand-logo{width:44px;height:44p
 .wg-peer-probe-controls > .field { margin: 0; }
 .wg-peer-probe-controls > .button { justify-self: start; }
 @media (max-width: 599px) { .wg-peer-probe-controls { grid-template-columns: minmax(0, 1fr) auto; } }
+
+/* Keep navigation content above any translucent button decoration. */
+:is(header nav .nav-tab, .secondary-nav button, .module-tabs > button, .subtabs > button):not(:disabled) {
+  color: rgb(248, 250, 252) !important;
+  isolation: isolate;
+}
+:is(header nav .nav-tab, .secondary-nav button, .module-tabs > button, .subtabs > button) > :is(span, svg) {
+  position: relative;
+  z-index: 1;
+}
+html[data-theme="light"] :is(header nav .nav-tab, .secondary-nav button, .module-tabs > button, .subtabs > button):not(:disabled) {
+  background-color: #344359;
+}
+html[data-theme="light"] :is(header nav .nav-tab, .secondary-nav button, .module-tabs > button, .subtabs > button):is([aria-current="page"], [aria-selected="true"], .selected):not(:disabled) {
+  background-color: #174c49;
+}

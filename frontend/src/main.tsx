@@ -610,14 +610,14 @@ function App() {
               }
             >
               <main
-                data-home-fullwidth={page === "overview" && Number(record(state?.manager_settings.presentation).content_width_percent || 80) === 100 || undefined}
+                data-home-fullwidth={page === "overview" && Number(record(state?.manager_settings.presentation).content_width_percent || 99) === 100 || undefined}
                 className={page === "monitoring" && hideHomeHeader ? "monitoring-shortcut-page" : undefined}
                 data-module-page={page === "overview" ? undefined : page}
                 style={
                   {
                     "--overview-label-size": `${Number(record(record(state?.manager_settings.presentation).overview_text).label_size || 14)}px`,
                     "--overview-value-size": `${Number(record(record(state?.manager_settings.presentation).overview_text).value_size || 24)}px`,
-                    "--content-width": `${Math.min(100, Math.max(80, Number(record(state?.manager_settings.presentation).content_width_percent || 80)))}%`,
+                    "--content-width": `${Math.min(100, Math.max(80, Number(record(state?.manager_settings.presentation).content_width_percent || 99)))}%`,
                   } as React.CSSProperties
                 }
               >
