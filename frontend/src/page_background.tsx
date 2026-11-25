@@ -1,49 +1,106 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ErrorLine, Field, PageHeader, Panel } from "./ui";
 import { SaveCard } from "./settings_save";
+import type { BackgroundFiles } from "./background_codec";
 
 const storageKey = "foxray.page-background";
-const backgrounds = {
-  default: "/background-20261121-v2.webp",
-  grid: "/background-grid.webp",
+const presets = {
+  gradient: "深色背景-渐变",
+  grid: "深色背景-网格",
+  tide: "深色背景-青潮",
+  orbit: "深色背景-紫轨",
 };
-const isCustom = (value: string) => /^data:image\/webp;base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
-const imageSource = (value: string) => value === "grid" ? backgrounds.grid : isCustom(value) ? value : backgrounds.default;
+type Preset = keyof typeof presets;
+type Mode = Preset | "custom";
+const presetUrl = (name: Preset, preview = false) => `/backgrounds/${name}${preview ? "-preview" : ""}.webp`;
+const isLegacy = (value: string) => /^data:image\/webp;base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
 
-function loadBackground(): string {
+function loadChoice(): { mode: Mode; legacy?: string } {
   try {
-    const value = localStorage.getItem(storageKey) ?? "default";
-    return value === "grid" || isCustom(value) ? value : "default";
-  } catch {
-    return "default";
-  }
+    const value = localStorage.getItem(storageKey) ?? "gradient";
+    if (value === "custom" || Object.hasOwn(presets, value)) return { mode: value as Mode };
+    if (isLegacy(value)) return { mode: "custom", legacy: value };
+  } catch { /* Use the default when browser storage is unavailable. */ }
+  return { mode: "gradient" };
 }
 
-export function applyPageBackground(value = loadBackground()) {
-  document.documentElement.style.setProperty("--page-background-image", `url("${imageSource(value)}")`);
+function customBackground(files?: BackgroundFiles) {
+  return new Promise<BackgroundFiles | undefined>((resolve, reject) => {
+    const request = indexedDB.open("foxray-appearance", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("background");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const transaction = db.transaction("background", files ? "readwrite" : "readonly");
+      const store = transaction.objectStore("background");
+      const operation = files ? store.put(files, "custom") : store.get("custom");
+      transaction.oncomplete = () => { db.close(); resolve(files ?? operation.result); };
+      transaction.onabort = () => { db.close(); reject(transaction.error); };
+    };
+  });
 }
 
-async function encodeBackground(file: File) {
-  const url = URL.createObjectURL(file);
-  try {
-    const image = new Image();
-    image.src = url;
-    await image.decode();
-    const scale = Math.min(1, 2560 / Math.max(image.naturalWidth, image.naturalHeight));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("无法处理此图片");
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    for (const quality of [0.87, 0.74, 0.58]) {
-      const data = canvas.toDataURL("image/webp", quality);
-      if (isCustom(data) && data.length <= 2_000_000) return data;
+let generation = 0;
+let activeUrls: string[] = [];
+function setBackground(url: string, urls: string[] = []) {
+  document.documentElement.style.setProperty("--page-background-image", `url("${url}")`);
+  for (const old of activeUrls) if (!urls.includes(old)) URL.revokeObjectURL(old);
+  activeUrls = urls;
+}
+
+function afterFirstPaint(load: () => void) {
+  const schedule = () => requestAnimationFrame(() => requestAnimationFrame(() => {
+    if ("requestIdleCallback" in window) window.requestIdleCallback(load, { timeout: 1500 });
+    else setTimeout(load, 0);
+  }));
+  if (document.readyState === "complete") schedule();
+  else window.addEventListener("load", schedule, { once: true });
+}
+
+export function applyPageBackground(choice = loadChoice(), uploaded?: BackgroundFiles) {
+  const current = ++generation;
+  const preset = choice.mode === "custom" ? "gradient" : choice.mode;
+  setBackground(presetUrl(preset, true));
+  afterFirstPaint(() => void (async () => {
+    if (current !== generation) return;
+    let full = presetUrl(preset);
+    let preview: string | undefined;
+    const urls: string[] = [];
+    if (choice.mode === "custom") {
+      const stored = uploaded ?? (choice.legacy ? undefined : await customBackground().catch(() => undefined));
+      if (current !== generation) return;
+      if (stored) {
+        preview = URL.createObjectURL(stored.preview);
+        full = URL.createObjectURL(stored.image);
+        urls.push(preview, full);
+        setBackground(preview, [preview]);
+      } else if (choice.legacy) full = choice.legacy;
     }
-    throw new Error("图片过大，请换一张图片");
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+    try {
+      const image = new Image();
+      image.fetchPriority = "low";
+      image.src = full;
+      await image.decode();
+      if (current === generation) {
+        setBackground(full, urls.filter(url => url === full));
+        return;
+      }
+    } catch { /* Keep showing the preview if the detailed image is unavailable. */ }
+    for (const url of urls) if (url !== preview || current !== generation) URL.revokeObjectURL(url);
+  })());
+}
+
+function convert(file: File): Promise<BackgroundFiles> {
+  const worker = new Worker(new URL("./background_worker.ts", import.meta.url), { type: "module" });
+  return new Promise((resolve, reject) => {
+    worker.onmessage = (event: MessageEvent<{ files?: BackgroundFiles; error?: string }>) => {
+      worker.terminate();
+      if (event.data.files) resolve(event.data.files);
+      else reject(new Error(event.data.error || "无法转换图片"));
+    };
+    worker.onerror = () => { worker.terminate(); reject(new Error("无法启动图片转换")); };
+    worker.postMessage(file);
+  });
 }
 
 function PageBackgroundIcon() {
@@ -56,29 +113,39 @@ function PageBackgroundIcon() {
 }
 
 export function PageBackgroundSettings() {
-  const [saved, setSaved] = useState(loadBackground);
-  const [draft, setDraft] = useState(saved);
-  const [custom, setCustom] = useState(isCustom(saved) ? saved : "");
+  const [saved, setSaved] = useState(loadChoice);
+  const [mode, setMode] = useState(saved.mode);
+  const [file, setFile] = useState<BackgroundFiles>();
+  const [savedPreview, setSavedPreview] = useState<Blob>();
+  const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const mode = isCustom(draft) ? "custom" : draft;
-  async function selectFile(file: File) {
+  useEffect(() => {
+    let disposed = false;
+    void customBackground().then(value => {
+      if (!disposed) setSavedPreview(value?.preview);
+    }).catch(() => undefined);
+    return () => { disposed = true; };
+  }, [saved]);
+  useEffect(() => {
+    const blob = file?.preview ?? savedPreview;
+    if (mode !== "custom" || !blob) { setPreview(""); return; }
+    const url = URL.createObjectURL(blob);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file, savedPreview, mode]);
+  async function selectFile(image: File) {
     setError("");
-    if (!/^(image\/(jpeg|png|webp))$/.test(file.type) || file.size > 20 * 1024 * 1024) {
+    if (!/^(image\/(jpeg|png|webp))$/.test(image.type) || image.size > 20 * 1024 * 1024) {
       setError("请选择不超过 20 MB 的 JPG、PNG 或 WebP 图片");
       return;
     }
     setBusy(true);
-    try {
-      const data = await encodeBackground(file);
-      setCustom(data);
-      setDraft(data);
-    } catch {
-      setError("无法读取或压缩此图片，请换一张图片");
-    } finally {
-      setBusy(false);
-    }
+    try { setFile(await convert(image)); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : "无法转换图片"); }
+    finally { setBusy(false); }
   }
+  const imageSrc = mode === "custom" ? preview || saved.legacy : presetUrl(mode, true);
   return (
     <Panel className="presentation-settings page-background-settings">
       <PageHeader title="页面背景" icon={<PageBackgroundIcon />}
@@ -88,40 +155,46 @@ export function PageBackgroundSettings() {
           <Field label="背景来源">
             <select value={mode} disabled={busy} onChange={event => {
               setError("");
-              setDraft(event.target.value === "custom" ? custom || "custom" : event.target.value);
+              setMode(event.target.value as Mode);
             }}>
-              <option value="default">默认背景</option>
-              <option value="grid">内置 · 深色网格</option>
+              {Object.entries(presets).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
               <option value="custom">自定义图片</option>
             </select>
           </Field>
           {mode === "custom" && (
-            <Field label="选择背景图片" hint="JPG、PNG、WebP · 最大 20 MB">
+            <Field label="选择背景图片" hint="JPG、8 位 PNG、WebP · 最大 20 MB">
               <input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={event => {
-                const file = event.currentTarget.files?.[0];
+                const image = event.currentTarget.files?.[0];
                 event.currentTarget.value = "";
-                if (file) void selectFile(file);
+                if (image) void selectFile(image);
               }} />
             </Field>
           )}
+          {busy && <p role="status">正在生成无损背景…</p>}
           <ErrorLine error={error} />
         </div>
-        {draft !== "custom" && <img className="page-background-preview" src={imageSource(draft)} alt="页面背景预览" />}
+        {imageSrc && <img className="page-background-preview" src={imageSrc} alt="页面背景预览" />}
       </div>
-      <SaveCard title="页面背景" dirty={draft !== saved} disabled={busy || draft === "custom"}
+      <SaveCard title="页面背景" dirty={mode !== saved.mode || (mode === "custom" && !!file)}
+        disabled={busy || (mode === "custom" && !file && !savedPreview && saved.mode !== "custom")}
         localActionsEnabled={!busy}
-        defaults={() => { setDraft("default"); setError(""); }}
-        discard={() => { setDraft(saved); setCustom(isCustom(saved) ? saved : ""); setError(""); }}
+        defaults={() => { setMode("gradient"); setFile(undefined); setError(""); }}
+        discard={() => { setMode(saved.mode); setFile(undefined); setError(""); }}
         save={async () => {
+          if (mode === saved.mode && (mode !== "custom" || !file)) return true;
           try {
-            if (draft === "default") localStorage.removeItem(storageKey);
-            else localStorage.setItem(storageKey, draft);
-            applyPageBackground(draft);
-            setSaved(draft);
+            if (mode === "custom" && file) await customBackground(file);
+            if (mode === "gradient") localStorage.removeItem(storageKey);
+            else localStorage.setItem(storageKey, mode);
+            const choice = { mode };
+            applyPageBackground(choice, mode === "custom" ? file : undefined);
+            setSaved(choice);
+            if (mode === "custom" && file) setSavedPreview(file.preview);
+            setFile(undefined);
             setError("");
             return true;
           } catch {
-            setError("浏览器存储空间不足，无法保存背景图片");
+            setError("浏览器无法保存背景图片，请检查存储空间");
             return false;
           }
         }} />

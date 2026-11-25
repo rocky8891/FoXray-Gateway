@@ -13,6 +13,7 @@ export default defineConfig({
       }
     },
   }],
+  worker: { format: "es" },
   server: { proxy: { "/api": "http://192.168.1.8:18880" } },
   build: { outDir: "dist", emptyOutDir: true },
 });
