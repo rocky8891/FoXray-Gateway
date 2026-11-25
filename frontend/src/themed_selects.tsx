@@ -5,6 +5,7 @@ import { MenuScrollArea } from "./menu_scroll_area";
 
 type SelectTarget = HTMLSelectElement | HTMLInputElement;
 type Choice = { index: number; value: string; label: string; group: string; disabled: boolean };
+const inlineFilter = (element: Element | null) => element?.closest(".list-filter-popup .filter-fields");
 const isSelect = (element: Element): element is HTMLSelectElement => element instanceof HTMLSelectElement;
 const isDropdown = (element: Element | null): element is SelectTarget =>
   !!element && ((isSelect(element) && !element.multiple && element.size <= 1) ||
@@ -81,7 +82,8 @@ export function ThemedSelects() {
         event.preventDefault();
         pointerHandled = true;
         element.focus({ preventScroll: true });
-        if (active.current === element) close(); else open(element);
+        if (active.current !== element) open(element);
+        else if (!inlineFilter(element)) close();
       } else open(element, element.value);
     };
     const mouse = (event: MouseEvent) => {
@@ -97,6 +99,7 @@ export function ThemedSelects() {
       pointerHandled = false;
     };
     const outside = (event: PointerEvent) => {
+      if (inlineFilter(active.current)?.closest(".list-filter-popup")?.contains(event.target as Node)) return;
       if (event.target !== active.current && !menu.current?.contains(event.target as Node)) close();
     };
     const input = (event: Event) => {
@@ -106,14 +109,19 @@ export function ThemedSelects() {
       const element = event.target instanceof Element ? event.target : null;
       if (!isDropdown(element) || element.disabled) return;
       if (event.key === "Escape" && active.current === element) {
+        if (inlineFilter(element)) return;
         event.preventDefault(); event.stopPropagation(); close(); return;
       }
-      if (event.key === "Tab") { close(); return; }
+      if (event.key === "Tab") { if (!inlineFilter(element)) close(); return; }
       if (["ArrowDown", "ArrowUp", "F4"].includes(event.key) || (isSelect(element) && [" ", "Enter"].includes(event.key))) {
         event.preventDefault(); event.stopPropagation();
         if (active.current === element && menu.current && ["ArrowDown", "ArrowUp"].includes(event.key)) {
           const buttons = [...menu.current.querySelectorAll<HTMLButtonElement>('[role="option"]:not(:disabled)')];
           (event.key === "ArrowDown" ? buttons[0] : buttons[buttons.length - 1])?.focus();
+          return;
+        }
+        if (active.current === element && inlineFilter(element)) {
+          menu.current?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus({ preventScroll: true });
           return;
         }
         open(element, isSelect(element) ? "" : element.value, true);
@@ -124,7 +132,11 @@ export function ThemedSelects() {
     const openRequested = (event: Event) => {
       if (event.target instanceof HTMLSelectElement && isDropdown(event.target)) open(event.target);
     };
+    const refreshRequested = (event: Event) => {
+      if (event.target === active.current) refresh(value => value + 1);
+    };
     document.addEventListener("foxray:open-select", openRequested);
+    document.addEventListener("foxray:refresh-filter-select", refreshRequested);
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("pointerdown", pointer, true);
     document.addEventListener("mousedown", mouse, true);
@@ -134,6 +146,7 @@ export function ThemedSelects() {
     return () => {
       observer.disconnect(); cancelAnimationFrame(pending);
       document.removeEventListener("foxray:open-select", openRequested);
+      document.removeEventListener("foxray:refresh-filter-select", refreshRequested);
       document.removeEventListener("pointerdown", outside, true);
       document.removeEventListener("pointerdown", pointer, true);
       document.removeEventListener("mousedown", mouse, true);
@@ -147,14 +160,17 @@ export function ThemedSelects() {
     };
   }, []);
 
-  const filterFields = target?.closest(".list-filter-popup .filter-fields");
+  const filterFields = inlineFilter(target);
   const options = target ? choices(target) : [];
   const search = !!target && isSelect(target) && (options.length > 8 || typedSearch);
   const rows = options.filter(option => (option.label + " " + option.value + " " + option.group).toLowerCase().includes(query.toLowerCase()));
   const label = target?.getAttribute("aria-label") || target?.labels?.[0]?.querySelector(".field-title")?.textContent?.trim() || target?.title || "选择选项";
   const choose = (option: Choice) => {
     if (!target || !target.isConnected || target.disabled || option.disabled) return;
-    if ((isSelect(target) && target.selectedIndex === option.index) || (!isSelect(target) && target.value === option.value)) { close(true); return; }
+    if ((isSelect(target) && target.selectedIndex === option.index) || (!isSelect(target) && target.value === option.value)) {
+      if (!filterFields) close(true);
+      return;
+    }
     selecting.current = true;
     if (isSelect(target)) target.selectedIndex = option.index;
     else {
@@ -163,7 +179,8 @@ export function ThemedSelects() {
     }
     target.dispatchEvent(new Event("change", { bubbles: true }));
     selecting.current = false;
-    close(true);
+    if (filterFields) refresh(value => value + 1);
+    else close(true);
   };
 
   useLayoutEffect(() => {
@@ -218,8 +235,14 @@ export function ThemedSelects() {
   return createPortal(<div ref={menu} id={id} role="dialog" aria-label={label + "选项"}
     className={"icon-select-menu app-select-menu" + (filterFields ? " filter-inline-options" : "")} style={filterFields ? undefined : position}
     onKeyDown={event => {
-      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(true); return; }
-      if (event.key === "Tab") { close(true); return; }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (filterFields) target.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        else close(true);
+        return;
+      }
+      if (event.key === "Tab") { if (!filterFields) close(true); return; }
       const input = event.target instanceof HTMLInputElement;
       const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="option"]:not(:disabled)')];
       if (input && event.key === "Enter") { event.preventDefault(); const first = rows.find(option => !option.disabled); if (first) choose(first); return; }

@@ -177,6 +177,13 @@ export function ListFilter({
       document.removeEventListener("pointerdown", outside);
     };
   }, [open]);
+  useLayoutEffect(() => {
+    if (!open) return;
+    // Controlled selects can change through Reset without emitting a DOM change event.
+    popup.current?.querySelectorAll(".filter-fields select").forEach(select => {
+      select.dispatchEvent(new Event("foxray:refresh-filter-select", { bubbles: true }));
+    });
+  });
   return (
     <span className={"list-filter-control" + (column ? " column-filter" : "")}>
       <button
@@ -203,6 +210,7 @@ export function ListFilter({
             style={position}
             onBlur={(e) => {
               if (
+                e.relatedTarget &&
                 !e.currentTarget.contains(e.relatedTarget as Node) &&
                 e.relatedTarget !== anchor.current
               )

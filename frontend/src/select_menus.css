@@ -47,13 +47,20 @@
   position: static;
   width: 100%;
   max-height: min(220px, 28dvh);
+  box-sizing: border-box;
   margin-block-start: 6px;
   box-shadow: none !important;
 }
 .list-filter-popup:has(.filter-inline-options) {
   display: flex;
   flex-direction: column;
+  width: 240px;
+  max-width: calc(100vw - 16px);
   overflow: hidden;
+}
+.list-filter-popup .filter-fields .field > select {
+  width: 100%;
+  box-sizing: border-box;
 }
 .list-filter-popup:has(.filter-inline-options) .filter-fields { min-height: 0; overflow: auto; }
 .list-filter-popup:has(.filter-inline-options) .filter-actions { flex: none; }
