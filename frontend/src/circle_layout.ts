@@ -58,6 +58,20 @@ export function circleLayout(width: number, height: number, style: string, match
       "grid",
     );
   }
+  if (style === "radial-lightning") {
+    const stagger = 0.44;
+    const diameter = Math.max(1, Math.min((w - gap * 3) / 4, h / (1 + stagger)));
+    const offset = diameter * stagger / 2;
+    return result(
+      diameter,
+      Array.from({ length: 4 }, (_, index) => [
+        padding + (w * (index + 0.5)) / 4,
+        cy + (index % 2 === 0 ? offset : -offset),
+      ]),
+      "lightning-row",
+      4,
+    );
+  }
   if (style === "radial-wave") {
     const d = Math.max(1, Math.min((w - 3 * gap) / 4, h / 1.3));
     const amplitude = Math.min(d * 0.15, (h - d) / 2);

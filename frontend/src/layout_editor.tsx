@@ -22,6 +22,8 @@ export function cardNeighbor(
             { r: 2, c: 2 },
             { r: 1, c: 3 },
           ][i]
+        : layout === "lightning-row"
+          ? { r: 1 - (i % 2), c: i }
         : layout === "wave-row"
           ? { r: [1, 0, 2, 1][i], c: i }
           : layout === "wave-column"

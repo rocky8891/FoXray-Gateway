@@ -1137,6 +1137,9 @@ function OverviewLayoutSettings({
                                 ) && (
                                   <option value="radial-wave">四圆波浪</option>
                                 )}
+                                {serviceStyleAvailable(p, module, "radial-lightning") && (
+                                  <option value="radial-lightning">四圆闪电</option>
+                                )}
                                 {serviceStyleAvailable(
                                   p,
                                   module,

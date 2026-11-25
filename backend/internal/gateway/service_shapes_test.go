@@ -5,7 +5,7 @@ import "testing"
 func TestServiceShapeRestrictionsAndScopedSaves(t *testing.T) {
 	a, runner := fixture(t)
 	calls := len(runner.calls)
-	for _, style := range []string{"radial", "radial-square", "radial-diamond", "radial-diamond-compact", "radial-wave", "radial-mixed"} {
+	for _, style := range []string{"radial", "radial-square", "radial-diamond", "radial-diamond-compact", "radial-wave", "radial-lightning", "radial-mixed"} {
 		if err := a.savePresentation(M{"services_host_style": style, "services_xray_style": style, "services_warp_style": style}); err != nil {
 			t.Fatal(style, err)
 		}
