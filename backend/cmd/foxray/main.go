@@ -1,14 +1,20 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"github.com/rocky8891/FoXray-Gateway/backend/internal/gateway"
+	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -38,26 +44,15 @@ func main() {
 	withWarp := flag.Bool("with-warp", false, "select WARP component")
 	withKomari := flag.Bool("with-komari", false, "select Komari component")
 	checkTopology := flag.Bool("check-topology", false, "inspect and validate network topology without applying changes")
-	backupPublic := flag.String("backup-public-key", "", "register an RSA public key for encrypted configuration export")
 	stageBackup := flag.String("stage-config-backup", "", "decrypt a FoXray configuration backup into a new private directory")
 	backupIdentity := flag.String("backup-identity", "", "RSA private key file for offline restoration")
 	backupDest := flag.String("backup-dest", "", "new directory for staged restoration")
 	flag.Parse()
-	if *backupPublic != "" {
-		if *readonly {
-			log.Fatal("只读模式不能登记备份公钥")
-		}
-		if err := gateway.SetBackupPublicKey(*base, *backupPublic); err != nil {
-			log.Fatal(err)
-		}
-		log.Print("配置备份公钥已登记")
-		return
-	}
 	if *stageBackup != "" {
-		if *backupIdentity == "" || *backupDest == "" {
-			log.Fatal("请指定 --backup-identity 和 --backup-dest")
+		if *backupDest == "" {
+			log.Fatal("请指定 --backup-dest")
 		}
-		if err := gateway.StageConfigBackup(*stageBackup, *backupIdentity, *backupDest); err != nil {
+		if err := gateway.StageConfigBackup(*stageBackup, *backupIdentity, *backupDest, readBackupPassword); err != nil {
 			log.Fatal(err)
 		}
 		log.Print("备份已校验并解包到指定目录")
@@ -179,12 +174,31 @@ func main() {
 	app.ConfigureListener(*listen)
 	app.Start()
 	srv := &http.Server{Addr: *listen, Handler: app, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384}
+	// Reuse the UI on loopback for SSH-forwarded backup exports even when LAN binds to a specific IPv4 address.
+	var loopback *http.Server
+	if host, port, splitErr := net.SplitHostPort(*listen); splitErr == nil && !*readonly {
+		if ip := net.ParseIP(host); ip != nil && !ip.IsUnspecified() && !ip.IsLoopback() {
+			if local, listenErr := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", port)); listenErr == nil {
+				loopback = &http.Server{Handler: app, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384}
+				go func() {
+					if e := loopback.Serve(local); e != nil && e != http.ErrServerClosed {
+						log.Print("本机备份监听停止：", e)
+					}
+				}()
+			} else {
+				log.Print("无法启用本机备份监听：", listenErr)
+			}
+		}
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 	go func() {
 		<-ctx.Done()
 		c, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
+		if loopback != nil {
+			_ = loopback.Close()
+		}
 		_ = srv.Shutdown(c)
 	}()
 	log.Printf("FoXray Gateway %s HTTP=%s read-only=%v", gateway.Version, *listen, *readonly)
@@ -192,4 +206,32 @@ func main() {
 		log.Print("服务停止：", err)
 		os.Exit(1)
 	}
+}
+
+func readBackupPassword() (string, error) {
+	info, err := os.Stdin.Stat()
+	if err != nil {
+		return "", err
+	}
+	if info.Mode()&os.ModeCharDevice != 0 {
+		stty := func(arg string) error {
+			cmd := exec.Command("stty", arg)
+			cmd.Stdin = os.Stdin
+			return cmd.Run()
+		}
+		if err := stty("-echo"); err != nil {
+			return "", fmt.Errorf("无法关闭终端回显：%w", err)
+		}
+		defer func() { _ = stty("echo"); fmt.Fprintln(os.Stderr) }()
+		fmt.Fprint(os.Stderr, "请输入备份密码：")
+	}
+	line, err := bufio.NewReader(io.LimitReader(os.Stdin, 1026)).ReadString('\n')
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	password := strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
+	if len(password) == 0 || len(password) > 1024 {
+		return "", fmt.Errorf("请输入有效的备份密码")
+	}
+	return password, nil
 }

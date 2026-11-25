@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -16,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -26,7 +28,8 @@ import (
 
 const backupMagic = "FOXRAY-CONFIG-1\n"
 const backupLimit = 64 << 20
-const backupPublicKey = "private/config-backup-public.pem"
+const passwordBackupMagic = "FOXRAY-CONFIG-2\n"
+const backupKDFRounds = 600_000
 
 var appBackupFiles = strings.Fields(`config.json components.json engine.json core.json manager-settings.json service-preferences.json auto-bypass.json host-monitor-policy.json icmp-policy.json log-retention-policy.json monitor-data-policy.json monitoring-items.json traffic-history-policy.json traffic-monitor-modules.json traffic-monitor-policy.json warp-endpoints.json private/nodes.json private/network-managed.json private/traffic-policy.json private/warp-auto.json`)
 var systemBackupFiles = strings.Fields(`etc/foxray/topology.json etc/foxray/warp-netns-resolv.conf etc/netns/foxray-warp/resolv.conf etc/systemd/system/foxray-engine.service etc/systemd/system/foxray-warp-netns.service etc/systemd/system/foxray-warp-network.service etc/systemd/system/komari.service etc/nftables.conf etc/firewalld/firewalld.conf etc/sysconfig/nftables.conf etc/sysconfig/iptables etc/sysconfig/ip6tables var/lib/cloudflare-warp/conf.json var/lib/cloudflare-warp/consumer-settings.json var/lib/cloudflare-warp/final-overrides-settings.json var/lib/cloudflare-warp/reg.json var/lib/cloudflare-warp/settings.json var/lib/cloudflare-warp/warp.db var/lib/foxray-scout/account.json opt/komari/data/komari.db opt/komari/data/plugin/state.json`)
@@ -35,34 +38,6 @@ var systemBackupPatterns = []string{
 	"etc/NetworkManager/system-connections/*.nmconnection",
 	"etc/firewalld/zones/*.xml", "etc/firewalld/policies/*.xml", "etc/firewalld/ipsets/*.xml", "etc/firewalld/services/*.xml", "etc/firewalld/helpers/*.xml", "etc/firewalld/icmptypes/*.xml", "etc/firewalld/direct.xml",
 	"etc/systemd/system/foxray-engine.service.d/*.conf", "etc/systemd/system/warp-svc.service.d/*.conf", "etc/systemd/system/komari.service.d/*.conf", "etc/sysctl.d/*foxray*.conf",
-}
-
-func backupKey(raw []byte) (*rsa.PublicKey, error) {
-	block, rest := pem.Decode(raw)
-	if block == nil || len(bytes.TrimSpace(rest)) != 0 || block.Type != "PUBLIC KEY" {
-		return nil, errors.New("需要 PEM 格式的 RSA 公钥")
-	}
-	decoded, err := x509.ParsePKIXPublicKey(block.Bytes)
-	key, ok := decoded.(*rsa.PublicKey)
-	if err != nil || !ok || key.N.BitLen() < 3072 || key.N.BitLen() > 8192 {
-		return nil, errors.New("需要 3072 至 8192 位的 RSA 公钥")
-	}
-	return key, nil
-}
-
-func SetBackupPublicKey(base, filename string) error {
-	raw, err := os.ReadFile(filename)
-	if err != nil {
-		return err
-	}
-	if _, err = backupKey(raw); err != nil {
-		return err
-	}
-	target := filepath.Join(base, backupPublicKey)
-	if err = os.MkdirAll(filepath.Dir(target), 0700); err != nil {
-		return err
-	}
-	return atomicFile(target, raw, 0600)
 }
 
 func backupAllowed(name string) bool {
@@ -246,27 +221,85 @@ func buildConfigArchive(base, systemRoot string, serviceState func([]string) any
 	return buf.Bytes(), nil
 }
 
-func encryptConfigBackup(raw []byte, key *rsa.PublicKey) ([]byte, error) {
-	secret := make([]byte, 32)
-	if _, err := rand.Read(secret); err != nil {
+// A 256-bit key uses exactly one PBKDF2-HMAC-SHA256 output block.
+func passwordBackupKey(password string, salt []byte) []byte {
+	mac := hmac.New(sha256.New, []byte(password))
+	mac.Write(salt)
+	mac.Write([]byte{0, 0, 0, 1})
+	previous := mac.Sum(nil)
+	key := bytes.Clone(previous)
+	for i := 1; i < backupKDFRounds; i++ {
+		mac.Reset()
+		mac.Write(previous)
+		previous = mac.Sum(previous[:0])
+		for j := range key {
+			key[j] ^= previous[j]
+		}
+	}
+	clear(previous)
+	return key
+}
+
+func sealPasswordBackup(raw []byte, password string) ([]byte, error) {
+	if password == "" {
+		return raw, nil
+	}
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
 		return nil, err
 	}
-	wrapped, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, key, secret, []byte(backupMagic))
+	key := passwordBackupKey(password, salt)
+	defer clear(key)
+	gcm, err := backupAEAD(key)
 	if err != nil {
 		return nil, err
 	}
-	gcm, err := backupAEAD(secret)
-	if err != nil {
-		return nil, err
-	}
-	header := binary.BigEndian.AppendUint16([]byte(backupMagic), uint16(len(wrapped)))
-	header = append(header, wrapped...)
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err = rand.Read(nonce); err != nil {
 		return nil, err
 	}
-	header = append(header, nonce...)
+	header := append(append([]byte(passwordBackupMagic), salt...), nonce...)
 	return append(header, gcm.Seal(nil, nonce, raw, header)...), nil
+}
+
+func openPasswordBackup(raw []byte, password string) ([]byte, error) {
+	saltStart := len(passwordBackupMagic)
+	nonceStart := saltStart + 16
+	headerEnd := nonceStart + 12
+	if len(raw) < headerEnd+16 || !bytes.HasPrefix(raw, []byte(passwordBackupMagic)) {
+		return nil, errors.New("无效的密码备份")
+	}
+	key := passwordBackupKey(password, raw[saltStart:nonceStart])
+	defer clear(key)
+	gcm, err := backupAEAD(key)
+	if err != nil {
+		return nil, err
+	}
+	decoded, err := gcm.Open(nil, raw[nonceStart:headerEnd], raw[headerEnd:], raw[:headerEnd])
+	if err != nil {
+		return nil, errors.New("密码不正确或备份已损坏")
+	}
+	return decoded, nil
+}
+
+func localBackupRequest(r *http.Request) bool {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil || !net.ParseIP(host).IsLoopback() {
+		return false
+	}
+	local, ok := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
+	if !ok {
+		return false
+	}
+	host, _, err = net.SplitHostPort(local.String())
+	if err != nil || !net.ParseIP(host).IsLoopback() {
+		return false
+	}
+	authority := r.Host
+	if h, _, e := net.SplitHostPort(authority); e == nil {
+		authority = h
+	}
+	return authority == "localhost" || net.ParseIP(strings.Trim(authority, "[]")).IsLoopback()
 }
 
 func backupAEAD(key []byte) (cipher.AEAD, error) {
@@ -352,14 +385,17 @@ func extractConfigBackup(raw []byte, dest string) error {
 	return nil
 }
 
-func StageConfigBackup(backup, keyPath, dest string) error {
+func openLegacyBackup(raw []byte, keyPath string) ([]byte, error) {
+	if keyPath == "" {
+		return nil, errors.New("旧版密钥备份需要 --backup-identity")
+	}
 	keyData, err := os.ReadFile(keyPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	block, _ := pem.Decode(keyData)
 	if block == nil {
-		return errors.New("需要 RSA PEM 私钥")
+		return nil, errors.New("需要 RSA PEM 私钥")
 	}
 	var key *rsa.PrivateKey
 	if block.Type == "RSA PRIVATE KEY" {
@@ -371,8 +407,12 @@ func StageConfigBackup(backup, keyPath, dest string) error {
 		key, _ = parsed.(*rsa.PrivateKey)
 	}
 	if err != nil || key == nil {
-		return errors.New("无法读取 RSA 私钥")
+		return nil, errors.New("无法读取 RSA 私钥")
 	}
+	return decryptConfigBackup(raw, key)
+}
+
+func StageConfigBackup(backup, keyPath, dest string, readPassword func() (string, error)) error {
 	f, err := os.Open(backup)
 	if err != nil {
 		return err
@@ -382,22 +422,26 @@ func StageConfigBackup(backup, keyPath, dest string) error {
 	if err != nil || len(raw) > backupLimit+(4<<20) {
 		return errors.New("备份超出读取限制")
 	}
-	archive, err := decryptConfigBackup(raw, key)
+	archive := raw
+	switch {
+	case bytes.HasPrefix(raw, []byte(passwordBackupMagic)):
+		password, inputErr := readPassword()
+		if inputErr != nil {
+			return inputErr
+		}
+		archive, err = openPasswordBackup(raw, password)
+	case bytes.HasPrefix(raw, []byte(backupMagic)):
+		archive, err = openLegacyBackup(raw, keyPath)
+	}
 	if err != nil {
 		return err
 	}
 	return extractConfigBackup(archive, dest)
 }
 
-func (a *App) exportConfigBackup(w http.ResponseWriter) {
-	raw, err := os.ReadFile(filepath.Join(a.base, backupPublicKey))
-	if err != nil {
-		writeResponse(w, 409, M{"error": "请先在服务器登记备份公钥"})
-		return
-	}
-	key, err := backupKey(raw)
-	if err != nil {
-		writeResponse(w, 409, M{"error": err.Error()})
+func (a *App) exportConfigBackup(w http.ResponseWriter, password string) {
+	if len(password) > 1024 {
+		writeResponse(w, 400, M{"error": "备份密码过长"})
 		return
 	}
 	if !a.mutate.TryLock() {
@@ -433,13 +477,17 @@ func (a *App) exportConfigBackup(w http.ResponseWriter) {
 		writeResponse(w, 409, M{"error": err.Error()})
 		return
 	}
-	encrypted, err := encryptConfigBackup(archive, key)
+	payload, err := sealPasswordBackup(archive, password)
 	if err != nil {
 		writeResponse(w, 500, M{"error": "无法加密配置备份"})
 		return
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Disposition", `attachment; filename="foxray-config-`+time.Now().UTC().Format("20060102-150405")+`.foxbackup"`)
-	_, _ = w.Write(encrypted)
+	ext := ".zip"
+	if password != "" {
+		ext = ".foxbackup"
+	}
+	w.Header().Set("Content-Disposition", `attachment; filename="foxray-config-`+time.Now().UTC().Format("20060102-150405")+ext+`"`)
+	_, _ = w.Write(payload)
 }

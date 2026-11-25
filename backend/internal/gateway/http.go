@@ -91,7 +91,11 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if r.URL.Path == "/api/config-backup/export" {
-			a.exportConfigBackup(w)
+			if !localBackupRequest(r) {
+				writeResponse(w, 403, M{"error": "请通过 SSH 隧道打开本机 FoXray 页面后导出"})
+				return
+			}
+			a.exportConfigBackup(w, str(d["password"]))
 			return
 		}
 		result, err := a.postAPI(r, d)
@@ -235,7 +239,7 @@ func (a *App) getAPI(w http.ResponseWriter, r *http.Request) {
 	case path == "/api/warp/scout":
 		writeResponse(w, 200, a.scoutStatus())
 	case path == "/api/config-backup":
-		writeResponse(w, 200, M{"ready": !a.readonly && regular(filepath.Join(a.base, backupPublicKey))})
+		writeResponse(w, 200, M{"ready": !a.readonly && localBackupRequest(r)})
 	case path == "/api/backups":
 		writeResponse(w, 200, M{"items": a.backups(), "limit": 10})
 	case path == "/api/bypass":
