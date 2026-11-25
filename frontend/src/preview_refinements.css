@@ -233,11 +233,6 @@ header .header-tools .task-count {
   font-weight: var(--button-text-weight);
   gap: 6px;
 }
-.secondary-nav .module-tab-dropdown[data-active="true"] .icon-select-trigger {
-  color: var(--accent) !important;
-  background: var(--accent-bg) !important;
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent) !important;
-}
 .module-settings + .save-all-footer {
   padding-inline: var(--panel-padding, 26px);
 }
@@ -878,11 +873,6 @@ html:has(.page-scroll[data-scroll-page]), body:has(.page-scroll[data-scroll-page
 .page-scroll[data-scroll-page]::-webkit-scrollbar-thumb {
   background: var(--line);
   border-radius: var(--radius-pill);
-}
-header nav .nav-tab.nav-home-fox:is(:active, .nav-home-closing) {
-  color: #fff !important;
-  background: var(--accent-bg) !important;
-  border-color: var(--accent) !important;
 }
 header nav .nav-home-fox-icon {
   display: grid;

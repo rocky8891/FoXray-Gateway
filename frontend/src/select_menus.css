@@ -65,19 +65,40 @@
 
 /* Use the same selected surface in single and multiple choice menus. */
 :root {
-  --dropdown-selected-fill: rgba(145, 235, 189, .18);
-  --dropdown-selected-edge: rgba(170, 247, 207, .20);
+  --menu-selected-fill: rgba(145, 235, 189, .18);
+  --menu-selected-edge: rgba(170, 247, 207, .20);
+  --menu-selected-glass: blur(8px) saturate(1.2);
+  --menu-selected-nav-text: #fff;
 }
 :root[data-theme="light"] {
-  --dropdown-selected-fill: rgba(132, 219, 172, .30);
-  --dropdown-selected-edge: rgba(63, 149, 104, .22);
+  --menu-selected-fill: rgba(132, 219, 172, .30);
+  --menu-selected-edge: rgba(63, 149, 104, .22);
+  --menu-selected-nav-text: var(--text);
 }
 :is(.app-select-options, .firewall-service-options, .managed-icon-select-menu .menu-scroll-content, .icon-select-menu, .overview-view-menu) > button[aria-selected="true"],
 .service-theme-menu button[aria-selected="true"],
 :is(.multi-select-options, .metric-picker-menu) label:has(> input:checked) {
-  background: var(--dropdown-selected-fill);
-  box-shadow: inset 0 0 0 1px var(--dropdown-selected-edge);
+  background: var(--menu-selected-fill);
+  box-shadow: inset 0 0 0 1px var(--menu-selected-edge);
   border-radius: var(--radius-xs);
-  -webkit-backdrop-filter: blur(8px) saturate(1.2);
-  backdrop-filter: blur(8px) saturate(1.2);
+  -webkit-backdrop-filter: var(--menu-selected-glass);
+  backdrop-filter: var(--menu-selected-glass);
+}
+
+:root :is(
+  header nav .nav-tab,
+  .secondary-nav button,
+  .module-tabs > button,
+  .subtabs > button,
+  .monitor-settings-tabs > button,
+  .monitor-view-switch > button
+):is([aria-current="page"], [aria-selected="true"], .selected):not(:disabled),
+:root .secondary-nav .module-tab-dropdown[data-active="true"] .icon-select-trigger:not(:disabled),
+:root header nav .nav-tab.nav-home-fox:is(:active, .nav-home-closing):not(:disabled) {
+  color: var(--menu-selected-nav-text) !important;
+  background: var(--menu-selected-fill) !important;
+  border-color: var(--menu-selected-edge) !important;
+  box-shadow: inset 0 0 0 1px var(--menu-selected-edge) !important;
+  -webkit-backdrop-filter: var(--menu-selected-glass);
+  backdrop-filter: var(--menu-selected-glass);
 }

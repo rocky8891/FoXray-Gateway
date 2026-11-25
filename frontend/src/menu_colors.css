@@ -26,18 +26,6 @@
   box-shadow: 0 3px 10px #0002 !important;
 }
 :is(
-  header nav .nav-tab,
-  .secondary-nav button,
-  .module-tabs > button,
-  .subtabs > button,
-  .monitor-settings-tabs > button,
-  .monitor-view-switch > button
-):is([aria-current="page"], [aria-selected="true"], .selected) {
-  color: #fff !important;
-  background: var(--accent-bg) !important;
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent) !important;
-}
-:is(
     header nav .nav-tab,
     .secondary-nav button,
     .module-tabs > button,
@@ -51,7 +39,4 @@
 
 html[data-theme="light"] :is(header nav .nav-tab, .secondary-nav button, .module-tabs > button, .subtabs > button):not(:disabled) {
   background: #344359 !important;
-}
-html[data-theme="light"] :is(header nav .nav-tab, .secondary-nav button, .module-tabs > button, .subtabs > button):is([aria-current="page"], [aria-selected="true"], .selected):not(:disabled) {
-  background: #174c49 !important;
 }
