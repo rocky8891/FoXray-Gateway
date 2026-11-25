@@ -1693,7 +1693,6 @@ html:has(main>.overview-page) .overview-node-table>.table-wrap {overflow-y:auto}
 .firewall-service-options { overflow-y:auto;min-height:0; }
 .firewall-service-options>button { display:block;width:100%;padding:9px 10px;border:0;border-radius:var(--radius-xs);background:none;color:var(--text);font:inherit;text-align:left;cursor:pointer;overflow-wrap:anywhere; }
 .firewall-service-options>button:hover,.firewall-service-options>button:focus-visible { background:var(--button); }
-.firewall-service-options>button[aria-selected=true] { background:var(--accent-bg); }
 @media(hover:hover) {
   .overview-page .summary-v417.service-overview-card[data-adaptive-circles=true][class]:not(.service-host,.service-wireguard) .summary-metric:hover,
   .overview-page .summary-v417.service-overview-card.service-wireguard[data-adaptive-circles=true][class] .service-tunnel-row:hover {

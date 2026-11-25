@@ -7,8 +7,6 @@ const storageKey = "foxray.page-background";
 const presets = {
   gradient: "深色背景-渐变",
   grid: "深色背景-网格",
-  tide: "深色背景-青潮",
-  orbit: "深色背景-紫轨",
 };
 type Preset = keyof typeof presets;
 type Mode = Preset | "custom";
