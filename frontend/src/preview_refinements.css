@@ -846,8 +846,36 @@ header nav .nav-tab.nav-home-icon-button {
   min-width: var(--menu-button-height);
   padding-inline: 0 !important;
 }
-/* Reserve space only on scrollable pages. The homepage already fits the viewport. */
-html:has(.home-header-shell[data-nav-fox="true"]):not(:has(main > .overview-page)) { scrollbar-gutter: stable; }
+/* Scroll the module content below the primary header. */
+.page-scroll { display: contents; }
+html:has(.page-scroll[data-scroll-page]), body:has(.page-scroll[data-scroll-page]) {
+  height: 100dvh;
+  overflow: hidden;
+}
+#root:has(> .page-scroll[data-scroll-page]) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+#root:has(> .page-scroll[data-scroll-page]) > :is(.home-header-shell, .preview-banner),
+#root:has(> .page-scroll[data-scroll-page]) > .home-header-shell > header {
+  flex: none;
+}
+.page-scroll[data-scroll-page] {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.page-scroll[data-scroll-page]::-webkit-scrollbar { width: 8px; }
+.page-scroll[data-scroll-page]::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: var(--radius-pill);
+}
 header nav .nav-tab.nav-home-fox:is(:active, .nav-home-closing) {
   color: #fff !important;
   background: var(--accent-bg) !important;

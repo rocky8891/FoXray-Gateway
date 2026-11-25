@@ -98,13 +98,14 @@ function readNavigationSnapshot(): NavigationSnapshot | null {
 
 function App() {
   useCompactSelects();
+  const pageScroll = useRef<HTMLDivElement>(null);
   const [diagnosticTab, setDiagnosticTab] = useState("path");
   useEffect(() => {
     const handler = (event: Event) => {
       if ((event as CustomEvent).detail === "wireguard") {
         setPage("wireguard");
         localStorage.setItem("foxray.page", "wireguard");
-        window.scrollTo({ top: 0 });
+        pageScroll.current?.scrollTo({ top: 0 });
       }
     };
     window.addEventListener("foxray:navigate", handler);
@@ -260,7 +261,7 @@ function App() {
     setOverviewEditor(undefined);
     setPage(next);
     localStorage.setItem("foxray.page", next);
-    window.scrollTo({ top: 0 });
+    pageScroll.current?.scrollTo({ top: 0 });
   };
   useEffect(()=>{
     const openMonitor=(event:Event)=>{
@@ -638,63 +639,65 @@ function App() {
                 ) * 1000
               }
             >
-              <main
-                data-home-fullwidth={page === "overview" && contentWidth === 100 || undefined}
-                className={page === "monitoring" && hideHomeHeader ? "monitoring-shortcut-page" : undefined}
-                data-module-page={page === "overview" ? undefined : page}
-                style={
-                  {
-                    "--overview-label-size": `${Number(record(record(state?.manager_settings.presentation).overview_text).label_size || 14)}px`,
-                    "--overview-value-size": `${Number(record(record(state?.manager_settings.presentation).overview_text).value_size || 24)}px`,
-                    "--content-width": `${contentWidth}%`,
-                  } as React.CSSProperties
-                }
-              >
-                {page !== "overview" && (
-                  <section className="module-heading main-page-heading">
-                    <PageHeader
-                      title={pageHeadings[page]?.[0] || "FoXray Gateway"}
-                      description={pageHeadings[page]?.[1]}
+              <div ref={pageScroll} className="page-scroll" data-scroll-page={page !== "overview" || undefined}>
+                <main
+                  data-home-fullwidth={page === "overview" && contentWidth === 100 || undefined}
+                  className={page === "monitoring" && hideHomeHeader ? "monitoring-shortcut-page" : undefined}
+                  data-module-page={page === "overview" ? undefined : page}
+                  style={
+                    {
+                      "--overview-label-size": `${Number(record(record(state?.manager_settings.presentation).overview_text).label_size || 14)}px`,
+                      "--overview-value-size": `${Number(record(record(state?.manager_settings.presentation).overview_text).value_size || 24)}px`,
+                      "--content-width": `${contentWidth}%`,
+                    } as React.CSSProperties
+                  }
+                >
+                  {page !== "overview" && (
+                    <section className="module-heading main-page-heading">
+                      <PageHeader
+                        title={pageHeadings[page]?.[0] || "FoXray Gateway"}
+                        description={pageHeadings[page]?.[1]}
+                      />
+                      <div id="secondary-navigation">
+                        {page === "monitoring" && hideHomeHeader && <HomeTools view="monitoring">
+                          <Button title="返回主页" aria-label="返回主页" onClick={() => navigate("overview")}>{labelIcon("主页", 18)}</Button>
+                        </HomeTools>}
+                      </div>
+                    </section>
+                  )}
+                  {state?.read_only && (
+                    <div className="read-only-banner">
+                      只读验证实例 ·
+                      可预览配置和临时密钥，不会修改接口、路由或服务
+                    </div>
+                  )}
+                  {state && ["network","routes","rules","firewall"].includes(page) && <NetworkPending act={act} inline readOnly={state.read_only}/>}
+                  {!state ? (
+                    <Panel>
+                      <div className="loading">
+                        <LoaderCircle className="spin" />
+                        正在连接管理服务…
+                      </div>
+                      <ErrorLine error={error} />
+                    </Panel>
+                  ) : (
+                    content
+                  )}
+                  {state && page === "overview" && (
+                    <OverviewFooter
+                      presentation={state.manager_settings.presentation}
+                      statusRefresh={statusRefresh}
                     />
-                    <div id="secondary-navigation">
-                      {page === "monitoring" && hideHomeHeader && <HomeTools view="monitoring">
-                        <Button title="返回主页" aria-label="返回主页" onClick={() => navigate("overview")}>{labelIcon("主页", 18)}</Button>
-                      </HomeTools>}
-                    </div>
-                  </section>
-                )}
-                {state?.read_only && (
-                  <div className="read-only-banner">
-                    只读验证实例 ·
-                    可预览配置和临时密钥，不会修改接口、路由或服务
-                  </div>
-                )}
-                {state && ["network","routes","rules","firewall"].includes(page) && <NetworkPending act={act} inline readOnly={state.read_only}/>}
-                {!state ? (
-                  <Panel>
-                    <div className="loading">
-                      <LoaderCircle className="spin" />
-                      正在连接管理服务…
-                    </div>
-                    <ErrorLine error={error} />
-                  </Panel>
-                ) : (
-                  content
-                )}
-                {state && page === "overview" && (
-                  <OverviewFooter
-                    presentation={state.manager_settings.presentation}
-                    statusRefresh={statusRefresh}
-                  />
-                )}
-                {page === "monitoring" && (
-                  <DataFreshness statusRefresh={statusRefresh} />
-                )}
-                <footer>
-                  {versionLabel(state?.version || "0.9.4")} · Go / React ·
-                  网络变更采用预览、确认与回退
-                </footer>
-              </main>
+                  )}
+                  {page === "monitoring" && (
+                    <DataFreshness statusRefresh={statusRefresh} />
+                  )}
+                  <footer>
+                    {versionLabel(state?.version || "0.9.4")} · Go / React ·
+                    网络变更采用预览、确认与回退
+                  </footer>
+                </main>
+              </div>
             </ChartRefreshContext.Provider>
           </LiveRefreshContext.Provider>
         </RangeDefaultsContext.Provider>
