@@ -230,11 +230,20 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 	if err != nil {
 		return nil, err
 	}
-	driver := firstNonempty(q.Get("driver"), "firewalld")
+	driver := firstNonempty(q.Get("driver"), "auto")
+	cmd := n.firewallReadCommand(ctx)
+	if driver == "auto" {
+		if str(n.app.service("firewalld")["state"]) == "active" {
+			driver = "firewalld"
+		} else if tables, readErr := cmd(6, "", "nft", "list", "tables"); readErr == nil && strings.TrimSpace(tables) != "" {
+			driver = "nftables"
+		} else {
+			driver = "iptables"
+		}
+	}
 	if driver != "firewalld" && driver != "iptables" && driver != "nftables" {
 		return nil, errors.New("此工具暂无静态推演")
 	}
-	cmd := n.firewallReadCommand(ctx)
 	warnings := []string{"结果为运行时快照的静态推演。连接跟踪、动态集合、跨链跳转和远端回程需要独立核对。"}
 	zone, binding := "host", "系统规则"
 	var activeZones string

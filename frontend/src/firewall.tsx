@@ -513,16 +513,6 @@ export function FirewallPage({ act }: { act: Act }) {
         </span>
       ),
     });
-  if (all.some(r => r.native_summary || r.kind === "system"))
-    columns.push({
-      key: "native_summary",
-      label: "原生规则内容",
-      render: (r) => {
-        const summary = String(r.native_summary || "");
-        if (!summary && r.kind !== "system") return "—";
-        return <span title={summary}>{summary ? (summary.length > 100 ? `${summary.slice(0, 100)}…` : summary) : "查看原始规则"}</span>;
-      },
-    });
   if (native)
     columns.push({
       key: "packets",
@@ -615,7 +605,7 @@ export function FirewallPage({ act }: { act: Act }) {
           editPolicy={()=>{const policy=record(resource.data?.zone_policy),runtime=record(policy.runtime),permanent=record(policy.permanent);start("add",{kind:"zone-policy",driver,zone,target:String(permanent.target||runtime.target||"default"),target_apply:"permanent",target_ack:false,reload_ack:false,masquerade:runtime.masquerade===true,icmp_blocks:Array.isArray(runtime.icmp_blocks)?runtime.icmp_blocks:[],icmp_inversion:runtime.icmp_inversion===true,forward:typeof runtime.forward==="boolean"?runtime.forward:undefined})}}
         />}
       {originsNotice && !diagnosing && <ErrorLine error={originsNotice} />}
-      {diagnosing ? <FirewallDiagnosis initialDriver={driver} act={act} /> : crossZone ? <CrossZoneRules linkedRule={linkedCategory === "cross-zone" ? linkedRule : ""} act={act} resource={{...crossResource,data:crossDisplay}} filter={crossFilter} resetFilter={()=>setCrossFilter("all")} /> : <Panel className="firewall-main-panel management-panel">
+      {diagnosing ? <FirewallDiagnosis act={act} /> : crossZone ? <CrossZoneRules linkedRule={linkedCategory === "cross-zone" ? linkedRule : ""} act={act} resource={{...crossResource,data:crossDisplay}} filter={crossFilter} resetFilter={()=>setCrossFilter("all")} /> : <Panel className="firewall-main-panel management-panel">
         <ErrorLine error={resource.error || failure} />
         {!!resource.data?.error && (
           <p className="hint">{text(resource.data.error)}</p>

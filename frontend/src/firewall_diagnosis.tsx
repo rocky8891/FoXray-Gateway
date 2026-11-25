@@ -6,11 +6,8 @@ import type { Act } from "./nodes";
 import { Button, Field, PageHeader, Panel } from "./ui";
 import { DiagnosticLog } from "./views";
 
-export function FirewallDiagnosis({ initialDriver, act }: { initialDriver?: string; act: Act }) {
-  const [driver, setDriver] = useState(() => {
-    const saved = initialDriver || localStorage.getItem("foxray.firewall.driver");
-    return saved === "nftables" || saved === "iptables" ? saved : "firewalld";
-  });
+export function FirewallDiagnosis({ act }: { act: Act }) {
+  const [driver, setDriver] = useState("auto");
   const [protocol, setProtocol] = useState("tcp");
   const diagnostic = useDiagnosticRunner(act);
   function diagnose(event: FormEvent<HTMLFormElement>) {
@@ -25,13 +22,15 @@ export function FirewallDiagnosis({ initialDriver, act }: { initialDriver?: stri
         title="规则诊断"
         description="按运行时规则推演 LAN 转发"
         icon={<FirewallDiagnosisIcon size={20} />}
-        actions={<Field label="管理工具" info="选择用于读取运行时规则的防火墙工具。">
+        actions={<details className="disclosure-stack"><summary>高级选项</summary>
+        <Field label="管理工具" info="自动优先使用运行中的 firewalld。手动选择可限定诊断范围。">
           <select aria-label="诊断管理工具" value={driver} onChange={event => setDriver(event.target.value)}>
+            <option value="auto">自动选择</option>
             <option value="firewalld">firewalld</option>
             <option value="nftables">nftables</option>
             <option value="iptables">iptables</option>
           </select>
-        </Field>}
+        </Field></details>}
       />
       <form onSubmit={diagnose}>
         <div className="form-grid">

@@ -172,7 +172,7 @@ function FirewallDiagnosticFacts({ data }: { data: Dict }) {
               ruleZone,
               ruleCategory: category,
             });
-            return <a className="table-link" href={`/?${params}`} target="_blank" rel="noopener noreferrer">{name}</a>;
+            return <a className="table-link diagnostic-rule-link" href={`/?${params}`} target="_blank" rel="noopener noreferrer">{name}</a>;
           } },
           { key: "action", label: "动作", render: row => text(row.action) },
           { key: "range", label: "匹配范围", render: row => `${text(row.source || "任意来源")} → ${text(row.destination || "任意目标")}${row.port ? ` · ${text(row.port)}` : ""}` },
@@ -283,7 +283,7 @@ export function DiagnosticReport({
           原因：{String(d.test_error || d.error)}
         </p>
       )}
-      <details open>
+      <details className="disclosure-stack" open>
         <summary>执行日志</summary>
         <pre className="diagnostic-steps">
           {Array.isArray(d.steps) && d.steps.length
@@ -291,7 +291,7 @@ export function DiagnosticReport({
             : "此历史记录未保存逐步日志；可重新执行获取。"}
         </pre>
       </details>
-      <details>
+      <details className="disclosure-stack">
         <summary>原始结果</summary>
         <JsonDetails data={d} />
       </details>

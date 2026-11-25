@@ -9,6 +9,7 @@ import { ActionMenu } from "./action_menu";
 import { ExportButton, useRowSelection } from "./resource_controls";
 import type { Act } from "./nodes";
 
+const policyTargets: Record<string, string> = { ACCEPT: "允许", DROP: "丢弃", REJECT: "拒绝", CONTINUE: "继续匹配" };
 const actions: Record<string,string> = {accept:"允许",drop:"丢弃",reject:"拒绝并回应"};
 export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule = ""}: {
   linkedRule?: string;
@@ -34,10 +35,15 @@ export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule =
   }
   const columns:Column<Dict>[]=[
     {key:"priority",label:"优先级",heading:<SortHeading label="优先级" direction={priorityOrder} onClick={()=>setPriorityOrder(v=>-v)} />,render:r=>text(r.priority)},
-    {key:"name",label:"规则名称",render:r=><><strong>{text(r.name||r.policy_name)}</strong><small>{r.managed?"本应用管理":"系统 / 外部 · 只读"}</small></>},
-    {key:"source",label:"入口区域 / IP",render:r=><><strong>{text(r.ingress_zone)}</strong><small>{text(r.source)}</small></>},
-    {key:"destination",label:"出口区域 / IP",render:r=><><strong>{text(r.egress_zone)}</strong><small>{text(r.destination)}</small></>},
-    {key:"protocol",label:"协议 / 端口 / 动作",render:r=>r.managed?`${text(r.protocol)}${r.port?" / "+text(r.port):""} · ${actions[text(r.action)]||text(r.action)}`:"查看详情"},
+    {key:"name",label:"规则名称",render:r=><><strong>{text(r.name||r.policy_name||r.chain)}</strong><small>{r.managed?"本应用管理":"系统 / 外部 · 只读"}</small></>},
+    {key:"source",label:"入口区域 / IP",render:r=><><strong>{text(r.ingress_zone)}</strong><small>{[r.in_interface, r.source].filter(Boolean).join(" · ") || "未指定源 IP"}</small></>},
+    {key:"destination",label:"出口区域 / IP",render:r=><><strong>{text(r.egress_zone)}</strong><small>{[r.out_interface, r.destination].filter(Boolean).join(" · ") || "未指定目标 IP"}</small></>},
+    {key:"protocol",label:"协议 / 端口 / 动作",render:r=><>
+      <strong>{[r.protocol === "all" ? "全部协议" : r.protocol, r.port,
+        r.action ? actions[text(r.action)] || text(r.action) : r.policy_target ? policyTargets[text(r.policy_target)] || text(r.policy_target) : "动作未解析"].filter(Boolean).join(" · ")}</strong>
+      {r.masquerade === true && <small>已启用地址伪装</small>}
+      {Array.isArray(r.policy_rules) && r.policy_rules.length > 0 && <small>{r.policy_rules.length} 条富规则</small>}
+    </>},
     {key:"state",label:"状态 / 配置",render:r=><><span className={!r.enabled?"muted":r.managed&&!r.runtime?"fair":"accent"}>{r.managed?(r.enabled?(r.runtime?"已生效":"待生效"):"配置停用"):(r.enabled?"启用":"停用")}</span><small>{r.runtime?"运行时已载入":"运行时未同步"} · {r.permanent?"永久已保存":"永久未保存"}{r.drift?" · 存在差异":""}</small></>},
     {key:"actions",label:"操作",render:r=><div className="row-actions"><Button size="compact" onClick={()=>setDetail(r)}>详情</Button>{!!r.managed&&<><Button size="compact" disabled={!complete} onClick={()=>start("replace",r)}>编辑</Button><Button size="compact" disabled={!complete} onClick={()=>start("replace",{...r,enabled:!r.enabled})}>{r.enabled?"停用":"启用"}</Button><Button size="compact" variant="danger" disabled={!complete} onClick={()=>start("delete",r)}>删除</Button></>}</div>},
   ];

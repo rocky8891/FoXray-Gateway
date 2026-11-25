@@ -316,7 +316,7 @@ func (n *Network) CrossZoneSnapshot(contexts ...context.Context) M {
 	for name, p := range live {
 		if !owned[name] {
 			_, permanent := saved[name]
-			rows = append(rows, M{"id": "external-" + name, "policy_name": name, "name": name, "managed": false, "priority": p.Priority, "ingress_zone": strings.Join(p.Ingress, ", "), "egress_zone": strings.Join(p.Egress, ", "), "runtime": runtimeNames[name], "permanent": permanent, "runtime_raw": live[name], "permanent_raw": saved[name], "enabled": !p.Disabled && (len(p.Rules) > 0 || p.Target != "CONTINUE" || p.Extra)})
+			rows = append(rows, M{"id": "external-" + name, "policy_name": name, "name": name, "managed": false, "priority": p.Priority, "policy_target": p.Target, "policy_rules": p.Rules, "masquerade": p.Masquerade, "ingress_zone": strings.Join(p.Ingress, ", "), "egress_zone": strings.Join(p.Egress, ", "), "runtime": runtimeNames[name], "permanent": permanent, "runtime_raw": live[name], "permanent_raw": saved[name], "enabled": !p.Disabled && (len(p.Rules) > 0 || p.Target != "CONTINUE" || p.Extra)})
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool { return str(rows[i]["policy_name"]) < str(rows[j]["policy_name"]) })

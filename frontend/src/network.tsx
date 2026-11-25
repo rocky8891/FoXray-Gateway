@@ -1394,17 +1394,17 @@ function WireGuardPeerProbeEditor({ name, peer, routing, table, saved, onChange 
       setTesting(false);
     }
   }
-  return <details className="wg-peer-probe-editor">
+  return <details className="wg-peer-probe-editor disclosure-stack">
     <summary>状态探测{probe.enabled === true ? " · 已启用" : ""}</summary>
     <label className="check"><input type="checkbox" checked={probe.enabled === true}
       onChange={event => onChange({ ...probe, enabled: event.target.checked, auto_withdraw: event.target.checked && probe.auto_withdraw === true })}/>
       启用主动探测
     </label>
     <div className="wg-peer-probe-controls">
-      <Field label="探测目标 IP" hint="推荐对端隧道 IP，也可填写经该 Peer 可达的远端主机 IP">
+      <Field label="探测目标 IP">
         <input value={target} onChange={event => onChange({ ...probe, target: event.target.value.trim(), auto_withdraw: false })}/>
       </Field>
-      <Button size="regular" disabled={!saved || !target || testing} onClick={() => void test()}>{testing ? "探测中" : "测试探测"}</Button>
+      <Button size="regular" disabled={!saved || !target || testing} onClick={() => void test()}>{testing ? "测试中…" : "测试"}</Button>
     </div>
     {!saved && <p className="hint">保存并启用 Peer 后可测试当前路径。</p>}
     {applicable && <p role="status">{applicable.message}</p>}

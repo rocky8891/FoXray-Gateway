@@ -7135,3 +7135,12 @@ header .brand{align-items:center}header .brand .brand-logo{width:44px;height:44p
 
 .settings-foxray-logo { display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .settings-foxray-logo > svg { width: 27px !important; height: 29px !important; flex: none; overflow: visible; }
+
+.disclosure-stack > summary { line-height: 1.5; cursor: pointer; }
+.disclosure-stack[open] > summary { margin-block-end: 8px; }
+.disclosure-stack > :is(.details-with-copy, .diagnostic-steps, .field) { margin-block-start: 0; }
+.diagnostic-rule-link { text-decoration-skip-ink: none; text-underline-offset: .18em; }
+.wg-peer-probe-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.wg-peer-probe-controls > .field { margin: 0; }
+.wg-peer-probe-controls > .button { justify-self: start; }
+@media (max-width: 599px) { .wg-peer-probe-controls { grid-template-columns: minmax(0, 1fr) auto; } }
