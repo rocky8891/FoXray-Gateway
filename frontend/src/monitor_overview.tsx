@@ -787,8 +787,8 @@ export function ServiceOverviewCards({
                   <div className="service-connection-identity">
                     {suffix && (
                       <>
-                        <span className="service-connection-endpoint" title={`${name} · ${suffix}`}>
-                          {name} · {suffix}
+                        <span className="service-connection-endpoint" title={`${suffix} · ${name}`}>
+                          {suffix} · {name}
                         </span>
                         <span aria-hidden="true">·</span>
                       </>
@@ -826,12 +826,14 @@ export function ServiceOverviewCards({
         const samples = list(record(wgDelay.data?.series)[id]);
         const peer = record(record(record(connections.wireguard).nodes)[id]);
         const ready = wgOn && !!row.active;
-        const enabledPeers = list(row.peers).filter(peer => !peer.disabled);
+        const peers = list(row.peers);
+        const enabledPeers = peers.filter(peer => !peer.disabled);
         const latestPeer = row.active ? enabledPeers.reduce<Dict | undefined>((latest, peer) => {
           const handshake = Number(peer.handshake);
           return Number.isFinite(handshake) && handshake > Number(latest?.handshake || 0) ? peer : latest;
         }, undefined) : undefined;
         const endpointPeer = latestPeer ?? (enabledPeers.length === 1 ? enabledPeers[0] : undefined);
+        const peerNumber = endpointPeer ? peers.indexOf(endpointPeer) + 1 : 0;
         const endpoint = String(endpointPeer?.endpoint || "");
         const handshake = latestPeer ? new Date(Number(latestPeer.handshake) * 1000) : null;
         return (
@@ -850,7 +852,14 @@ export function ServiceOverviewCards({
               tone={ready ? "accent" : "muted"}
               identityBeforeStatus={
                 <div className="service-wg-peer-identity">
-                  {endpoint && endpoint !== "(none)" && <span title={`Endpoint ${endpoint}`}>{endpoint}</span>}
+                  {peerNumber > 0 && <span>Peer {peerNumber}</span>}
+                  {peerNumber > 0 && endpoint && endpoint !== "(none)" && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span className="service-connection-endpoint" title={`Endpoint ${endpoint}`}>{endpoint}</span>
+                    </>
+                  )}
+                  {peerNumber > 0 && <span aria-hidden="true">·</span>}
                   {handshake ? (
                     <time dateTime={handshake.toISOString()} title={`最近握手 ${handshake.toLocaleString()}`}>
                       最近握手 {handshake.toLocaleTimeString()}

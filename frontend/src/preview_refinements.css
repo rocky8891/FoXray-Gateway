@@ -1719,11 +1719,7 @@ main[data-module-page] > :is(.module-page, .module-service-settings) > .panel:nt
   font-size: 11px;
   white-space: nowrap;
 }
-.service-wg-peer-identity > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.service-wg-peer-identity > time { flex: none; }
+.service-wg-peer-identity > :not(.service-connection-endpoint) { flex: none; }
 
 .service-connection-identity {
   display: flex;
