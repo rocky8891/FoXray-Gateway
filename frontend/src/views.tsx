@@ -1,3 +1,4 @@
+import { PageBackgroundSettings } from "./page_background";
 import { HomeHeaderToggleIcon } from "./home_header";
 import { AdaptiveSearch } from "./adaptive_search";
 import { Search } from "lucide-react";
@@ -2264,9 +2265,10 @@ function ManagerServicePanel({ state, act }: { state: State; act: Act }) {
 
 export function Settings({ state, act }: { state: State; act: Act }) {
   return (
-    <SettingsSaveProvider expected={6}>
+    <SettingsSaveProvider expected={7}>
       <ManagerServicePanel state={state} act={act} />
       <PageWidthSettings act={act} />
+      <PageBackgroundSettings />
       <DisplaySettings act={act} />
       <ModuleSettings state={state} act={act} />
     </SettingsSaveProvider>

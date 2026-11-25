@@ -1,3 +1,4 @@
+import { applyPageBackground } from "./page_background";
 import { SettingsIcon } from "./requirement_icons";
 import { ThemedSelects } from "./themed_selects";
 import { useOverviewRandomTheme } from "./overview_random_theme";
@@ -708,4 +709,5 @@ function App() {
     </HomeHeaderContext.Provider>
   );
 }
+applyPageBackground();
 createRoot(document.getElementById("root")!).render(<App />);

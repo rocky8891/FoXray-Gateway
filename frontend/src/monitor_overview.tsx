@@ -787,9 +787,9 @@ export function ServiceOverviewCards({
                   <div className="service-connection-identity">
                     {suffix && (
                       <>
-                        <span className="service-connection-endpoint" title={`${suffix} · ${name}`}>
-                          {suffix} · {name}
-                        </span>
+                        <span>{suffix}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="service-connection-endpoint" title={name}>{name}</span>
                         <span aria-hidden="true">·</span>
                       </>
                     )}
@@ -851,7 +851,7 @@ export function ServiceOverviewCards({
               status={!wgOn ? "监控已关闭" : ready ? "接口已启动" : "接口已停止"}
               tone={ready ? "accent" : "muted"}
               identityBeforeStatus={
-                <div className="service-wg-peer-identity">
+                <div className="service-connection-identity">
                   {peerNumber > 0 && <span>Peer {peerNumber}</span>}
                   {peerNumber > 0 && endpoint && endpoint !== "(none)" && (
                     <>

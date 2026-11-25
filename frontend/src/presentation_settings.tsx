@@ -1,3 +1,4 @@
+import { PageBackgroundSettings } from "./page_background";
 import { NodeVisibilityPicker } from "./node_visibility_picker";
 import { hasChanges } from "./settings_save";
 import { SettingInfo } from "./ui";
@@ -131,6 +132,7 @@ export function PresentationSettings({
     <>
       <GlobalPresentationSettings act={act} />
       <PageWidthSettings act={act} />
+      <PageBackgroundSettings />
       <ClockSettings act={act} />
     </>
   );

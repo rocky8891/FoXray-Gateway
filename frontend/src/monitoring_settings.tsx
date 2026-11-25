@@ -292,7 +292,7 @@ export function MonitoringSettings({
 
 export function GlobalMonitoringSettings({ act }: { act: Act }) {
   return (
-    <SettingsSaveProvider expected={5}>
+    <SettingsSaveProvider expected={6}>
       <PresentationSettings act={act} />
       <DisplaySettings act={act} />
       <DataPolicyCard module="all" kind="" title="监控数据默认设置" act={act} />
