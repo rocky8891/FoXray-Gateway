@@ -513,6 +513,16 @@ export function FirewallPage({ act }: { act: Act }) {
         </span>
       ),
     });
+  if (all.some(r => r.native_summary || r.kind === "system"))
+    columns.push({
+      key: "native_summary",
+      label: "原生规则内容",
+      render: (r) => {
+        const summary = String(r.native_summary || "");
+        if (!summary && r.kind !== "system") return "—";
+        return <span title={summary}>{summary ? (summary.length > 100 ? `${summary.slice(0, 100)}…` : summary) : "查看原始规则"}</span>;
+      },
+    });
   if (native)
     columns.push({
       key: "packets",
@@ -965,6 +975,13 @@ export function FirewallPage({ act }: { act: Act }) {
           wide
         >
           <FirewallRuleSummary value={record(detail)} />
+          {!!record(detail).native_summary && <p>{text(record(detail).native_summary)}</p>}
+          {record(detail).editable === false && !!record(detail).table && !!record(detail).raw && (
+            <details>
+              <summary>原始规则</summary>
+              <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{text(record(detail).raw)}</pre>
+            </details>
+          )}
         </Modal>
       )}
     </>

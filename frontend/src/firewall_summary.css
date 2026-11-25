@@ -15,13 +15,15 @@
   min-width: 0;
 }
 .firewall-scope-fields > .field {
-  flex: 0 1 220px;
+  flex: 0 1 auto;
+  max-width: 100%;
   min-width: 0;
   margin: 0;
 }
 .firewall-scope-fields > .field:first-child { flex: 0 0 auto; max-width: 100%; }
-.firewall-scope-fields .firewall-driver-select {
-  width: var(--select-content-width, 10.5rem);
+.firewall-scope-fields select[data-compact-select] {
+  width: var(--select-content-width);
+  min-width: 0;
   box-sizing: border-box;
   max-width: 100%;
 }
@@ -42,7 +44,7 @@
 .firewall-workspace .firewall-service-bar{padding:0 0 18px}
 .firewall-workspace .firewall-scope-bar{padding:14px 18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--card)}
 .firewall-workspace .firewall-scope-fields>.field{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:10px}
-.firewall-workspace .firewall-scope-fields>.field:has(.firewall-driver-select){grid-template-columns:auto minmax(0,max-content)}
+.firewall-workspace .firewall-scope-fields>.field { grid-template-columns: auto minmax(0,max-content); }
 .firewall-workspace .firewall-scope-fields .field-title{padding-inline:0!important;white-space:nowrap;align-self:center!important}
 .firewall-overview-grid{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(0,1.65fr);gap:16px;margin:16px 0}
 .firewall-layout-section{min-width:0;padding:16px 18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--card)}

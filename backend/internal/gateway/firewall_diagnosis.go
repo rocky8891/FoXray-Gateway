@@ -112,7 +112,7 @@ func firewallFlowCandidates(rows []any, f firewallFlow, driver string) ([]M, []s
 		if yes(r["partial_runtime"]) || r["editable"] == false || (str(r["service"]) != "" && !yes(r["service_verified"])) || str(r["action_rate"]) != "" {
 			evidence = "需核对完整条件或运行时副本"
 		}
-		row := M{"id": r["id"], "name": firstNonempty(str(r["name"]), str(r["service"]), str(r["id"])), "kind": kind, "action": r["action"], "priority": r["priority"], "chain": r["chain"], "table": r["table"], "source": r["source"], "destination": r["destination"], "protocol": r["protocol"], "port": r["port"], "target_ip": r["target_ip"], "target_port": r["target_port"], "to_source": r["to_source"], "out_interface": r["out_interface"], "storage": r["storage"], "raw": r["raw"], "permanent": yes(r["permanent"]), "runtime_only": driver == "firewalld" && !yes(r["permanent"]) && !yes(r["partial_permanent"]), "evidence": evidence, "policy": r["policy_name"]}
+		row := M{"id": r["id"], "name": firstNonempty(str(r["name"]), str(r["service"]), str(r["id"])), "kind": kind, "action": r["action"], "priority": r["priority"], "chain": r["chain"], "table": r["table"], "source": r["source"], "destination": r["destination"], "protocol": r["protocol"], "port": r["port"], "target_ip": r["target_ip"], "target_port": r["target_port"], "to_source": r["to_source"], "out_interface": r["out_interface"], "storage": r["storage"], "raw": r["raw"], "permanent": yes(r["permanent"]), "runtime_only": driver == "firewalld" && !yes(r["permanent"]) && !yes(r["partial_permanent"]), "evidence": evidence, "policy": r["policy_name"], "zone": r["zone"]}
 		candidates = append(candidates, row)
 	}
 	if driver == "firewalld" {

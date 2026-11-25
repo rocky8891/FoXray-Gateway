@@ -7089,5 +7089,49 @@ header .brand{align-items:center}header .brand .brand-logo{width:44px;height:44p
 
 .brand h1>.brand-name-x{color:#ff8033}
 
-.wg-peer-status-line{display:block;border:0;padding:2px 0;background:none;color:var(--accent);font:inherit;text-align:left;cursor:pointer;white-space:nowrap}
-.wg-peer-status-line:hover{text-decoration:underline}
+.wg-peer-status-entry + .wg-peer-status-entry {
+  margin-block-start: 8px;
+}
+.wg-peer-status-line {
+  display: block;
+  border: 0;
+  padding: 2px 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.wg-peer-status-line:hover {
+  text-decoration: underline;
+}
+.wg-peer-status-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.wg-peer-status-times > span {
+  color: inherit;
+  white-space: nowrap;
+}
+.wg-peer-probe-editor {
+  margin-block: 12px;
+}
+.wg-peer-probe-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  margin-block: 8px;
+}
+.wg-peer-actions {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-foxray-logo { display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.settings-foxray-logo > svg { width: 27px !important; height: 29px !important; flex: none; overflow: visible; }

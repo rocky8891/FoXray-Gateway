@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -40,6 +41,7 @@ func iptablesInventory(raw, family string, owned map[string]bool) []M {
 		}
 		row := nativeInventoryRow("iptables", family, table, fields[1], line)
 		row["priority"] = positions[chainKey]
+		row["native_summary"] = strings.Join(fields[2:], " ")
 		negate := false
 		for i := 2; i < len(fields); i++ {
 			if fields[i] == "!" {
@@ -114,11 +116,12 @@ func nftablesInventory(raw string, owned map[string]bool, counters map[string]M)
 		row := nativeInventoryRow("nftables", str(rule["family"]), table, str(rule["chain"]), string(ruleJSON))
 		row["handle"] = rule["handle"]
 		row["priority"] = chainPriorities[[3]string{str(rule["family"]), table, str(rule["chain"])}]
+		summary := []string{}
 		for _, expression := range arr(rule["expr"]) {
 			expr := obj(expression)
 			if counter := obj(expr["counter"]); len(counter) > 0 {
 				row["packets"], row["bytes"] = counter["packets"], counter["bytes"]
-				if owned[table] {
+				if owned[table] && counters != nil {
 					if counters[table] == nil {
 						counters[table] = M{}
 					}
@@ -126,6 +129,7 @@ func nftablesInventory(raw string, owned map[string]bool, counters map[string]M)
 					c["packets"], c["bytes"] = num(c["packets"])+num(counter["packets"]), num(c["bytes"])+num(counter["bytes"])
 				}
 			}
+			summary = append(summary, nftInventorySummary(expr)...)
 			for _, action := range []string{"accept", "drop", "reject", "jump", "goto", "return", "masquerade", "snat", "dnat", "redirect"} {
 				if _, ok := expr[action]; ok {
 					row["action"] = action
@@ -191,11 +195,75 @@ func nftablesInventory(raw string, owned map[string]bool, counters map[string]M)
 				row["port"], row["protocol"] = right, payload["protocol"]
 			}
 		}
+		if comment := str(rule["comment"]); comment != "" {
+			summary = append(summary, "comment "+comment)
+		}
+		row["native_summary"] = strings.Join(summary, " · ")
 		if !owned[table] {
 			rows = append(rows, row)
 		}
 	}
 	return rows, nil
+}
+
+// Keep nft expressions visible even when the structured columns cannot
+// represent their semantics (for example named sets or verdict maps).
+func nftInventorySummary(expr M) []string {
+	keys := make([]string, 0, len(expr))
+	for key := range expr {
+		if key != "counter" {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	result := make([]string, 0, len(keys))
+	for _, key := range keys {
+		value := expr[key]
+		if match := obj(value); key == "match" && len(match) > 0 {
+			result = append(result, strings.Join([]string{nftInventoryValue(match["left"]), str(match["op"]), nftInventoryValue(match["right"])}, " "))
+		} else if value == nil {
+			result = append(result, key)
+		} else if target := str(obj(value)["target"]); (key == "jump" || key == "goto") && target != "" {
+			result = append(result, key+" "+target)
+		} else {
+			result = append(result, key+" "+nftInventoryValue(value))
+		}
+	}
+	if len(result) == 0 && expr["counter"] != nil {
+		result = append(result, "counter")
+	}
+	return result
+}
+
+func nftInventoryValue(value any) string {
+	switch typed := value.(type) {
+	case string, float64:
+		return strOrNumber(typed)
+	case map[string]any:
+		if port := obj(typed["payload"]); str(port["protocol"]) != "" && str(port["field"]) != "" {
+			return str(port["protocol"]) + " " + str(port["field"])
+		}
+		for _, object := range []string{"meta", "ct"} {
+			if fields := obj(typed[object]); len(fields) == 1 && str(fields["key"]) != "" {
+				return object + " " + str(fields["key"])
+			}
+		}
+		if prefix := obj(typed["prefix"]); str(prefix["addr"]) != "" && prefix["len"] != nil {
+			return str(prefix["addr"]) + "/" + strOrNumber(prefix["len"])
+		}
+		if items := arr(typed["range"]); len(items) == 2 {
+			return nftInventoryValue(items[0]) + "–" + nftInventoryValue(items[1])
+		}
+		if items, ok := typed["set"].([]any); ok {
+			values := make([]string, 0, len(items))
+			for _, item := range items {
+				values = append(values, nftInventoryValue(item))
+			}
+			return "{" + strings.Join(values, ", ") + "}"
+		}
+	}
+	encoded, _ := json.Marshal(value)
+	return string(encoded)
 }
 
 func identifyNativeRows(rows []M) []M {

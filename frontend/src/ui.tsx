@@ -956,7 +956,7 @@ export function Table<T>({
   const offset = paginate ? pagination.start : 0;
   const tableRef = useRef<HTMLTableElement>(null);
   const widthKey = columnSizingKey ?? columns.map(column => column.key + "=" + column.label).join("|");
-  const sizing = useTableColumnSizing(tableRef, columns, rows, pagination.start + ":" + pagination.pageSize, widthKey);
+  const sizing = useTableColumnSizing(tableRef, columns, widthKey);
   const [widthSlot, setWidthSlot] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
     const scope = tableRef.current?.closest("dialog, main");

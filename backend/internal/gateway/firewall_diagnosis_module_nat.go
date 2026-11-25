@@ -10,21 +10,37 @@ import (
 // WireGuard and WARP helpers. Report partial evidence for other expressions.
 func moduleSNATCandidates(raw string, flow firewallFlow, device string) []M {
 	var snapshot struct {
-		Entries []M `json:"nftables"`
+		Entries []map[string]json.RawMessage `json:"nftables"`
 	}
 	if json.Unmarshal([]byte(raw), &snapshot) != nil {
 		return nil
 	}
+	// Reuse the rule identities in the read-only inventory so the report
+	// can link to the exact row, including rules with identical conditions.
+	links := map[string][]M{}
+	if rows, err := nftablesInventory(raw, nil, nil); err == nil {
+		for _, row := range firewallOriginRows(rows) {
+			key := str(row["raw"])
+			links[key] = append(links[key], row)
+		}
+	}
 	priorities := map[[3]string]any{}
 	for _, entry := range snapshot.Entries {
-		chain := obj(entry["chain"])
+		var chain M
+		if json.Unmarshal(entry["chain"], &chain) != nil {
+			continue
+		}
 		if str(chain["hook"]) == "postrouting" && str(chain["type"]) == "nat" {
 			priorities[[3]string{str(chain["family"]), str(chain["table"]), str(chain["name"])}] = chain["prio"]
 		}
 	}
 	var result []M
 	for _, entry := range snapshot.Entries {
-		rule := obj(entry["rule"])
+		ruleJSON := entry["rule"]
+		var rule M
+		if json.Unmarshal(ruleJSON, &rule) != nil {
+			continue
+		}
 		family, table, chain := str(rule["family"]), str(rule["table"]), str(rule["chain"])
 		priority, present := priorities[[3]string{family, table, chain}]
 		if !present || !flow.source.Is4() || (family != "ip" && family != "inet") {
@@ -97,7 +113,14 @@ func moduleSNATCandidates(raw string, flow firewallFlow, device string) []M {
 			evidence = "运行时 POSTROUTING 条件相符，实际转换待验证"
 		}
 		data, _ := json.Marshal(rule)
-		result = append(result, M{"name": origin + " · " + table, "kind": "masquerade", "action": "masquerade", "out_interface": device, "priority": priority, "chain": chain, "table": table, "raw": string(data), "evidence": evidence})
+		candidate := M{"name": origin + " · " + table, "kind": "masquerade", "action": "masquerade", "out_interface": device, "priority": priority, "chain": chain, "table": table, "raw": string(data), "evidence": evidence}
+		key := string(ruleJSON)
+		if matching := links[key]; len(matching) > 0 {
+			candidate["id"] = matching[0]["id"]
+			candidate["rule_origin"] = matching[0]["rule_origin"]
+			links[key] = matching[1:]
+		}
+		result = append(result, candidate)
 	}
 	sort.SliceStable(result, func(i, j int) bool { return num(result[i]["priority"]) < num(result[j]["priority"]) })
 	return result

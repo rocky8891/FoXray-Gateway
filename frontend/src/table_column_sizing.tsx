@@ -13,18 +13,16 @@ function load(key: string): Widths {
     return Object.fromEntries(Object.entries(value).filter(([, width]) => typeof width === "number" && Number.isFinite(width)) as [string, number][]);
   } catch { return {}; }
 }
-function naturalWidth(element: HTMLElement) {
+function measurementClone(element: HTMLElement) {
   const clone = element.cloneNode(true) as HTMLElement;
+  clone.removeAttribute("id");
   clone.querySelectorAll("[id]").forEach(e => e.removeAttribute("id"));
   clone.setAttribute("aria-hidden", "true");
   Object.assign(clone.style, { position: "fixed", left: "-100000px", top: "0", width: "max-content", minWidth: "0", maxWidth: "none", height: "auto", visibility: "hidden", display: "inline-block", whiteSpace: "nowrap", overflow: "visible" });
-  element.parentElement!.appendChild(clone);
-  const width = clone.getBoundingClientRect().width;
-  clone.remove();
-  return width;
+  return clone;
 }
 
-export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null>, columns: Column<T>[], rows: unknown, pageKey: string, storageKey?: string) {
+export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null>, columns: Column<T>[], storageKey?: string) {
   const enabled = !!storageKey, key = "foxray.column-widths.v1." + storageKey;
   const [saved, setSaved] = useState(() => ({ key, widths: load(key) }));
   const [sizes, setSizes] = useState<Record<string, Size>>({});
@@ -40,46 +38,87 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
       else localStorage.removeItem(key);
     } catch { /* Resizing still works when browser storage is unavailable. */ }
   }, [saved, key, enabled]);
-  // Measure the rendered page, including sort/filter controls, in the active font.
+  const measured = useRef<{ table: HTMLTableElement; signature: string } | null>(null);
+  const [fontRevision, setFontRevision] = useState(0);
+
   useLayoutEffect(() => {
-    if (!enabled || !table.current) return;
-    let disposed = false;
-    const measure = () => {
-      const wrap = table.current?.parentElement;
-      if (wrap) {
-        const css = getComputedStyle(wrap);
-        const width = Math.floor(wrap.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight));
-        setAvailable(old => old === width ? old : width);
-      }
-      const next: Record<string, Size> = {};
-      table.current?.querySelectorAll<HTMLElement>("thead th[data-column]").forEach((th, index) => {
-        const column = columns[index], heading = th.querySelector<HTMLElement>(".adaptive-column-heading");
-        if (!column || !heading) return;
-        const css = getComputedStyle(th), padding = parseFloat(css.paddingLeft) + parseFloat(css.paddingRight);
-        const min = Math.ceil(naturalWidth(heading) + padding + (fixedEdge(column) ? 0 : 14));
-        const max = Math.max(min, column.maxWidth || 480);
-        let content = min;
-        table.current?.querySelectorAll<HTMLTableRowElement>("tbody tr").forEach(row => {
-          const cell = row.cells[index];
-          if (cell?.dataset.column !== column.key) return;
-          const body = cell.querySelector<HTMLElement>(".adaptive-cell-content");
-          if (body) {
-            const cellStyle = getComputedStyle(cell);
-            const cellPadding = parseFloat(cellStyle.paddingLeft) + parseFloat(cellStyle.paddingRight);
-            content = Math.max(content, naturalWidth(body) + cellPadding);
-          }
-        });
-        const size = { min, max: fixedEdge(column) || column.fitContent ? Math.max(max, Math.ceil(content)) : max, auto: 0 };
-        size.auto = clamp(Math.ceil(content), size); next[column.key] = size;
-      });
-      setSizes(old => JSON.stringify(old) === JSON.stringify(next) ? old : next);
+    const wrap = table.current?.parentElement;
+    if (!enabled || !wrap) return;
+    const updateWidth = () => {
+      const css = getComputedStyle(wrap);
+      const width = Math.floor(wrap.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight));
+      setAvailable(old => old === width ? old : width);
     };
-    measure();
-    document.fonts?.ready.then(() => { if (!disposed && table.current) measure(); });
-    const observer = new ResizeObserver(measure);
-    if (table.current.parentElement) observer.observe(table.current.parentElement);
-    return () => { disposed = true; observer.disconnect(); };
-  }, [enabled, columns, rows, pageKey, key, table]);
+    const fontsChanged = () => setFontRevision(value => value + 1);
+    const observer = new ResizeObserver(updateWidth);
+    updateWidth();
+    observer.observe(wrap);
+    document.fonts?.addEventListener("loadingdone", fontsChanged);
+    return () => {
+      observer.disconnect();
+      document.fonts?.removeEventListener("loadingdone", fontsChanged);
+    };
+  }, [enabled, key, table]);
+
+  useLayoutEffect(() => {
+    const current = table.current;
+    if (!enabled || !current) {
+      measured.current = null;
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      const bodyRows = [...current.querySelectorAll<HTMLTableRowElement>("tbody tr")];
+      const groups = [...current.querySelectorAll<HTMLElement>("thead th[data-column]")].flatMap((th, index) => {
+        const column = columns[index];
+        const heading = th.querySelector<HTMLElement>(".adaptive-column-heading");
+        if (!column || !heading) return [];
+        const bodies = bodyRows.flatMap(row => {
+          const cell = row.cells[index];
+          const body = cell?.dataset.column === column.key && cell.querySelector<HTMLElement>(".adaptive-cell-content");
+          return body ? [body] : [];
+        });
+        return [{ column, heading, bodies }];
+      });
+      const style = getComputedStyle(current);
+      const signature = JSON.stringify([key, fontRevision, available, style.font, style.letterSpacing,
+        groups.map(({ column, heading, bodies }) => [column.key, column.maxWidth, column.fitContent,
+          heading.innerHTML, bodies.map(body => [body.parentElement?.className, body.innerHTML])]),
+      ]);
+      if (measured.current?.table === current && measured.current.signature === signature) return;
+
+      const next: Record<string, Size> = {};
+      const padding = (cell: HTMLElement) => {
+        const css = getComputedStyle(cell);
+        return parseFloat(css.paddingLeft) + parseFloat(css.paddingRight);
+      };
+      const samples = groups.map(({ column, heading, bodies }) => ({
+        column,
+        items: [heading, ...bodies].map(element => ({
+          parent: element.parentElement!,
+          padding: padding(element.parentElement!),
+          clone: measurementClone(element),
+        })),
+      }));
+      // Keep the table's CSS context and batch DOM writes before layout reads.
+      for (const { items } of samples) for (const item of items) item.parent.appendChild(item.clone);
+      try {
+        for (const { column, items } of samples) {
+          const widths = items.map(item => item.clone.getBoundingClientRect().width + item.padding);
+          const min = Math.ceil(widths[0] + (fixedEdge(column) ? 0 : 14));
+          const content = Math.ceil(Math.max(min, ...widths.slice(1)));
+          const max = Math.max(min, column.maxWidth || 480, fixedEdge(column) || column.fitContent ? content : 0);
+          const size = { min, max, auto: 0 };
+          size.auto = clamp(content, size);
+          next[column.key] = size;
+        }
+      } finally {
+        for (const { items } of samples) for (const item of items) item.clone.remove();
+      }
+      measured.current = { table: current, signature };
+      setSizes(old => JSON.stringify(old) === JSON.stringify(next) ? old : next);
+    });
+    return () => cancelAnimationFrame(frame);
+  });
   const size = (column: Column<T>): Size => sizes[column.key] || { min: 64, max: column.maxWidth || 480, auto: 140 };
   const fitted = fitColumnWidths(columns.map(c => ({key:c.key,...size(c),manual:fixedEdge(c) ? undefined : manual[c.key],fitContent:fixedEdge(c) || c.fitContent})), available);
   const width = (column: Column<T>) => fitted[column.key];

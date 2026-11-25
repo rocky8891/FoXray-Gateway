@@ -1,6 +1,6 @@
 import { useLayoutEffect } from "react";
 const selector =
-  ".overview-page :is(.overview-heading-row,.chart-title-controls) select, select.firewall-driver-select";
+  ".overview-page :is(.overview-heading-row,.chart-title-controls) select,  .firewall-scope-fields select";
 export function useCompactSelects() {
   useLayoutEffect(() => {
     const context = document.createElement("canvas").getContext("2d");
@@ -22,14 +22,14 @@ export function useCompactSelects() {
         }
       for (const el of current) {
         const style = getComputedStyle(el),
-          fitOptions = el.classList.contains("firewall-driver-select"),
+          fitOptions = !!el.closest(".firewall-scope-fields"),
           labels = fitOptions ? Array.from(el.options, option => option.label) : [el.selectedOptions[0]?.label || ""],
           font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`,
           gap = parseFloat(style.letterSpacing) || 0,
-          padding = fitOptions ? parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 8 : 32,
+          padding = fitOptions ? parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 2 : 32,
           key = font + "|" + gap + "|" + padding + "|" + labels.join("\n");
-        el.dataset.compactSelect = "true";
         if (cache.get(el) === key) continue;
+        el.dataset.compactSelect = "true";
         context.font = font;
         const width = Math.ceil(
           Math.max(0, ...labels.map(label => context.measureText(label).width + (fitOptions ? Math.max(0, gap) * label.length : 0))) +

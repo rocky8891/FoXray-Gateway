@@ -1,6 +1,9 @@
 package gateway
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNativeRuleInventoryKeepsSystemRulesReadOnly(t *testing.T) {
 	raw := "*filter\n:FORWARD ACCEPT [0:0]\n-A FORWARD -j OWNED\n-A OWNED -j ACCEPT\n-A FORWARD -s 192.0.2.0/24 -d 198.51.100.0/24 -m comment --comment \"test -j DROP\" -j ACCEPT\n-A FORWARD -i wg-test -j DROP\nCOMMIT\n"
@@ -37,5 +40,24 @@ func TestIPTablesPriorityUsesPositionAmongManagedJumps(t *testing.T) {
 	position, err = a.network.nativeIPJumpIndex(firstRule, true, false)
 	if err != nil || position != 1 {
 		t.Fatalf("rollback must restore original position: %d, %v", position, err)
+	}
+}
+
+func TestNativeInventorySummarizesUnprojectedConditions(t *testing.T) {
+	ipt := "*filter\n-A FORWARD -m conntrack --ctstate INVALID -j LOG --log-prefix \"invalid packet\"\nCOMMIT\n"
+	rows := iptablesInventory(ipt, "ipv4", nil)
+	if len(rows) != 1 || !strings.Contains(str(rows[0]["native_summary"]), `--ctstate INVALID -j LOG --log-prefix "invalid packet"`) || yes(rows[0]["editable"]) {
+		t.Fatal(rows)
+	}
+
+	nft := `{"nftables":[{"rule":{"family":"inet","table":"external","chain":"forward","handle":22,"expr":[{"match":{"op":"!=","left":{"meta":{"key":"iifname"}},"right":{"set":["lan0","lan1"]}}},{"match":{"op":"==","left":{"ct":{"key":"state"}},"right":"invalid"}},{"log":{"prefix":"invalid packet"}}]}}]}`
+	rows, err := nftablesInventory(nft, nil, nil)
+	if err != nil || len(rows) != 1 {
+		t.Fatal(rows, err)
+	}
+	row := rows[0]
+	summary := str(row["native_summary"])
+	if !strings.Contains(summary, "meta iifname != {lan0, lan1}") || !strings.Contains(summary, "ct state == invalid") || !strings.Contains(summary, `log {"prefix":"invalid packet"}`) || row["in_interface"] != nil || yes(row["editable"]) {
+		t.Fatal(row)
 	}
 }

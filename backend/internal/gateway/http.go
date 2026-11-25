@@ -13,6 +13,7 @@ import (
 	"os"
 	urlpath "path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -124,6 +125,21 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasPrefix(path, "/assets/") {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		extension := filepath.Ext(target)
+		if slices.Contains([]string{".js", ".css"}, extension) && regular(target+".gz") {
+			w.Header().Add("Vary", "Accept-Encoding")
+			if acceptsGzip(r.Header.Get("Accept-Encoding")) && r.Header.Get("Range") == "" {
+				if file, err := os.Open(target + ".gz"); err == nil {
+					defer file.Close()
+					if info, err := file.Stat(); err == nil {
+						w.Header().Set("Content-Type", mime.TypeByExtension(extension))
+						w.Header().Set("Content-Encoding", "gzip")
+						http.ServeContent(w, r, filepath.Base(target), info.ModTime(), file)
+						return
+					}
+				}
+			}
+		}
 	} else {
 		// ZIP timestamps may predate the browser's cached release. Always send
 		// the current entry document rather than allowing a false 304 response.
@@ -134,6 +150,22 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	http.ServeFile(w, r, target)
 }
+func acceptsGzip(value string) bool {
+	for _, encoding := range strings.Split(value, ",") {
+		name, options, _ := strings.Cut(encoding, ";")
+		if !strings.EqualFold(strings.TrimSpace(name), "gzip") {
+			continue
+		}
+		quality, hasQuality := strings.CutPrefix(strings.TrimSpace(options), "q=")
+		if !hasQuality {
+			return true
+		}
+		q, err := strconv.ParseFloat(quality, 64)
+		return err == nil && q > 0 && q <= 1
+	}
+	return false
+}
+
 func (a *App) getAPI(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	switch path := r.URL.Path; {

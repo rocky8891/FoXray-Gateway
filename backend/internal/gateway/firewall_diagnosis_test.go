@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"net/netip"
 	"net/url"
 	"testing"
 )
@@ -25,7 +26,7 @@ func TestFirewallDiagnosisSeparatesLocalServicesAndForwarding(t *testing.T) {
 		t.Fatal(err)
 	}
 	rules := local["rules"].([]M)
-	if local["path_scope"] != "input" || len(rules) != 1 || rules[0]["name"] != "cockpit" {
+	if local["path_scope"] != "input" || len(rules) != 1 || rules[0]["name"] != "cockpit" || rules[0]["zone"] != "public" || str(rules[0]["id"]) == "" {
 		t.Fatalf("wrong local matches: %v", rules)
 	}
 	runner.responses[flowRoute] = `[{"dev":"CloudflareWARP"}]`
@@ -35,5 +36,28 @@ func TestFirewallDiagnosisSeparatesLocalServicesAndForwarding(t *testing.T) {
 	}
 	if routed["path_scope"] != "forward" || routed["egress_zone"] != "warp" || len(routed["rules"].([]M)) != 0 || obj(routed["nat"])["source"] != "192.0.2.12" {
 		t.Fatalf("wrong forwarded verdict: %v", routed)
+	}
+}
+
+func TestFirewallDiagnosisModuleSNATLinksToOriginRows(t *testing.T) {
+	const snapshot = `{"nftables":[
+		{"chain":{"family":"ip","table":"foxray_wg_test","name":"postrouting","hook":"postrouting","type":"nat","prio":100}},
+		{"rule":{"family":"ip","table":"foxray_wg_test","chain":"postrouting","handle":17,"expr":[{"match":{"op":"==","left":{"meta":{"key":"oifname"}},"right":"wg-test"}},{"masquerade":null}]}},
+		{"rule":{"family":"ip","table":"foxray_wg_test","chain":"postrouting","handle":18,"expr":[{"match":{"op":"==","left":{"meta":{"key":"oifname"}},"right":"wg-test"}},{"masquerade":null}]}}
+	]}`
+	rows, err := nftablesInventory(snapshot, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	origins := firewallOriginRows(rows)
+	flow := firewallFlow{source: netip.MustParseAddr("192.0.2.19")}
+	candidates := moduleSNATCandidates(snapshot, flow, "wg-test")
+	if len(candidates) != 2 || len(origins) != 2 || candidates[0]["id"] == candidates[1]["id"] {
+		t.Fatalf("expected two individually identifiable module rules: %v", candidates)
+	}
+	for i, row := range candidates {
+		if row["id"] != origins[i]["id"] || row["rule_origin"] != "wireguard" || origins[i]["editable"] != false {
+			t.Fatalf("diagnosis link does not identify the read-only inventory row: %v vs %v", row, origins[i])
+		}
 	}
 }

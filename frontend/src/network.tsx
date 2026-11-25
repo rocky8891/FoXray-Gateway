@@ -323,10 +323,16 @@ export function NetworkPage({
               const health = record(peer.health);
               const status = String(health.status || (peer.disabled ? "已停用" : Number(peer.handshake) ? "握手成功" : "未握手"));
               const label = [`Peer ${index + 1}`, health.tunnel, status].filter(Boolean).join(" · ");
-              return <button type="button" className="wg-peer-status-line" key={String(peer.public_key || index)}
-                onClick={() => setPeerDetails({ name: String(r.name), key: String(peer.public_key), label })}>
-                {label}{status === "握手成功" && ` · ${timestamp(peer.handshake)}`}
-              </button>;
+              return <div className="wg-peer-status-entry" key={String(peer.public_key || index)}>
+                <button type="button" className="wg-peer-status-line"
+                  onClick={() => setPeerDetails({ name: String(r.name), key: String(peer.public_key), label })}>
+                  {label}
+                </button>
+                <div className="wg-peer-status-times">
+                  <span>最近握手 {timestamp(peer.handshake)}</span>
+                  {record(peer.probe).enabled === true && <span>最近探测 {timestamp(health.last_probe)}</span>}
+                </div>
+              </div>;
             })}
           </>;
         },
@@ -873,7 +879,7 @@ function WireGuardPeerManager({ name, peers, onClose, onToggle }: {
           <p>AllowedIPs：{Array.isArray(peer.allowed_ips) ? peer.allowed_ips.join(", ") : String(peer.allowed_ips || "—")}</p>
           <p>Endpoint：{String(peer.endpoint || "未配置／等待对端")}</p>
           {peer.configured === false && <p className="hint">仅运行时存在，尚未写入此接口配置，暂不支持保存启停状态。</p>}
-          <Button variant={peer.disabled ? "primary" : "danger"} disabled={peer.configured === false} onClick={() => onToggle(peer)}>
+          <Button size="regular" variant={peer.disabled ? "primary" : "danger"} disabled={peer.configured === false} onClick={() => onToggle(peer)}>
             {peer.disabled ? "启用此 Peer" : "停用此 Peer"}
           </Button>
         </section>
@@ -1394,11 +1400,11 @@ function WireGuardPeerProbeEditor({ name, peer, routing, table, saved, onChange 
       onChange={event => onChange({ ...probe, enabled: event.target.checked, auto_withdraw: event.target.checked && probe.auto_withdraw === true })}/>
       启用主动探测
     </label>
-    <div className="form-grid">
+    <div className="wg-peer-probe-controls">
       <Field label="探测目标 IP" hint="推荐对端隧道 IP，也可填写经该 Peer 可达的远端主机 IP">
         <input value={target} onChange={event => onChange({ ...probe, target: event.target.value.trim(), auto_withdraw: false })}/>
       </Field>
-      <Button disabled={!saved || !target || testing} onClick={() => void test()}>{testing ? "探测中" : "测试探测"}</Button>
+      <Button size="regular" disabled={!saved || !target || testing} onClick={() => void test()}>{testing ? "探测中" : "测试探测"}</Button>
     </div>
     {!saved && <p className="hint">保存并启用 Peer 后可测试当前路径。</p>}
     {applicable && <p role="status">{applicable.message}</p>}
@@ -1471,7 +1477,7 @@ function PeerEditor({
     <div className="peer-editor">
       <div className="page-heading">
         <h3>Peer 对端 · {peers.length}</h3>
-        <Button
+        <Button size="regular"
           onClick={() =>
             onChange([
               ...peers,
@@ -1544,17 +1550,15 @@ function PeerEditor({
             saved={savedPeers.some(saved => saved.public_key === peer.public_key && !saved.disabled)}
             onChange={probe => change(i, "probe", probe)}
           />
-          <div className="actions">
-          {onTogglePeer && <Button
-            disabled={!savedPeers.some(saved => saved.public_key === peer.public_key)}
-            onClick={() => onTogglePeer(peer)}
-          >{peer.disabled ? "启用此 Peer" : "停用此 Peer"}</Button>}
-          <Button
-            variant="danger"
-            onClick={() => onChange(peers.filter((_, index) => index !== i))}
-          >
-            删除此 Peer
-          </Button>
+          <div className="actions wg-peer-actions">
+            {onTogglePeer && <Button size="regular"
+              disabled={!savedPeers.some(saved => saved.public_key === peer.public_key)}
+              onClick={() => onTogglePeer(peer)}
+            >{peer.disabled ? "启用此 Peer" : "停用此 Peer"}</Button>}
+            <Button size="regular" variant="danger"
+              onClick={() => onChange(peers.filter((_, index) => index !== i))}>
+              删除此 Peer
+            </Button>
           </div>
         </section>
       ))}

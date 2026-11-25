@@ -2124,7 +2124,7 @@ function ManagerServicePanel({ state, act }: { state: State; act: Act }) {
     <Panel className="component-service-panel manager-service-panel">
       <PageHeader
         title="服务管理"
-        icon={<HomeHeaderToggleIcon />}
+        icon={<span className="settings-foxray-logo"><HomeHeaderToggleIcon /></span>}
         description={
           <>
             管理应用本身；核心服务与 VPN

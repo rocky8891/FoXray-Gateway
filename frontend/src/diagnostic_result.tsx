@@ -1,3 +1,4 @@
+import { ALL_FIREWALL_ZONES } from "./firewall_view_state";
 import { logReadKeys, useReadState } from "./read_state";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, CircleAlert, LoaderCircle } from "lucide-react";
@@ -161,7 +162,16 @@ function FirewallDiagnosticFacts({ data }: { data: Dict }) {
             if (row.kind === "cross-zone") category = "cross-zone";
             else if (row.kind === "forward" || ["dnat", "redirect"].includes(action)) category = "forward";
             else if (row.kind === "masquerade" || ["snat", "masquerade"].includes(action)) category = "masquerade";
-            const params = new URLSearchParams({firewallRule: String(row.id), ruleDriver: String(result.driver || "firewalld"), ruleZone: String(result.zone || "public"), ruleCategory: category});
+            const driver = String(result.driver || "firewalld");
+            const ruleZone = driver !== "firewalld" ? "host"
+              : row.rule_origin ? ALL_FIREWALL_ZONES
+              : String(row.zone || result.zone || "public");
+            const params = new URLSearchParams({
+              firewallRule: String(row.id),
+              ruleDriver: driver,
+              ruleZone,
+              ruleCategory: category,
+            });
             return <a className="table-link" href={`/?${params}`} target="_blank" rel="noopener noreferrer">{name}</a>;
           } },
           { key: "action", label: "动作", render: row => text(row.action) },

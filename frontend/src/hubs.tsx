@@ -97,7 +97,7 @@ export function ModuleHeading({
             aria-selected={value === id}
             onClick={() => onChange(id)}
           >
-            {id === "global" && title === "设置" ? <HomeHeaderToggleIcon /> : labelIcon(label, 14)}
+            {id === "global" && title === "设置" ? <span className="settings-foxray-logo"><HomeHeaderToggleIcon /></span> : labelIcon(label, 14)}
             {label}
             {["global", "xray", "warp", "wireguard"].includes(id) && (
               <UpdateBadge service={id === "global" ? "foxray" : id} />
