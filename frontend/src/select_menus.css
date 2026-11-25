@@ -124,20 +124,42 @@ header .management-user-menu .more-actions-trigger > svg { width: 20px; height: 
   header .management-user-menu .more-actions-trigger { width: 32px; }
 }
 
-.component-service-panel :is(.service-values, .version-facts) {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--group-gap);
-}
-.component-service-panel .service-values > :first-child { grid-column: span 2; }
-.component-service-panel :is(.service-control-frame, .version-panel) { padding-inline: 16px; }
-@media (max-width: 650px) {
-  .component-service-panel :is(.service-values, .version-facts) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .component-service-panel :is(.service-control-frame, .version-panel) { padding-inline: 12px; }
-}
-
 .management-password-dialog .modal-body { overflow-x: hidden; }
 .management-password-dialog form { min-width: 0; }
 .management-password-dialog .field input { width: 100%; min-width: 0; box-sizing: border-box; }
 .management-password-dialog .modal-actions { flex-wrap: wrap; gap: 8px; }
 .management-password-dialog .modal-actions > .button { flex: 0 0 auto; min-width: max-content; }
+
+/* Keep card edges and field columns on the same grid throughout the settings. */
+main[data-module-page] {
+  --settings-column-gap: var(--group-gap);
+  --settings-section-inset: 16px;
+}
+main[data-module-page] :is(.module-service-settings .settings-section, .presentation-settings > .settings-section, .presentation-settings > form > .settings-section, .component-service-panel .service-control-frame, .component-service-panel .version-panel) {
+  padding-inline: var(--settings-section-inset);
+}
+main[data-module-page] :is(.form-grid, .wg-probe-targets, .component-service-panel .service-values, .component-service-panel .version-facts, .xray-runtime-summary) {
+  column-gap: var(--settings-column-gap);
+}
+main[data-module-page] .form-grid > .field { min-width: 0; }
+main[data-module-page] .form-grid > .field > :is(input:not([type=checkbox]):not([type=radio]), select, textarea) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+main[data-module-page] :is(.component-service-panel .service-values, .component-service-panel .version-facts, .xray-runtime-summary, .wg-probe-intervals) {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+main[data-module-page] :is(.component-service-panel .service-values, .xray-runtime-summary) > :first-child { grid-column: span 2; }
+main[data-module-page] :is(.xray-proxy-panel [aria-label="分流与接管"], .warp-detection-settings .detection-section > .form-grid, .wg-probe-targets) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--settings-column-gap);
+}
+@media (max-width: 650px) {
+  main[data-module-page] { --settings-section-inset: 12px; }
+  main[data-module-page] :is(.component-service-panel .service-values, .component-service-panel .version-facts, .xray-runtime-summary, .wg-probe-intervals) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 599px) {
+  main[data-module-page] :is(.xray-proxy-panel [aria-label="分流与接管"], .warp-detection-settings .detection-section > .form-grid, .wg-probe-targets) { grid-template-columns: minmax(0, 1fr); }
+}

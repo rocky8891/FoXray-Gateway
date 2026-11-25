@@ -539,14 +539,7 @@ function App() {
               navigate("overview");
             }}
           >
-            <svg
-              className="brand-logo"
-              viewBox="105 83 292 349"
-              role="img"
-              aria-label="FoXray"
-            >
-              <image href="/foxray-icon.svg?v=0.9.4" width="512" height="512" />
-            </svg>
+            <HomeHeaderToggleIcon className="brand-logo" />
             <div>
               <div className="brand-title-row">
                 <h1 aria-label="FoXray Gateway">Fo<span className="brand-name-x">X</span>ray Gateway</h1>

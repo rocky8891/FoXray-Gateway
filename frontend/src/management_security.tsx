@@ -1,3 +1,4 @@
+import { HomeHeaderToggleIcon } from "./home_header";
 import type { DDNSItem } from "./management_ddns";
 import { createPortal } from "react-dom";
 import { ActionMenu } from "./action_menu";
@@ -63,9 +64,7 @@ export function ManagementGate({ children }: { children: ReactNode }) {
     <div className="management-login-screen">
       <Panel className="management-login-card">
         <div className="management-login-brand">
-          <svg viewBox="105 83 292 349" aria-hidden="true">
-            <image href="/foxray-icon.svg?v=0.9.4" width="512" height="512" />
-          </svg>
+          <HomeHeaderToggleIcon />
           <h1>Fo<span className="brand-name-x">X</span>ray Gateway</h1>
         </div>
         {session?.initial && <h2 className="management-login-setup">设置管理密码</h2>}
