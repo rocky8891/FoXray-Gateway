@@ -35,9 +35,11 @@ type managementTLSConfig struct {
 	Port        int    `json:"port,omitempty"`
 	Redirect    int    `json:"redirect_port,omitempty"`
 	Description string `json:"description,omitempty"`
+	RenewHours  int    `json:"renew_hours,omitempty"`
 }
 
 type managementTLS struct {
+	audit                      managementAudit
 	base, address, httpAddress string
 	handler                    http.Handler
 	mu                         sync.Mutex
@@ -48,11 +50,16 @@ type managementTLS struct {
 	warning                    string
 	cancel                     context.CancelFunc
 	ddns                       *managementDDNS
+	lastRenew                  time.Time
+	nextRenew                  time.Time
 }
 
-func newManagementTLS(base, address string, handler http.Handler) *managementTLS {
+func newManagementTLS(base, address string, handler http.Handler, callbacks ...managementAudit) *managementTLS {
 	ctx, cancel := context.WithCancel(context.Background())
 	t := &managementTLS{base: base, address: managementPort(address), httpAddress: address, handler: handler, cancel: cancel}
+	if len(callbacks) > 0 {
+		t.audit = callbacks[0]
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	file, err := os.ReadFile(t.configFile())
@@ -90,6 +97,17 @@ func (t *managementTLS) httpsAddress(port int) string {
 	}
 	host, _, _ := net.SplitHostPort(t.address)
 	return net.JoinHostPort(host, strconv.Itoa(port))
+}
+
+func (c managementTLSConfig) renewalHours() int {
+	if c.RenewHours < 1 || c.RenewHours > 168 {
+		return 12
+	}
+	return c.RenewHours
+}
+
+func (c managementTLSConfig) autoRenew() bool {
+	return c.Mode == "cloudflare" || c.Mode == "acme-http"
 }
 
 func (t *managementTLS) applyLocked(next managementTLSConfig, persist bool) error {
@@ -139,7 +157,14 @@ func (t *managementTLS) applyLocked(next managementTLSConfig, persist bool) erro
 			return errors.New("无法保存 HTTPS 配置")
 		}
 	}
+	if t.config.Mode != next.Mode || t.config.Name != next.Name {
+		t.lastRenew = time.Time{}
+	}
 	t.config = next
+	t.nextRenew = time.Time{}
+	if next.autoRenew() {
+		t.nextRenew = time.Now().Add(time.Duration(next.renewalHours()) * time.Hour)
+	}
 	t.warning = ""
 	if next.Mode == "" {
 		t.server = nil
@@ -303,8 +328,9 @@ func (t *managementTLS) acmeCertificate(ctx context.Context, mode, name, email s
 		}
 		args = append(args, "--webroot", "--webroot-path", webroot)
 	}
-	if err := exec.CommandContext(ctx, bin, args...).Run(); err != nil {
-		return "", errors.New("Let’s Encrypt 签发失败，请检查域名、验证条件及 Certbot 日志")
+	output, err := exec.CommandContext(ctx, bin, args...).CombinedOutput()
+	if err != nil {
+		return "", acmeFailure(ctx, output)
 	}
 	dir := filepath.Join(config, "live", certName)
 	cert, err := os.ReadFile(filepath.Join(dir, "fullchain.pem"))
@@ -316,6 +342,31 @@ func (t *managementTLS) acmeCertificate(ctx context.Context, mode, name, email s
 		return "", errors.New("找不到已签发证书的私钥")
 	}
 	return string(cert) + "\n" + string(key), nil
+}
+
+// Convert Certbot failures to fixed messages so logs never contain credentials or challenge payloads.
+func acmeFailure(ctx context.Context, output []byte) error {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return errors.New("Let’s Encrypt 申请超时，请检查网关到证书服务和 DNS 服务的连接")
+	}
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return errors.New("证书申请已取消")
+	}
+	text := strings.ToLower(string(output))
+	switch {
+	case strings.Contains(text, "rate limit"), strings.Contains(text, "too many certificates"), strings.Contains(text, "too many requests"):
+		return errors.New("Let’s Encrypt 申请达到频率限制")
+	case strings.Contains(text, "error determining zone"), strings.Contains(text, "invalid api token"), strings.Contains(text, "authentication error"), strings.Contains(text, "error adding txt record"):
+		return errors.New("Cloudflare DNS API 拒绝请求，请检查令牌、区域读取和 DNS 编辑权限")
+	case strings.Contains(text, "nxdomain"), strings.Contains(text, "servfail"), strings.Contains(text, "incorrect txt record"):
+		return errors.New("DNS 验证失败，证书服务读取的 DNS 记录不符合预期")
+	case strings.Contains(text, "plugin is not installed"), strings.Contains(text, "unrecognized arguments"):
+		return errors.New("Certbot 验证插件不可用")
+	case strings.Contains(text, "timeout"), strings.Contains(text, "timed out"), strings.Contains(text, "connection refused"):
+		return errors.New("证书验证连接失败，请检查网络和所选验证方式")
+	default:
+		return errors.New("Let’s Encrypt 签发失败，请检查域名和 Certbot 日志")
+	}
 }
 
 var challengeToken = regexp.MustCompile(`^[A-Za-z0-9_-]{1,200}$`)
@@ -348,7 +399,7 @@ func (t *managementTLS) serveChallenge(w http.ResponseWriter, r *http.Request) b
 }
 
 func (t *managementTLS) scheduleRenewal(ctx context.Context) {
-	timer := time.NewTicker(12 * time.Hour)
+	timer := time.NewTicker(time.Minute)
 	defer timer.Stop()
 	for {
 		select {
@@ -362,7 +413,7 @@ func (t *managementTLS) scheduleRenewal(ctx context.Context) {
 func (t *managementTLS) renew(ctx context.Context) {
 	t.mu.Lock()
 	snapshot := t.config
-	if t.busy || snapshot.Mode != "cloudflare" && snapshot.Mode != "acme-http" {
+	if t.busy || !snapshot.autoRenew() || time.Now().Before(t.nextRenew) {
 		t.mu.Unlock()
 		return
 	}
@@ -372,17 +423,20 @@ func (t *managementTLS) renew(ctx context.Context) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.busy = false
+	if err == nil && snapshot.PEM != pem {
+		snapshot.PEM = pem
+		err = t.applyLocked(snapshot, true)
+	}
+	t.lastRenew = time.Now().UTC()
+	t.nextRenew = t.lastRenew.Add(time.Duration(snapshot.renewalHours()) * time.Hour)
+	t.warning = ""
 	if err != nil {
 		t.warning = err.Error()
-		return
-	}
-	if snapshot.PEM == pem {
-		t.warning = ""
-		return
-	}
-	snapshot.PEM = pem
-	if err = t.applyLocked(snapshot, true); err != nil {
-		t.warning = err.Error()
+		if t.audit != nil {
+			_ = t.audit("https.renew", "HTTPS 证书续期检查失败", false, M{"domain": snapshot.Name, "mode": snapshot.Mode, "error": err.Error()})
+		}
+	} else if t.audit != nil {
+		_ = t.audit("https.renew", "HTTPS 证书续期检查完成", true, M{"domain": snapshot.Name, "mode": snapshot.Mode})
 	}
 }
 
@@ -395,9 +449,25 @@ func (t *managementTLS) serve(w http.ResponseWriter, r *http.Request, readonly b
 			port = 18443
 		}
 		response := M{"enabled": t.server != nil, "mode": t.config.Mode, "domain": t.config.Name, "port": port, "redirect_port": t.config.Redirect, "description": t.config.Description, "busy": t.busy, "warning": t.warning}
+		response["email"] = t.config.Email
+		response["auto_renew"] = t.config.autoRenew() && t.server != nil
+		response["renew_hours"] = t.config.renewalHours()
+		if !t.lastRenew.IsZero() {
+			response["last_renew_check"] = t.lastRenew
+		}
+		if !t.nextRenew.IsZero() {
+			response["next_renew_check"] = t.nextRenew
+		}
 		if pair, err := tls.X509KeyPair([]byte(t.config.PEM), []byte(t.config.PEM)); err == nil && len(pair.Certificate) > 0 {
 			if cert, err := x509.ParseCertificate(pair.Certificate[0]); err == nil {
 				response["expires"] = cert.NotAfter
+				response["issuer"] = cert.Issuer.String()
+				response["subject"] = cert.Subject.CommonName
+				names := append([]string{}, cert.DNSNames...)
+				for _, ip := range cert.IPAddresses {
+					names = append(names, ip.String())
+				}
+				response["certificate_names"] = names
 			}
 		}
 		writeResponse(w, 200, response)
@@ -423,6 +493,14 @@ func (t *managementTLS) serve(w http.ResponseWriter, r *http.Request, readonly b
 	t.mu.Unlock()
 	defer func() { t.mu.Lock(); t.busy = false; t.mu.Unlock() }()
 	next := managementTLSConfig{Mode: mode, Name: strings.TrimSpace(str(input["domain"])), Email: strings.TrimSpace(str(input["email"])), Description: strings.TrimSpace(str(input["description"]))}
+	if value := str(input["renew_hours"]); value != "" {
+		hours, err := strconv.Atoi(value)
+		if err != nil || hours < 1 || hours > 168 {
+			writeResponse(w, 400, M{"error": "续期检查间隔须为 1～168 小时"})
+			return
+		}
+		next.RenewHours = hours
+	}
 	if mode != "off" {
 		next.Port, err = strconv.Atoi(str(input["port"]))
 		if err != nil || next.Port < 1 || next.Port > 65535 {
@@ -448,6 +526,19 @@ func (t *managementTLS) serve(w http.ResponseWriter, r *http.Request, readonly b
 		}
 		previous.Port = next.Port
 		previous.Redirect = next.Redirect
+		if next.RenewHours > 0 {
+			previous.RenewHours = next.RenewHours
+		}
+		if _, ok := input["description"]; ok {
+			previous.Description = next.Description
+		}
+		if next.Email != "" {
+			if !strings.Contains(next.Email, "@") || len(next.Email) > 254 {
+				writeResponse(w, 400, M{"error": "请输入有效邮箱"})
+				return
+			}
+			previous.Email = next.Email
+		}
 		next = previous
 	}
 
@@ -460,6 +551,9 @@ func (t *managementTLS) serve(w http.ResponseWriter, r *http.Request, readonly b
 	case "import":
 		next.PEM = str(input["certificate"]) + "\n" + str(input["key"])
 	case "cloudflare", "acme-http":
+		if t.audit != nil && validDDNSDomain(next.Name) {
+			_ = t.audit("https.issue.start", "开始申请 HTTPS 证书", true, M{"domain": next.Name, "mode": mode}, r.Header.Get("X-Foxray-UI-Action"))
+		}
 		next.PEM, err = t.acmeCertificate(r.Context(), mode, next.Name, next.Email)
 	default:
 		err = errors.New("未知证书类型")
@@ -468,6 +562,23 @@ func (t *managementTLS) serve(w http.ResponseWriter, r *http.Request, readonly b
 		t.mu.Lock()
 		err = t.applyLocked(next, true)
 		t.mu.Unlock()
+	}
+	if t.audit != nil {
+		message := "已保存 HTTPS 设置"
+		if mode == "off" {
+			message = "已关闭 HTTPS"
+		}
+		if err != nil {
+			message = "HTTPS 设置失败"
+		}
+		details := M{"mode": mode, "port": next.Port, "redirect_port": next.Redirect}
+		if validDDNSDomain(next.Name) || net.ParseIP(next.Name) != nil {
+			details["domain"] = next.Name
+		}
+		if err != nil {
+			details["error"] = err.Error()
+		}
+		_ = t.audit("https.configure", message, err == nil, details, r.Header.Get("X-Foxray-UI-Action"))
 	}
 	if err != nil {
 		writeResponse(w, 400, M{"error": err.Error()})

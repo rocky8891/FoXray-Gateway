@@ -18,7 +18,15 @@ func (f ddnsTestTransport) RoundTrip(request *http.Request) (*http.Response, err
 }
 
 func TestManagementDDNSCloudflareAndDuckDNS(t *testing.T) {
-	d, err := newManagementDDNS(t.TempDir(), true)
+	actions := make(map[string]int)
+	d, err := newManagementDDNS(t.TempDir(), true, func(action, message string, ok bool, details M, uiAction ...string) error {
+		raw, err := json.Marshal(details)
+		if err != nil || strings.Contains(string(raw), "synthetic_fixture") {
+			t.Fatal("DDNS audit exposed credential material")
+		}
+		actions[action]++
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,6 +107,9 @@ func TestManagementDDNSCloudflareAndDuckDNS(t *testing.T) {
 		t.Fatal("incorrect Cloudflare mutation")
 		return nil, nil
 	})
+	if code := submit(`{"operation":"test","provider":"cloudflare","domain":"lab.example.test","source":"manual","ipv4":"203.0.113.8","interval_minutes":"10"}`); code != 200 || updates != 0 {
+		t.Fatal("connection test should not write DNS records", code, updates)
+	}
 	for _, domain := range []string{"lab.example.test", "lab.example.test", "fixture.duckdns.org"} {
 		if err := d.update(context.Background(), domain, true); err != nil {
 			t.Fatal(err)
@@ -107,4 +118,8 @@ func TestManagementDDNSCloudflareAndDuckDNS(t *testing.T) {
 	if updates != 2 {
 		t.Fatal(updates)
 	}
+	if actions["ddns.save"] != 3 || actions["ddns.update"] != 3 {
+		t.Fatal("missing DDNS audit records", actions)
+	}
+
 }

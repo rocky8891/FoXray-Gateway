@@ -186,12 +186,13 @@ export function ManagementUserMenu() {
   </div>;
 }
 
-type HTTPSStatus = { enabled: boolean; mode: string; domain: string; expires?: string; port: number; redirect_port: number; description?: string; warning?: string; busy?: boolean };
+type HTTPSStatus = { enabled: boolean; mode: string; domain: string; expires?: string; port: number; redirect_port: number; description?: string; warning?: string; busy?: boolean; email?: string; issuer?: string; subject?: string; certificate_names?: string[]; auto_renew?: boolean; renew_hours?: number; last_renew_check?: string; next_renew_check?: string };
 export function ManagementHTTPSSettings() {
   const ddns = useResource<{ items: DDNSItem[] }>("/api/management/ddns", 15000);
   const status = useResource<HTTPSStatus>("/api/management/https", 15000);
   const [draftMode, setMode] = useState<string>();
-  const mode = draftMode ?? (status.data?.enabled ? "keep" : "self");
+  const current = status.data;
+  const mode = draftMode ?? (current?.enabled ? current.mode : "self");
   const acme = mode === "cloudflare" || mode === "acme-http";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -203,8 +204,12 @@ export function ManagementHTTPSSettings() {
     setBusy(true); setError("");
     try {
       const body: Record<string, string> = {mode};
-      for (const key of ["domain", "email", "description", "port", "redirect_port"]) body[key] = String(fields.get(key) || "");
-      if (mode === "import") {
+      for (const key of ["domain", "email", "description", "port", "redirect_port", "renew_hours"]) body[key] = String(fields.get(key) || "");
+      const certificate = fields.get("certificate");
+      const keyFile = fields.get("key");
+      const replacing = (certificate instanceof File && certificate.size > 0) || (keyFile instanceof File && keyFile.size > 0);
+      if (current?.enabled && mode === current.mode && (mode === "import" ? !replacing : body.domain.trim() === current.domain)) body.mode = "keep";
+      if (mode === "import" && body.mode !== "keep") {
         for (const name of ["certificate", "key"]) {
           const file = fields.get(name);
           if (!(file instanceof File) || !file.size || file.size > 200 * 1024) throw new Error("请选择不超过 200 KB 的 PEM 文件");
@@ -216,7 +221,7 @@ export function ManagementHTTPSSettings() {
       if (result.enabled) {
         next.protocol = "https:";
         next.port = String(result.port || 18443);
-        if (acme && body.domain.trim()) next.hostname = body.domain.trim();
+        if (acme && body.mode !== "keep" && body.domain.trim()) next.hostname = body.domain.trim();
       }
       else if (result.http_port) { next.protocol = "http:"; next.port = String(result.http_port); }
       if (next.origin !== location.origin) { location.assign(next.toString()); return; }
@@ -227,10 +232,18 @@ export function ManagementHTTPSSettings() {
   }
   return <Panel className="presentation-settings">
     <PageHeader title="HTTPS" icon={<Shield size={20} />} description={status.data?.enabled ? `已启用 · 端口 ${status.data.port}${status.data.expires ? ` · 有效期至 ${new Date(status.data.expires).toLocaleString()}` : ""}` : "启用后关闭 HTTP 管理访问"} />
+    {current?.enabled && <dl className="settings-section https-current-certificate">
+      <div><dt>当前证书</dt><dd>{current.subject || current.domain || "—"}</dd></div>
+      <div><dt>签发机构</dt><dd>{current.issuer || "—"}</dd></div>
+      <div><dt>备用域名</dt><dd>{current.certificate_names?.join("、") || "—"}</dd></div>
+      <div><dt>有效期至</dt><dd>{current.expires ? new Date(current.expires).toLocaleString() : "—"}</dd></div>
+      <div><dt>自动续期</dt><dd>{current.auto_renew ? `每 ${current.renew_hours ?? 12} 小时检查` : "不适用"}</dd></div>
+      {current.last_renew_check && <div><dt>上次续期检查</dt><dd>{new Date(current.last_renew_check).toLocaleString()}</dd></div>}
+      {current.next_renew_check && <div><dt>下次续期检查</dt><dd>{new Date(current.next_renew_check).toLocaleString()}</dd></div>}
+    </dl>}
     <form onSubmit={save}>
       <div className="settings-section form-grid">
         <Field label="证书来源"><select value={mode} onChange={event => setMode(event.target.value)} disabled={busy}>
-          {status.data?.enabled && <option value="keep">保留现有证书</option>}
           <option value="self">自签名证书</option><option value="import">导入第三方证书</option>
           <option value="acme-http">Let's Encrypt · HTTP</option><option value="cloudflare">Let's Encrypt · Cloudflare DNS</option><option value="off">关闭 HTTPS</option>
         </select></Field>
@@ -238,13 +251,14 @@ export function ManagementHTTPSSettings() {
           <Field label="HTTPS 端口"><input name="port" type="number" min={1} max={65535} key={`port-${status.data?.port}`} defaultValue={status.data?.port || 18443} required /></Field>
           <Field label="HTTP 跳转端口" hint="留空关闭 HTTP。填写后该端口仅跳转到 HTTPS。"><input name="redirect_port" type="number" min={1} max={65535} key={`redirect-${status.data?.redirect_port}`} defaultValue={status.data?.redirect_port || ""} /></Field>
         </>}
-        {(mode === "self" || acme) && <Field label={mode === "self" ? "域名或 IP 地址" : "证书域名"}><input key={mode} name="domain" required defaultValue={mode === "self" ? location.hostname : status.data?.domain} list={acme ? "management-acme-domains" : undefined} placeholder={acme ? "填写证书域名或选择已配置的 DDNS" : undefined} /></Field>}
+        {(mode === "self" || acme) && <Field label={mode === "self" ? "域名或 IP 地址" : "证书域名"}><input key={`${mode}-${current?.domain}`} name="domain" required defaultValue={current?.mode === mode && current.domain ? current.domain : mode === "self" ? location.hostname : ""} list={acme ? "management-acme-domains" : undefined} placeholder={acme ? "填写证书域名或选择已配置的 DDNS" : undefined} /></Field>}
         {acme && <datalist id="management-acme-domains">{ddns.data?.items.filter(item => mode !== "cloudflare" || item.provider === "cloudflare").map(item => <option key={item.domain} value={item.domain} />)}</datalist>}
         {acme && <>
           <Field label="描述（可选）"><input name="description" maxLength={120} defaultValue={status.data?.description || ""} /></Field>
-          <Field label="电子邮箱" hint={mode === "acme-http" ? "公网 80 端口须转发到网关，签发后自动续期" : "使用同域名的 Cloudflare DDNS 令牌，签发后每 12 小时检查续期"}><input type="email" name="email" required /></Field>
+          <Field label="电子邮箱" hint={mode === "acme-http" ? "公网 80 端口须转发到网关，签发后自动续期" : "使用同域名的 Cloudflare DDNS 令牌，签发后自动检查续期"}><input type="email" name="email" key={`email-${current?.email}`} defaultValue={current?.email} required /></Field>
+          <Field label="续期检查间隔（小时）"><input name="renew_hours" type="number" min={1} max={168} key={`renew-${current?.renew_hours}`} defaultValue={current?.renew_hours ?? 12} required /></Field>
         </>}
-        {mode === "import" && <><Field label="PEM 证书及证书链"><input type="file" name="certificate" required /></Field><Field label="PEM 私钥"><input type="file" name="key" required /></Field></>}
+        {mode === "import" && <><Field label="PEM 证书及证书链"><input type="file" name="certificate" required={current?.mode !== "import"} /></Field><Field label="PEM 私钥"><input type="file" name="key" required={current?.mode !== "import"} /></Field></>}
       </div>
       <ErrorLine error={error || status.error || status.data?.warning} />
       <div className="save-card-footer"><Button variant="primary" type="submit" disabled={busy || !!status.data?.busy}>{busy ? "正在处理证书…" : "保存 HTTPS 设置"}</Button></div>

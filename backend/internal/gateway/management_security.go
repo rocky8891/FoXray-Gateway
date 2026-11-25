@@ -95,11 +95,11 @@ func NewManagementSecurity(app *App, address string) (*ManagementSecurity, error
 			return nil, errors.New("管理账号文件含无效记录")
 		}
 	}
-	guard.ddns, err = newManagementDDNS(app.base, app.readonly)
+	guard.ddns, err = newManagementDDNS(app.base, app.readonly, app.audit)
 	if err != nil {
 		return nil, errors.New("无法加载 DDNS 配置")
 	}
-	guard.tls = newManagementTLS(app.base, address, guard)
+	guard.tls = newManagementTLS(app.base, address, guard, app.audit)
 	guard.tls.ddns = guard.ddns
 	return guard, nil
 }

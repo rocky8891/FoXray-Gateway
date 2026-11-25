@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { cardNeighbor } from "./layout_editor";
 
-type Target = { scope: string; id: string; element: HTMLElement };
+type Target = { scope: string; id: string; element: HTMLElement; interfaceName?: string };
 export function useOverviewDrag(
   enabled: boolean,
   layout: string,
@@ -19,6 +19,10 @@ export function useOverviewDrag(
       element
         .querySelectorAll<HTMLElement>(".dashboard-exit-grid>section")
         .forEach((el) => {
+          if (el.classList.contains("service-wireguard-interface") && el.dataset.interfaceName) {
+            result.push({scope: "cards", id: `wireguard:${el.dataset.interfaceName}`, element: el, interfaceName: el.dataset.interfaceName});
+            return;
+          }
           const id =
             el.dataset.monitor ||
             [
@@ -79,12 +83,12 @@ export function useOverviewDrag(
             Number(getComputedStyle(x.element).order) -
             Number(getComputedStyle(y.element).order),
         );
-      moveRef.current(
-        a.scope,
-        a.id,
-        b.id,
-        siblings.map((t) => t.id),
-      );
+      if (a.interfaceName && b.interfaceName) {
+        moveRef.current("wireguard", a.interfaceName, b.interfaceName, siblings.flatMap(t => t.interfaceName ? [t.interfaceName] : []));
+        return;
+      }
+      const cardId = (target: Target) => target.interfaceName ? "service-wireguard" : target.id;
+      moveRef.current(a.scope, cardId(a), cardId(b), [...new Set(siblings.map(cardId))]);
     };
     let origin: {
       target: Target;
@@ -193,7 +197,7 @@ export function useOverviewDrag(
         ghost.setAttribute("aria-hidden", "true");
         ghost.textContent =
           moving.current.element.querySelector(
-            "h3,.summary-metric-label,.service-interface-name,.node-title",
+            "h2,h3,.summary-metric-label,.service-interface-name,.node-title",
           )?.textContent || "移动卡片";
         (element.closest("dialog[open]") || document.body).append(ghost);
         document.body.classList.add("overview-pointer-drag");
@@ -209,6 +213,7 @@ export function useOverviewDrag(
       if (!origin || origin.pointer !== e.pointerId) return;
       if (moving.current) {
         e.preventDefault();
+        point = { x: e.clientX, y: e.clientY };
         mark();
         if (destination) swap(moving.current, destination);
       }

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,14 +21,17 @@ import (
 
 var ddnsTokenPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,256}$`)
 
-const ddnsCheckInterval = 5 * time.Minute
+const ddnsCheckInterval = time.Minute
 
 type ddnsEntry struct {
-	Provider string `json:"provider"`
-	Domain   string `json:"domain"`
-	IPv4     string `json:"ipv4,omitempty"`
-	Enabled  bool   `json:"enabled"`
-	Token    string `json:"token"`
+	Provider  string `json:"provider"`
+	Domain    string `json:"domain"`
+	IPv4      string `json:"ipv4,omitempty"`
+	Source    string `json:"source,omitempty"`
+	Interface string `json:"interface,omitempty"`
+	Interval  int    `json:"interval_minutes,omitempty"`
+	Enabled   bool   `json:"enabled"`
+	Token     string `json:"token"`
 }
 
 type ddnsResult struct {
@@ -36,7 +40,10 @@ type ddnsResult struct {
 	Error   string    `json:"error,omitempty"`
 }
 
+type managementAudit func(action, message string, ok bool, details M, uiAction ...string) error
+
 type managementDDNS struct {
+	audit   managementAudit
 	base    string
 	client  *http.Client
 	mu      sync.Mutex
@@ -47,9 +54,12 @@ type managementDDNS struct {
 	ctx     context.Context
 }
 
-func newManagementDDNS(base string, readonly bool) (*managementDDNS, error) {
+func newManagementDDNS(base string, readonly bool, callbacks ...managementAudit) (*managementDDNS, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	d := &managementDDNS{base: base, client: &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, entries: map[string]ddnsEntry{}, results: map[string]ddnsResult{}, running: map[string]bool{}, cancel: cancel, ctx: ctx}
+	if len(callbacks) > 0 {
+		d.audit = callbacks[0]
+	}
 	if err := readJSON(d.configPath(), &d.entries); err != nil && !errors.Is(err, os.ErrNotExist) {
 		cancel()
 		return nil, err
@@ -100,6 +110,71 @@ func (d *managementDDNS) cloudflareToken(domain string) string {
 	return ""
 }
 
+func (e ddnsEntry) intervalMinutes() int {
+	if e.Interval <= 0 {
+		return 5
+	}
+	return e.Interval
+}
+
+func (e ddnsEntry) addressSource() string {
+	if e.Source != "" {
+		return e.Source
+	}
+	if e.IPv4 != "" {
+		return "manual"
+	}
+	return "auto"
+}
+
+func ddnsInterfaces() []M {
+	result := []M{}
+	interfaces, _ := net.Interfaces()
+	for _, nic := range interfaces {
+		if nic.Flags&net.FlagUp == 0 || nic.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		if ip, err := ddnsInterfaceIPv4(nic.Name); err == nil {
+			result = append(result, M{"name": nic.Name, "ipv4": ip})
+		}
+	}
+	return result
+}
+
+func ddnsInterfaceIPv4(name string) (string, error) {
+	nic, err := net.InterfaceByName(name)
+	if err == nil && nic.Flags&net.FlagUp != 0 {
+		addresses, _ := nic.Addrs()
+		for _, addr := range addresses {
+			ip, _, _ := net.ParseCIDR(addr.String())
+			if ip.To4() != nil && ip.IsGlobalUnicast() {
+				return ip.To4().String(), nil
+			}
+		}
+	}
+	return "", errors.New("接口没有可用的 IPv4 地址")
+}
+
+func (d *managementDDNS) address(ctx context.Context, entry ddnsEntry) (string, error) {
+	switch entry.addressSource() {
+	case "disabled":
+		return "", errors.New("IPv4 更新已禁用")
+	case "manual":
+		return entry.IPv4, nil
+	case "interface":
+		return ddnsInterfaceIPv4(entry.Interface)
+	}
+	text, err := d.request(ctx, http.MethodGet, "https://api.ipify.org", "", nil)
+	if err != nil {
+		return "", errors.New("无法检测公网 IPv4")
+	}
+	ip := net.ParseIP(strings.TrimSpace(string(text)))
+	if ip == nil || ip.To4() == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() {
+		return "", errors.New("公网 IPv4 检测结果无效")
+	}
+	return ip.To4().String(), nil
+}
+
 func (d *managementDDNS) serve(w http.ResponseWriter, r *http.Request, readonly bool) {
 	if r.Method == http.MethodGet {
 		d.mu.Lock()
@@ -112,9 +187,9 @@ func (d *managementDDNS) serve(w http.ResponseWriter, r *http.Request, readonly 
 		rows := make([]M, 0, len(names))
 		for _, domain := range names {
 			entry := d.entries[domain]
-			rows = append(rows, M{"domain": domain, "provider": entry.Provider, "ipv4": entry.IPv4, "enabled": entry.Enabled, "result": d.results[domain], "running": d.running[domain]})
+			rows = append(rows, M{"domain": domain, "provider": entry.Provider, "ipv4": entry.IPv4, "source": entry.addressSource(), "interface": entry.Interface, "interval_minutes": entry.intervalMinutes(), "enabled": entry.Enabled, "result": d.results[domain], "running": d.running[domain]})
 		}
-		writeResponse(w, 200, M{"items": rows})
+		writeResponse(w, 200, M{"items": rows, "interfaces": ddnsInterfaces()})
 		return
 	}
 	if r.Method != http.MethodPost || readonly {
@@ -128,8 +203,40 @@ func (d *managementDDNS) serve(w http.ResponseWriter, r *http.Request, readonly 
 		return
 	}
 	operation := str(input["operation"])
+	if operation == "test" {
+		entry, err := d.parseEntry(domain, input)
+		if err != nil {
+			writeResponse(w, 400, M{"error": err.Error()})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		ip := ""
+		if entry.addressSource() != "disabled" {
+			ip, err = d.address(ctx, entry)
+		}
+		message := "Cloudflare 令牌和 DNS 读取测试通过"
+		if err == nil {
+			if entry.Provider == "cloudflare" {
+				var route string
+				route, err = d.cloudflareRecordRoute(ctx, entry)
+				if err == nil {
+					_, err = d.cloudflareFind(ctx, route+"?"+url.Values{"type": {"A"}, "name": {entry.Domain}}.Encode(), entry.Token)
+				}
+			} else {
+				_, err = d.request(ctx, http.MethodGet, "https://www.duckdns.org/", "", nil)
+				message = "DuckDNS 可达，令牌在实际更新时校验"
+			}
+		}
+		if err != nil {
+			writeResponse(w, 400, M{"error": err.Error()})
+			return
+		}
+		writeResponse(w, 200, M{"message": message, "ipv4": ip})
+		return
+	}
 	if operation == "update" {
-		err = d.update(r.Context(), domain, true)
+		err = d.update(r.Context(), domain, true, r.Header.Get("X-Foxray-UI-Action"))
 		if err != nil {
 			writeResponse(w, 400, M{"error": err.Error()})
 			return
@@ -151,30 +258,12 @@ func (d *managementDDNS) serve(w http.ResponseWriter, r *http.Request, readonly 
 	case "delete":
 		delete(next, domain)
 	case "save":
-		entry := ddnsEntry{Provider: str(input["provider"]), Domain: domain, IPv4: strings.TrimSpace(str(input["ipv4"])), Enabled: yes(input["enabled"]), Token: strings.TrimSpace(str(input["token"]))}
-		old := d.entries[domain]
-		if entry.Token == "" && entry.Provider == old.Provider {
-			entry.Token = old.Token
-		}
-		if !ddnsTokenPattern.MatchString(entry.Token) || entry.Provider != "cloudflare" && entry.Provider != "duckdns" {
-			writeResponse(w, 400, M{"error": "请选择服务商并填写有效令牌"})
+		entry, err := d.parseEntryLocked(domain, input)
+		if err != nil {
+			writeResponse(w, 400, M{"error": err.Error()})
 			return
 		}
-		if entry.Provider == "duckdns" {
-			label, ok := strings.CutSuffix(domain, ".duckdns.org")
-			if !ok || strings.Contains(label, ".") {
-				writeResponse(w, 400, M{"error": "DuckDNS 需要已注册的单级 duckdns.org 域名"})
-				return
-			}
-		}
-		if entry.IPv4 != "" {
-			ip := net.ParseIP(entry.IPv4)
-			if ip == nil || ip.To4() == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() {
-				writeResponse(w, 400, M{"error": "请输入公网 IPv4 地址或留空自动检测"})
-				return
-			}
-			entry.IPv4 = ip.To4().String()
-		}
+		old := d.entries[domain]
 		if old.Domain == "" && len(next) >= 32 {
 			writeResponse(w, 400, M{"error": "已达到 32 个 DDNS 域名上限"})
 			return
@@ -194,17 +283,74 @@ func (d *managementDDNS) serve(w http.ResponseWriter, r *http.Request, readonly 
 	}
 	d.entries = next
 	delete(d.results, domain)
+	if d.audit != nil {
+		message := "已保存 DDNS 配置"
+		if operation == "delete" {
+			message = "已删除 DDNS 配置"
+		}
+		_ = d.audit("ddns."+operation, message, true, M{"domain": domain}, r.Header.Get("X-Foxray-UI-Action"))
+	}
 	writeResponse(w, 200, M{"ok": true})
-	if entry := next[domain]; entry.Enabled && operation == "save" {
+	if entry := next[domain]; entry.Enabled && entry.addressSource() != "disabled" && operation == "save" {
 		go func() { _ = d.update(d.ctx, domain, false) }()
 	}
+}
+
+func (d *managementDDNS) parseEntry(domain string, input M) (ddnsEntry, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.parseEntryLocked(domain, input)
+}
+
+func (d *managementDDNS) parseEntryLocked(domain string, input M) (ddnsEntry, error) {
+	entry := ddnsEntry{Domain: domain, Provider: str(input["provider"]), IPv4: strings.TrimSpace(str(input["ipv4"])), Source: str(input["source"]), Interface: str(input["interface"]), Enabled: yes(input["enabled"]), Token: strings.TrimSpace(str(input["token"]))}
+	if raw := str(input["interval_minutes"]); raw != "" {
+		minutes, err := strconv.Atoi(raw)
+		if err != nil || minutes < 1 || minutes > 1440 {
+			return entry, errors.New("更新间隔须为 1～1440 分钟")
+		}
+		entry.Interval = minutes
+	}
+	old := d.entries[domain]
+	if entry.Token == "" && entry.Provider == old.Provider {
+		entry.Token = old.Token
+	}
+	if !ddnsTokenPattern.MatchString(entry.Token) || entry.Provider != "cloudflare" && entry.Provider != "duckdns" {
+		return entry, errors.New("请选择服务商并填写有效令牌")
+	}
+	if entry.Provider == "duckdns" {
+		label, ok := strings.CutSuffix(domain, ".duckdns.org")
+		if !ok || strings.Contains(label, ".") {
+			return entry, errors.New("DuckDNS 需要已注册的单级 duckdns.org 域名")
+		}
+	}
+	entry.Source = entry.addressSource()
+	switch entry.Source {
+	case "manual":
+		ip := net.ParseIP(entry.IPv4)
+		if ip == nil || ip.To4() == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() {
+			return entry, errors.New("请输入公网 IPv4 地址")
+		}
+		entry.IPv4 = ip.To4().String()
+		entry.Interface = ""
+	case "interface":
+		if _, err := ddnsInterfaceIPv4(entry.Interface); err != nil {
+			return entry, err
+		}
+		entry.IPv4 = ""
+	case "auto", "disabled":
+		entry.IPv4, entry.Interface = "", ""
+	default:
+		return entry, errors.New("请选择有效的 IPv4 地址来源")
+	}
+	return entry, nil
 }
 
 func (d *managementDDNS) updateEnabled(ctx context.Context) {
 	d.mu.Lock()
 	names := make([]string, 0, len(d.entries))
 	for name, entry := range d.entries {
-		if entry.Enabled {
+		if entry.Enabled && entry.addressSource() != "disabled" && time.Since(d.results[name].Checked) >= time.Duration(entry.intervalMinutes())*time.Minute {
 			names = append(names, name)
 		}
 	}
@@ -217,7 +363,7 @@ func (d *managementDDNS) updateEnabled(ctx context.Context) {
 	}
 }
 
-func (d *managementDDNS) update(ctx context.Context, domain string, manual bool) (err error) {
+func (d *managementDDNS) update(ctx context.Context, domain string, manual bool, uiAction ...string) (err error) {
 	d.mu.Lock()
 	entry, ok := d.entries[domain]
 	if !ok || !manual && !entry.Enabled {
@@ -241,20 +387,23 @@ func (d *managementDDNS) update(ctx context.Context, domain string, manual bool)
 		delete(d.running, domain)
 		d.results[domain] = result
 		d.mu.Unlock()
+		if d.audit != nil && (manual || result.IP != previous.IP || result.Error != previous.Error || previous.Checked.IsZero()) {
+			message := "DDNS 更新成功"
+			source := "auto"
+			if manual {
+				source = "manual"
+			}
+			if err != nil {
+				message = "DDNS 更新失败"
+			}
+			_ = d.audit("ddns.update", message, err == nil, M{"domain": domain, "provider": entry.Provider, "ipv4": result.IP, "source": source, "error": result.Error}, uiAction...)
+		}
 	}()
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
-	result.IP = entry.IPv4
-	if result.IP == "" {
-		text, e := d.request(ctx, http.MethodGet, "https://api.ipify.org", "", nil)
-		if e != nil {
-			return errors.New("无法检测公网 IPv4")
-		}
-		ip := net.ParseIP(strings.TrimSpace(string(text)))
-		if ip == nil || ip.To4() == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() {
-			return errors.New("公网 IPv4 检测结果无效")
-		}
-		result.IP = ip.To4().String()
+	result.IP, err = d.address(ctx, entry)
+	if err != nil {
+		return err
 	}
 	if !manual && previous.Error == "" && previous.IP == result.IP && entry.Provider == "duckdns" {
 		return nil
@@ -314,14 +463,14 @@ func (d *managementDDNS) cloudflareFind(ctx context.Context, route, token string
 	return response.Result, nil
 }
 
-func (d *managementDDNS) updateCloudflare(ctx context.Context, entry ddnsEntry, ip string) error {
+func (d *managementDDNS) cloudflareRecordRoute(ctx context.Context, entry ddnsEntry) (string, error) {
 	parts := strings.Split(entry.Domain, ".")
 	zone := ""
 	for i := 0; i < len(parts)-1; i++ {
 		name := strings.Join(parts[i:], ".")
 		found, err := d.cloudflareFind(ctx, "/zones?"+url.Values{"name": {name}, "status": {"active"}, "per_page": {"5"}}.Encode(), entry.Token)
 		if err != nil {
-			return err
+			return "", err
 		}
 		for _, item := range found {
 			if item.Name == name && item.ID != "" {
@@ -334,9 +483,16 @@ func (d *managementDDNS) updateCloudflare(ctx context.Context, entry ddnsEntry, 
 		}
 	}
 	if zone == "" {
-		return errors.New("找不到可管理的 Cloudflare DNS 区域")
+		return "", errors.New("找不到可管理的 Cloudflare DNS 区域")
 	}
-	route := "/zones/" + url.PathEscape(zone) + "/dns_records"
+	return "/zones/" + url.PathEscape(zone) + "/dns_records", nil
+}
+
+func (d *managementDDNS) updateCloudflare(ctx context.Context, entry ddnsEntry, ip string) error {
+	route, err := d.cloudflareRecordRoute(ctx, entry)
+	if err != nil {
+		return err
+	}
 	found, err := d.cloudflareFind(ctx, route+"?"+url.Values{"type": {"A"}, "name": {entry.Domain}, "per_page": {"100"}}.Encode(), entry.Token)
 	if err != nil {
 		return err

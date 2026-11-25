@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -215,5 +216,37 @@ func TestManagementHTTPTransition(t *testing.T) {
 	manager.config.Redirect = 0
 	if w := request(http.MethodGet, 18080); w.Code != http.StatusUpgradeRequired {
 		t.Fatal(w.Code)
+	}
+}
+func TestManagementKeepsCertificateWhenSavingRenewalInterval(t *testing.T) {
+	certPEM, err := selfSignedManagement("certificate.example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := newManagementTLS(t.TempDir(), "127.0.0.1:18880", http.NotFoundHandler())
+	defer manager.close()
+	manager.config = managementTLSConfig{Mode: "cloudflare", Name: "certificate.example.test", Email: "fixture@example.test", Port: 18443, PEM: certPEM}
+	manager.server = &http.Server{}
+	request := httptest.NewRequest(http.MethodPost, "/api/management/https", strings.NewReader(`{"mode":"keep","port":"18443","renew_hours":"24"}`))
+	response := httptest.NewRecorder()
+	manager.serve(response, request, false)
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Code)
+	}
+	var saved managementTLSConfig
+	if err = readJSON(manager.configFile(), &saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.Mode != "cloudflare" || saved.Name != "certificate.example.test" || saved.Email != "fixture@example.test" || saved.PEM != certPEM || saved.RenewHours != 24 {
+		t.Fatal("interval change altered the saved certificate")
+	}
+	response = httptest.NewRecorder()
+	manager.serve(response, httptest.NewRequest(http.MethodGet, "/api/management/https", nil), false)
+	var info M
+	if err = json.Unmarshal(response.Body.Bytes(), &info); err != nil {
+		t.Fatal(err)
+	}
+	if str(info["mode"]) != "cloudflare" || num(info["renew_hours"]) != 24 || str(info["subject"]) != "certificate.example.test" || info["next_renew_check"] == nil {
+		t.Fatal("HTTPS status omitted saved settings")
 	}
 }
