@@ -1,3 +1,4 @@
+import { ConfigBackupSettings } from "./config_backup";
 import { hasChanges } from "./settings_save";
 import type { OverviewView } from "./overview_policy";
 import { ProbeIntervalField } from "./probe_interval_settings";
@@ -296,6 +297,7 @@ export function GlobalMonitoringSettings({ act }: { act: Act }) {
       <PresentationSettings act={act} />
       <DisplaySettings act={act} />
       <DataPolicyCard module="all" kind="" title="监控数据默认设置" act={act} />
+      <ConfigBackupSettings />
     </SettingsSaveProvider>
   );
 }

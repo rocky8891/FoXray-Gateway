@@ -38,7 +38,31 @@ func main() {
 	withWarp := flag.Bool("with-warp", false, "select WARP component")
 	withKomari := flag.Bool("with-komari", false, "select Komari component")
 	checkTopology := flag.Bool("check-topology", false, "inspect and validate network topology without applying changes")
+	backupPublic := flag.String("backup-public-key", "", "register an RSA public key for encrypted configuration export")
+	stageBackup := flag.String("stage-config-backup", "", "decrypt a FoXray configuration backup into a new private directory")
+	backupIdentity := flag.String("backup-identity", "", "RSA private key file for offline restoration")
+	backupDest := flag.String("backup-dest", "", "new directory for staged restoration")
 	flag.Parse()
+	if *backupPublic != "" {
+		if *readonly {
+			log.Fatal("只读模式不能登记备份公钥")
+		}
+		if err := gateway.SetBackupPublicKey(*base, *backupPublic); err != nil {
+			log.Fatal(err)
+		}
+		log.Print("配置备份公钥已登记")
+		return
+	}
+	if *stageBackup != "" {
+		if *backupIdentity == "" || *backupDest == "" {
+			log.Fatal("请指定 --backup-identity 和 --backup-dest")
+		}
+		if err := gateway.StageConfigBackup(*stageBackup, *backupIdentity, *backupDest); err != nil {
+			log.Fatal(err)
+		}
+		log.Print("备份已校验并解包到指定目录")
+		return
+	}
 	if *checkTopology {
 		topology, err := gateway.CheckTopology()
 		if err != nil {

@@ -90,6 +90,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeResponse(w, 400, M{"error": "JSON 请求无效"})
 			return
 		}
+		if r.URL.Path == "/api/config-backup/export" {
+			a.exportConfigBackup(w)
+			return
+		}
 		result, err := a.postAPI(r, d)
 		if err != nil {
 			writeResponse(w, 400, M{"error": err.Error()})
@@ -230,6 +234,8 @@ func (a *App) getAPI(w http.ResponseWriter, r *http.Request) {
 		writeResponse(w, 200, a.warp())
 	case path == "/api/warp/scout":
 		writeResponse(w, 200, a.scoutStatus())
+	case path == "/api/config-backup":
+		writeResponse(w, 200, M{"ready": !a.readonly && regular(filepath.Join(a.base, backupPublicKey))})
 	case path == "/api/backups":
 		writeResponse(w, 200, M{"items": a.backups(), "limit": 10})
 	case path == "/api/bypass":
