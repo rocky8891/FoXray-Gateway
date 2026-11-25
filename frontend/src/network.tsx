@@ -1414,8 +1414,8 @@ function WireGuardPeerProbeEditor({ name, peer, routing, table, saved, onChange 
       失联时自动撤销路由
     </label>
     {probe.auto_withdraw === true && <>
-      <p className="hint">连续超时 10 次后阻断选定的业务前缀，连续成功 3 次后恢复。探测路径保持可用。</p>
-      <MultiSelect label="待撤销的托管路由" options={[...new Set([...candidates, ...selected])]} value={selected}
+      <p className="hint">连续超时 10 次后阻断选定的业务前缀，连续成功 3 次后恢复。探测目标落在撤销网段内时，会先保留经此接口的主机路由。</p>
+      <MultiSelect label="待撤销的托管路由" itemName="路由" options={[...new Set([...candidates, ...selected])]} value={selected}
         onChange={routes => onChange({ ...probe, routes })} />
     </>}
   </details>;

@@ -22,15 +22,7 @@ export function FirewallDiagnosis({ act }: { act: Act }) {
         title="规则诊断"
         description="按运行时规则推演 LAN 转发"
         icon={<FirewallDiagnosisIcon size={20} />}
-        actions={<details className="disclosure-stack"><summary>高级选项</summary>
-        <Field label="管理工具" info="自动优先使用运行中的 firewalld。手动选择可限定诊断范围。">
-          <select aria-label="诊断管理工具" value={driver} onChange={event => setDriver(event.target.value)}>
-            <option value="auto">自动选择</option>
-            <option value="firewalld">firewalld</option>
-            <option value="nftables">nftables</option>
-            <option value="iptables">iptables</option>
-          </select>
-        </Field></details>}
+
       />
       <form onSubmit={diagnose}>
         <div className="form-grid">
@@ -44,6 +36,15 @@ export function FirewallDiagnosis({ act }: { act: Act }) {
           {protocol !== "icmp" && <Field label="目标端口"><input name="port" type="number" min="1" max="65535" required /></Field>}
           <Field label="入口接口"><input name="ingress" placeholder="ens16" required /></Field>
         </div>
+        <details className="disclosure-stack firewall-diagnosis-advanced"><summary>高级选项</summary>
+        <Field label="管理工具" info="自动优先使用运行中的 firewalld。手动选择可限定诊断范围。">
+          <select aria-label="诊断管理工具" value={driver} onChange={event => setDriver(event.target.value)}>
+            <option value="auto">自动选择</option>
+            <option value="firewalld">firewalld</option>
+            <option value="nftables">nftables</option>
+            <option value="iptables">iptables</option>
+          </select>
+        </Field></details>
         <div className="actions">
           <Button type="submit" variant="primary" disabled={diagnostic.pending}>
             <CircleDot size={14} aria-hidden="true" />

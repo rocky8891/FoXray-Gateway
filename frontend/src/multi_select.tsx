@@ -9,12 +9,14 @@ export function MultiSelect({
   value,
   onChange,
   limit = 50,
+  itemName = "接口",
 }: {
   label: string;
   options: string[];
   value: string[];
   onChange: (value: string[]) => void;
   limit?: number;
+  itemName?: string;
 }) {
   const [open, setOpen] = useState(false),
     [query, setQuery] = useState(""),
@@ -78,7 +80,7 @@ export function MultiSelect({
         aria-controls={open ? id : undefined}
         onClick={() => setOpen(!open)}
       >
-        <span>{value.length ? `已选 ${value.length} 个接口` : "选择接口"}</span>
+        <span>{value.length ? `已选 ${value.length} 个${itemName}` : `选择${itemName}`}</span>
         <ChevronDown size={18} />
       </button>
       {open &&
@@ -99,13 +101,13 @@ export function MultiSelect({
             }}
           >
             <strong>
-              选择接口 · {value.length}/{limit}
+              选择{itemName} · {value.length}/{limit}
             </strong>
             <label className="multi-select-search">
               <Search size={16} />
               <input
-                aria-label="查询可选接口"
-                placeholder="查询接口"
+                aria-label={`查询可选${itemName}`}
+                placeholder={`查询${itemName}`}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -113,12 +115,12 @@ export function MultiSelect({
             <label className="check">
               <input
                 type="checkbox"
-                aria-label="全选筛选接口"
+                aria-label={`全选筛选${itemName}`}
                 checked={all}
-                disabled={!all && new Set([...value, ...rows]).size > limit}
+                disabled={!rows.length || !all && new Set([...value, ...rows]).size > limit}
                 title={
                   new Set([...value, ...rows]).size > limit
-                    ? `最多选择${limit}个接口，请缩小筛选范围或逐项选择`
+                    ? `最多选择${limit}个${itemName}，请缩小筛选范围或逐项选择`
                     : undefined
                 }
                 ref={(el) => {
@@ -141,7 +143,7 @@ export function MultiSelect({
                 <label className="check" key={name}>
                   <input
                     type="checkbox"
-                    aria-label={"选择接口 " + name}
+                    aria-label={`选择${itemName} ${name}`}
                     checked={value.includes(name)}
                     disabled={!value.includes(name) && value.length >= limit}
                     onChange={(e) =>
@@ -156,7 +158,7 @@ export function MultiSelect({
                 </label>
               ))}
               {!rows.length && (
-                <span className="small muted">没有匹配接口</span>
+                <span className="small muted">{options.length ? `没有匹配${itemName}` : `没有可选${itemName}`}</span>
               )}
             </MenuScrollArea>
           </div>,

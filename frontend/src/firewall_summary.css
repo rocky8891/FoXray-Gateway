@@ -185,3 +185,7 @@
 }
 .firewall-diagnosis-panel > .page-heading .field > :is(select, .icon-select) { width: 145px; }
 .firewall-diagnosis-panel > form > .form-grid { margin-top: 0; }
+
+.firewall-diagnosis-advanced { margin-block: 12px; }
+.firewall-diagnosis-advanced > summary { color: var(--text); font-size: inherit; }
+.firewall-diagnosis-advanced .field { max-width: 240px; }

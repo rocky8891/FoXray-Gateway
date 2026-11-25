@@ -417,11 +417,11 @@ export function FirewallPage({ act }: { act: Act }) {
     } : { key: "serial", label: "序号", render: (_, i) => i + 1 },
   ];
   const showZoneBinding = !native && (allZones || scopedModules.length > 0);
-  if (showZoneBinding) columns.push({
+  const zoneBindingColumn: Column<Dict> = {
     key: "zone",
     label: category === "masquerade" ? "出口区域 / 出接口" : category === "forward" ? "入口区域 / 入接口" : "入口区域 / 接口",
     render: renderZoneBinding,
-  });
+  };
   if (category === "all") columns.push(
     {key:"name",label:"名称／类型",heading:heading("kind","名称／类型"),render:r=><><strong>{text(r.service || (r.kind === "system" ? [r.family, r.table, r.chain].filter(Boolean).join(" / ") : "") || r.port || r.source || (r.kind === "masquerade" ? "地址转换" : "规则"))}</strong><small>{r.kind === "system" ? "系统规则（只读）" : r.editable===false ? "只读规则" : [...zoneRuleTypes,...categories].find(([id])=>id===r.kind)?.[1] || String(r.kind || "系统规则")}</small></>},
     {key:"protocol",label:"协议／端口",heading:heading("protocol","协议／端口"),render:r=>r.service ? (
@@ -473,14 +473,14 @@ export function FirewallPage({ act }: { act: Act }) {
   if (category === "forward")
     columns.push({
       key: "target",
-      label: "转发目标",
+      label: "转换目标",
       render: (r) => (
         <>
           {text(r.target_ip || "本机")}
           <small>{r.target_port ? "端口 " + text(r.target_port) : "保留原端口"}</small>
         </>
       ),
-    });
+    }, ...(showZoneBinding ? [zoneBindingColumn] : []));
   else if (category === "masquerade")
     columns.push(
       {
@@ -494,14 +494,14 @@ export function FirewallPage({ act }: { act: Act }) {
         render: (r) =>
           r.action === "snat" ? text(r.to_source) : "自动使用出接口地址",
       },
-      ...(!showZoneBinding ? [{
+      ...(showZoneBinding ? [zoneBindingColumn] : [{
         key: "out_interface",
         label: "出接口",
         render: (r: Dict) => text(r.out_interface || "区域出接口"),
-      }] : []),
+      }]),
     );
   else if (category !== "service-rule")
-    columns.push({
+    columns.push(...(showZoneBinding ? [zoneBindingColumn] : []), {
       key: "action",
       label: "策略",
       heading: heading("action", "策略"),
@@ -1126,7 +1126,7 @@ function FirewallForm({
             )}
             {kind === "forward" && (
               <>
-                <Field label="目标 IPv4" hint="留空为本机">
+                <Field label="转换目标" hint="填写 IPv4 地址；留空为本机">
                   <input
                     value={String(value.target_ip || "")}
                     onChange={(e) => onChange("target_ip", e.target.value)}

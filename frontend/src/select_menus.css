@@ -38,3 +38,6 @@
 .managed-icon-select-menu .menu-scroll-content>button>span:not(.icon-select-symbol) { min-width:0;overflow-wrap:anywhere; }
 .multi-select-popup { overflow:hidden; }
 .service-theme-menu .menu-scroll-content[role=tree] { padding:0 4px 4px; }
+
+.multi-select-popup > .multi-select-search > input { width: 100%; min-width: 0; flex: 1; box-shadow: none !important; outline: none !important; }
+.multi-select-popup > .multi-select-search:focus-within { border-color: var(--accent); }
