@@ -7162,3 +7162,6 @@ header .brand{align-items:center}header .brand .brand-logo{width:44px;height:44p
 /* Keep template actions and output separated from the following confirmation. */
 .wg-client-templates { display: grid; gap: var(--space-4, 1rem); margin-block-end: var(--space-4, 1rem); }
 .wg-client-templates > h3, .wg-client-templates > .actions, .wg-client-templates > .client-template { margin-block: 0; }
+
+.wg-network-editor > h3 { display: flex; align-items: flex-start; gap: 8px; }
+.wg-network-editor > h3 > .setting-info { flex: none; }

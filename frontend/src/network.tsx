@@ -321,7 +321,7 @@ export function NetworkPage({
             <strong>{text(record(r.service).name || `wg-quick@${r.name}`)}</strong>
             <small>{r.configured ? "wg-quick 配置已就绪" : "未配置 wg-quick"}</small>
             <small className={r.active ? "accent" : "muted"}>
-              {roleLabel(r)}·{r.active ? "已启动" : "已停止"}
+              {roleLabel(r)} · {r.active ? "已启动" : "已停止"}
             </small>
           </>
         ),
@@ -1257,17 +1257,27 @@ function WGNetworkEditor({
     </Field>
   );
   return (
-    <section className="peer-editor">
+    <section className="peer-editor wg-network-editor">
       <h3>
-        角色、路由与 LAN 转发
+        <span>角色、路由与 LAN 转发</span>
         <SettingInfo
-          label="SNAT与路由"
-          text={
-            <>
-              SNAT 不改变全局默认路由；IPv4 forwarding 需已开启。服务端 Peer
-              AllowedIPs 应填写客户端地址或其实际远端网段。
-            </>
-          }
+          label="角色、路由与 LAN 转发"
+          text={<ul>
+            <li><strong>接口角色：</strong>服务端接受客户端接入；客户端连接远端网络。角色用于解释转发方向，不会动态协商路由。</li>
+            <li><strong>接口路由：</strong>自动模式按本端 Peer AllowedIPs 生成路由；手动和不安装模式按各自设置处理。服务端 Peer AllowedIPs 应填写客户端隧道地址或其实际远端网段。</li>
+            {role === "server" ? <>
+              <li><strong>客户端访问网段：</strong>写入导出配置的 AllowedIPs，让客户端将访问目标网段的流量送进 VPN；修改后需更新客户端配置，不能动态推送。</li>
+              <li><strong>允许 VPN 客户端访问 LAN：</strong>配置对应防火墙放行规则，方向为远端客户端 → WireGuard 隧道 → 本服务器 → LAN 接口 → 目标局域网设备。</li>
+              <li><strong>VPN 来源网段：</strong>填写报文进入本服务器时的实际源网段，例如客户端隧道地址 10.24.255.2/32，或客户端后面的实际源网段；不要把目标 LAN 网段当作来源填写。</li>
+              <li><strong>启用 SNAT：</strong>独立于转发开关，将匹配流量的源地址转换为服务器 LAN 出接口地址。不开 SNAT 时，LAN 侧需有返回客户端来源网段的路由。</li>
+            </> : <>
+              <li><strong>允许 LAN 设备经此 VPN 访问远端：</strong>为指定 LAN 来源网段访问启用 Peer 的 AllowedIPs 目标范围配置防火墙放行规则。</li>
+              <li><strong>LAN 来源网段与接口：</strong>填写实际发起访问的本地 LAN 网段及其接入接口。</li>
+              <li><strong>启用 SNAT：</strong>独立于转发开关，将匹配流量的源地址转换为 WireGuard 出接口地址；不开 SNAT 时远端需有返回本地 LAN 的路由。</li>
+            </>}
+            <li><strong>生效条件：</strong>需已开启 IPv4 forwarding，并具备正确的路由、Peer AllowedIPs、回程路由与防火墙转发策略。勾选放行不保证链路必然可达，已有其他放行也不会因取消勾选而全部删除。</li>
+            <li><strong>默认路由：</strong>SNAT 本身不改变全局默认路由；接口路由仍由路由表和路由模式决定。</li>
+          </ul>}
         />
       </h3>
       <div className="form-grid">
@@ -1342,7 +1352,7 @@ function WGNetworkEditor({
       </div>
       {(!!value.snat || value.lan_forward === true) && (
         <div className="form-grid">
-          <Field label="LAN 转发／SNAT 来源网段" hint="多个网段用逗号分隔">
+          <Field label={role === "server" ? "VPN 客户端来源网段" : "LAN 转发／SNAT 来源网段"} hint={role === "server" ? "填写客户端隧道网段或其后方实际源网段；多个网段用逗号分隔" : "填写本地 LAN 来源网段；多个网段用逗号分隔"}>
             <textarea rows={1} className="wg-resizable-text" value={lanSources} onChange={event => {
               const draft = event.target.value;
               setLanSources(draft);
