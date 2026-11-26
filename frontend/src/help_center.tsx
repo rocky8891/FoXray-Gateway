@@ -1,5 +1,6 @@
 import {useMemo,useState} from "react";
-import {Search,BookOpen,Star} from "lucide-react";
+import {Search,BookOpen,Star,X} from "lucide-react";
+import {HelpCenterIcon} from "./requirement_icons";
 import {Button,Panel,Modal} from "./ui";
 import {CopyButton} from "./resource_controls";
 import catalog from "./help_catalog.json";
@@ -33,10 +34,20 @@ function snippet(article:Article,query:string){
  const body=article.body.replace(/```[\s\S]*?```/g," ").replace(/## /g,"");
  const hits=query.trim().split(/\s+/).filter(Boolean).map(token=>body.toLowerCase().indexOf(token.toLowerCase())).filter(index=>index>=0);
  const start=hits.length?Math.max(0,Math.min(...hits)-35):0;
- return (start?"…":"")+body.slice(start,start+190);
+ return (start?"…":"")+body.slice(start,start+190)+(start+190<body.length?"…":"");
 }
 function ArticleBody({body}:{body:string}){
- const parts=body.split("```");return <div className="help-article-body">{parts.map((part,index)=>index%2?<div className="help-code" key={index}><CopyButton text={part.replace(/^\w*\n/,"")}/><pre>{part.replace(/^\w*\n/,"")}</pre></div>:part.split("\n").filter(Boolean).map((line,i)=>line.startsWith("## ")?<h3 key={index+"-"+i}>{line.slice(3)}</h3>:<p key={index+"-"+i}>{line}</p>))}</div>;
+ const parts=body.split("```");
+ return <div className="help-article-body">{parts.map((part,index)=>{
+  if(index%2){
+   const command=part.replace(/^\w*\n/,"").trimEnd();
+   return <section className="help-code-block" aria-label="命令示例" key={index}>
+     <div className="help-code-tools"><span>命令示例</span><CopyButton text={command} label="复制命令"/></div>
+     <pre className="help-code">{command}</pre>
+   </section>;
+  }
+  return part.split("\n").filter(Boolean).map((line,i)=>line.startsWith("## ")?<h3 key={index+"-"+i}>{line.slice(3)}</h3>:<p key={index+"-"+i}>{line}</p>);
+ })}</div>;
 }
 export function HelpCenter(){
  const [query,setQuery]=useState(""),[category,setCategory]=useState("全部"),[kind,setKind]=useState("全部"),[limit,setLimit]=useState(30),[opened,setOpened]=useState<Article|null>(null);
@@ -47,16 +58,16 @@ export function HelpCenter(){
  const common=(favorites.length?favorites:manuals.slice(0,6)) as Article[];
  const save=(article:Article)=>{const next=saved.includes(article.id)?saved.filter(id=>id!==article.id):[...saved,article.id];setSaved(next);try{localStorage.setItem("foxray.help.saved",JSON.stringify(next));}catch{/* Collection still works for this session. */}};
  return <div className="help-center">
-  <Panel><div className="help-heading"><BookOpen/><div><h2>帮助中心</h2><p>部署、功能使用与页面说明 · 支持关键词和模糊搜索</p></div></div>
-   <label className="help-search"><Search size={20}/><input aria-label="搜索帮助" maxLength={200} placeholder="搜索部署、SELinux、ip_forward、WireGuard、自动列宽…" value={query} onChange={event=>{setQuery(event.target.value);setLimit(30)}}/>{query&&<Button onClick={()=>setQuery("")}>清空</Button>}</label>
+  <Panel className="help-intro"><div className="help-heading"><h2><HelpCenterIcon size={20}/><span>帮助中心</span></h2><p>部署、功能使用与页面说明 · 支持关键词和模糊搜索</p></div>
+   <div className="management-query-tools help-search-row"><label className="search help-search"><Search size={18}/><input aria-label="搜索帮助" maxLength={200} placeholder="搜索部署、SELinux、ip_forward、WireGuard、自动列宽…" value={query} onChange={event=>{setQuery(event.target.value);setLimit(30)}}/>{query&&<Button variant="ghost" size="compact" iconOnly ariaLabel="清空搜索" title="清空搜索" onClick={()=>{setQuery("");setLimit(30)}}><X size={16}/></Button>}</label></div>
   </Panel>
-  {!query&&<Panel><h3>{favorites.length?"收藏文档":"常用文档"}</h3><div className="help-common">{common.map(article=><button key={article.id} onClick={()=>setOpened(article)}><BookOpen size={18}/>{article.title}</button>)}</div></Panel>}
-  <div className="help-layout"><aside aria-label="帮助分类">{categories.map(item=><button key={item} aria-pressed={category===item} onClick={()=>{setCategory(item);setLimit(30)}}>{item}<small>{item==="全部"?articles.length:articles.filter(article=>article.category===item).length}</small></button>)}</aside>
+  {!query&&<Panel><h3>{favorites.length?"收藏文档":"常用文档"}</h3><div className="help-common">{common.map(article=><button key={article.id} onClick={()=>setOpened(article)}><BookOpen size={18}/><span>{article.title}</span></button>)}</div></Panel>}
+  <div className="help-layout"><aside aria-label="帮助分类">{categories.map(item=><button key={item} aria-pressed={category===item} onClick={()=>{setCategory(item);setLimit(30)}}><span>{item}</span><small>{item==="全部"?articles.length:articles.filter(article=>article.category===item).length}</small></button>)}</aside>
    <Panel><div className="help-results-head"><span>{results.length} 篇匹配文档</span><select aria-label="帮助文档类型" value={kind} onChange={event=>{setKind(event.target.value);setLimit(30)}}><option>全部</option><option>使用手册</option><option>页面说明</option></select></div>
     {!results.length&&<p>未找到匹配内容，请减少关键词或切换分类。</p>}
     <div className="help-results">{results.slice(0,limit).map(({article})=><article key={article.id}><button className="help-result-title" onClick={()=>setOpened(article)}><Highlighted text={article.title} query={query}/></button><small>{article.category} · {article.kind}</small><p><Highlighted text={snippet(article,query)} query={query}/></p></article>)}</div>
     {results.length>limit&&<Button onClick={()=>setLimit(limit+30)}>显示更多</Button>}
    </Panel></div>
-  {opened&&<Modal title={opened.title} wide onClose={()=>setOpened(null)}><div className="help-article-tools"><span>{opened.category} · {opened.kind}</span><Button onClick={()=>save(opened)}><Star size={16}/>{saved.includes(opened.id)?"取消收藏":"收藏文档"}</Button><CopyButton text={opened.title+"\n\n"+opened.body}/></div><ArticleBody body={opened.body}/></Modal>}
+  {opened&&<Modal title={opened.title} className="help-article-dialog" wide onClose={()=>setOpened(null)}><div className="help-article-tools"><span>{opened.category} · {opened.kind}</span><div className="help-article-actions"><Button size="compact" onClick={()=>save(opened)}><Star size={16}/>{saved.includes(opened.id)?"取消收藏":"收藏文档"}</Button><CopyButton text={opened.title+"\n\n"+opened.body} label="复制全文"/></div></div><ArticleBody body={opened.body}/></Modal>}
  </div>;
 }
