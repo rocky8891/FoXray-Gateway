@@ -20,7 +20,7 @@ export function FirewallDiagnosis({ act }: { act: Act }) {
     <Panel className="firewall-main-panel firewall-diagnosis-panel">
       <PageHeader
         title="规则诊断"
-        description="按运行时规则推演 LAN 转发"
+        description={<ul><li><strong>诊断范围。</strong>根据网关当前运行时快照，推演指定 LAN 流量的过滤和地址转换路径。</li><li><strong>结果边界。</strong>静态推演不等于端到端连通测试；实际连接跟踪和远端回程需另行核对。</li></ul>}
         icon={<FirewallDiagnosisIcon size={20} />}
 
       />

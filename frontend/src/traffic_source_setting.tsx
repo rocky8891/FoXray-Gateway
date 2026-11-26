@@ -23,7 +23,7 @@ export function TrafficSourceSetting({ act }: { act: Act }) {
         </label>
         <SettingInfo
           label="Xray核心流量统计"
-          text="控制Xray核心是否提供出口流量计数。启用时可能重载Xray，短暂影响代理；停用后不再读取该计数，统计监听在核心下次正常更新时移除。与页面显示开关、监控总开关和历史保留分开管理。"
+          text={<ul><li><strong>统计来源。</strong>控制 Xray 核心是否提供各出口的字节计数。</li><li><strong>开启影响。</strong>可能重新加载 Xray，短暂影响代理连接。</li><li><strong>关闭影响。</strong>不再读取计数；统计监听在核心下次正常更新时移除。</li><li><strong>独立开关。</strong>页面显示、模块监控和历史保留仍分别设置。</li></ul>}
         />
       </div>
       <ErrorLine error={r.error} />

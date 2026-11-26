@@ -89,7 +89,7 @@ export function VPNExclusionsEditor({
     <div className="vpn-exclusions-editor settings-section">
       <Field
         label="VPN排除模式"
-        info="默认保护vone、现有WireGuard接口、私网、节点入口和IPv6原路径；自定义模式在此基础上增加排除。"
+        info={<ul><li><strong>默认保护。</strong>保留 VONE、现有 WireGuard 接口、私网、节点入口和 IPv6 的原有路径。</li><li><strong>自定义排除。</strong>在默认保护之外增加直连目标，不覆盖默认保护项。</li></ul>}
       >
         <select
           aria-label="VPN排除模式"
@@ -147,7 +147,7 @@ export function VPNExclusionsEditor({
             <Field
               label="排除目标域名"
               hint="每行一个"
-              info="example.com包含子域名；full:example.com仅精确匹配。域名按Xray可识别的HTTP/TLS/QUIC信息直连，无法识别的加密域名不猜测。"
+              info={<ul><li><strong>域名匹配。</strong>example.com 包含其子域名；full:example.com 仅精确匹配。</li><li><strong>识别条件。</strong>Xray 根据可识别的 HTTP、TLS 或 QUIC 信息匹配直连。</li><li><strong>识别限制。</strong>无法读取域名信息时，不据此推断目标域名。</li></ul>}
             >
               <ExclusionLines
                 label="VPN排除域名"

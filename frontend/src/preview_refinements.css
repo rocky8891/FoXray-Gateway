@@ -1852,3 +1852,17 @@ table :is(th, td):is([data-column="selected"], [data-column="select"], :has(> in
   z-index: 1;
 }
 .builtin-rules-results + .resource-pagination { margin-top: 8px; }
+
+/* Information popovers: readable paragraphs, clear hierarchy, scroll within the viewport. */
+.setting-tooltip { font-size: 13px; line-height: 1.7; max-height: min(70dvh, calc(100dvh - 24px)); overflow-wrap: anywhere; overscroll-behavior: contain; }
+.setting-tooltip p { margin: .45em 0; }
+.setting-tooltip :is(ul,ol) { padding-inline-start: 1.5em; }
+.setting-tooltip ul { list-style-type: disc; }
+.setting-tooltip ul ul { list-style-type: circle; }
+.setting-tooltip ol { list-style-type: decimal; }
+.setting-tooltip ol ol { list-style-type: lower-alpha; }
+.setting-tooltip li + li { margin-top: .4em; }
+.setting-tooltip strong { font-weight: 650; }
+.setting-tooltip code { font-size: .95em; white-space: normal; overflow-wrap: anywhere; }
+.wg-probe-target-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.wg-probe-target-heading .settings-section-title { display: flex; align-items: center; gap: 8px; margin: 0; }

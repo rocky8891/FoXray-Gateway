@@ -461,11 +461,11 @@ function NodeScore({
         {detailInfo && (
           <SettingInfo
             label="综合评分"
-            text={[
-              `已选 ${node.score?.selected?.length || 0} 项 / 可用 ${node.score?.basis?.length || 0} 项`,
-              `评分用延迟均值：${node.metrics.latency_average_ms == null ? "未测" : Number(node.metrics.latency_average_ms.toFixed(1)) + " ms"}；近${node.metrics.latency_average_window_minutes ?? 30}分钟，${node.metrics.latency_average_samples || 0}次成功样本`,
-              ...(node.score?.missing || []),
-            ].join("；")}
+            text={<ul>
+              <li><strong>评分依据。</strong>已选 {node.score?.selected?.length || 0} 项，可用 {node.score?.basis?.length || 0} 项。</li>
+              <li><strong>延迟均值。</strong>{node.metrics.latency_average_ms == null ? "未测" : Number(node.metrics.latency_average_ms.toFixed(1)) + " ms"}；统计近 {node.metrics.latency_average_window_minutes ?? 30} 分钟的 {node.metrics.latency_average_samples || 0} 次成功样本。</li>
+              {!!node.score?.missing?.length && <li><strong>缺失依据。</strong><ul>{node.score.missing.map((item,index)=><li key={index}>{item}</li>)}</ul></li>}
+            </ul>}
           />
         )}
       </span>

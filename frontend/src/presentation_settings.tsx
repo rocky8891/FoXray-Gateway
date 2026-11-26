@@ -933,7 +933,7 @@ function OverviewLayoutSettings({
                     <>
                       <Field
                         label="默认样式"
-                        info="默认当前出口，可选择服务总览或节点一览。首次打开或重新进入一级主页时使用此样式；页面内临时切换不修改默认样式。"
+                        info={<ul><li><strong>默认页面。</strong>可选择当前出口、服务总览或节点一览。</li><li><strong>生效时机。</strong>首次打开或重新进入一级主页时使用保存的默认项。</li><li><strong>临时切换。</strong>页面内切换视图不会覆盖已保存的默认项。</li></ul>}
                       >
                         <select
                           aria-label="主页默认样式"
@@ -994,7 +994,7 @@ function OverviewLayoutSettings({
                   {view === "services" && (
                     <Field
                       label="保存自定义主题"
-                      info="输入名称保存当前服务总览的布局、指标顺序、接口选择、字号和外观。点击下方“保存并应用”后持久保存；同名主题会更新。"
+                      info={<ul><li><strong>保存内容。</strong>记录当前服务总览的布局、指标顺序、接口选择、字号和外观。</li><li><strong>保存方式。</strong>填写名称，再点击下方「保存并应用」。</li><li><strong>同名主题。</strong>使用相同名称时更新已有主题。</li></ul>}
                     >
                       <div className="custom-theme-save">
                         <input
@@ -1201,7 +1201,7 @@ function OverviewLayoutSettings({
           {view === "services" && (
             <OverviewSettingsCard
               title="WireGuard 卡片"
-              info="未指定接口时，按接口列表返回顺序显示所选数量的接口；已指定时按保存的选择显示。这里只调整主页显示，不启停接口。要恢复自动选择，请在显示接口 1 中选择“自动选择所选数量的接口”。"
+              info={<ul><li><strong>自动选择。</strong>未指定接口时，按列表顺序显示所选数量的接口。</li><li><strong>指定接口。</strong>指定后使用已保存的名称和顺序；只影响主页展示，不启停接口。</li><li><strong>恢复自动。</strong>在「显示接口 1」选择「自动选择所选数量的接口」。</li></ul>}
               actions={actions(
                 [
                   "services_wireguard_axis",
@@ -1218,7 +1218,7 @@ function OverviewLayoutSettings({
               )}
             >
               <div className="form-grid">
-                <Field label="显示接口数量" info="主页按接口运行状态显示已连接，不代表每个Peer均可达。默认显示两个接口，可选择1～4个并指定名称；模块监控关闭后数值暂停，接口状态仍独立展示。">
+                <Field label="显示接口数量" info={<ul><li><strong>显示数量。</strong>默认 2 个接口，可选择 1～4 个并指定名称。</li><li><strong>状态含义。</strong>主页已连接按本地接口运行状态判断，不等于每个 Peer 都可达。</li><li><strong>暂停监控。</strong>关闭模块监控后数值暂停，接口状态仍单独展示。</li></ul>}>
                   <select
                     aria-label="WireGuard显示接口数量"
                     value={Number(p.services_wireguard_count || 2)}
@@ -1260,7 +1260,7 @@ function OverviewLayoutSettings({
                     <Field
                       key={index}
                       label={`显示接口 ${index + 1}`}
-                      info="显示全部接口；选择已分配的接口会交换两个位置。接口1～4的顺序就是指标卡片的显示顺序。这里只调整主页内容，不启停接口。"
+                      info={<ul><li><strong>接口列表。</strong>提供全部接口供选择。选择已分配的接口时，交换两个位置。</li><li><strong>排列顺序。</strong>接口 1～4 对应指标卡片从前到后的顺序。</li><li><strong>影响范围。</strong>只调整主页内容，不启停接口。</li></ul>}
                     >
                       <select
                         aria-label={`WireGuard主页接口${index + 1}`}
@@ -1321,7 +1321,7 @@ function OverviewLayoutSettings({
                       ? "须为0或40～1200的整数"
                       : ""
                   }
-                  info="0自动适配，左侧大卡片默认不超过280px；支持40～1200px，超出空间时缩小。名称不计入圆径。"
+                  info={<ul><li><strong>自动适配。</strong>填写 0 时按可用空间计算，左侧大卡片默认圆径不超过 280px。</li><li><strong>指定尺寸。</strong>支持 40～1200px；空间不足时自动缩小。</li><li><strong>尺寸含义。</strong>圆径只计算圆形本身，不包含名称。</li></ul>}
                 >
                   <CircleDiameterInput
                     value={Number(p.services_wireguard_diameter || 0)}

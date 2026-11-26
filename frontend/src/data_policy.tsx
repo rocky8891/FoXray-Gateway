@@ -116,10 +116,10 @@ export function DataPolicyCard({
               label={label}
               info={
                 key === "interval"
-                  ? "1～300秒。独立设置优先于全局，取消后跟随全局；调整无需重启转发服务。主动探测保持独立，不受此间隔影响。"
+                  ? <ul><li><strong>取值范围。</strong>1～300 秒。</li><li><strong>继承关系。</strong>启用独立设置时使用本项，取消后跟随全局。</li><li><strong>影响范围。</strong>调整采集间隔不重启转发服务，也不改变主动探测频率。</li></ul>
                   : key === "max_storage_mb"
-                    ? "1～10240 MiB。按各服务、各监控项的有效数据估算，不合并占用；共享数据库文件不会立即缩小。"
-                    : "1～365天。独立设置优先于全局；到期清理已有监控记录，不改变检测策略。"
+                    ? <ul><li><strong>取值范围。</strong>1～10240 MiB。</li><li><strong>统计口径。</strong>按各服务、各监控项的有效数据分别估算。</li><li><strong>磁盘表现。</strong>清理数据后，共享数据库文件不会立即缩小。</li></ul>
+                    : <ul><li><strong>取值范围。</strong>1～365 天。</li><li><strong>保留策略。</strong>独立设置优先于全局，到期清理对应监控记录。</li><li><strong>影响范围。</strong>不改变主动检测策略。</li></ul>
               }
             >
               <NumberInput
@@ -136,10 +136,10 @@ export function DataPolicyCard({
               label="历史写入间隔（秒）"
               info={
                 kind === "latency"
-                  ? "1～3600秒。只保存已有检测结果，不改变真连接或ICMP主动探测频率；实际记录不会快于检测。默认1秒表示通常保留每次检测。"
+                  ? <ul><li><strong>取值范围。</strong>1～3600 秒，默认 1 秒。</li><li><strong>记录内容。</strong>保存已有检测结果；默认值通常可以保留每次检测。</li><li><strong>频率关系。</strong>不改变真连接或 ICMP 探测频率，实际写入不会快于检测。</li></ul>
                   : kind === "connections"
-                    ? "1～3600秒。决定连接数历史的记录密度，实际不会快于采集；明细按批次写入，图表按查询范围合并，不补造历史。"
-                    : "1～3600秒。实时采集决定当前速率，历史记录间隔决定保存密度；默认60秒，实际记录不会快于采集。短间隔只影响新数据，历史图按范围合并，页面更新间隔只负责读取。"
+                    ? <ul><li><strong>取值范围。</strong>1～3600 秒。</li><li><strong>记录密度。</strong>控制连接数历史保存频率，不会快于实际采集。</li><li><strong>明细与图表。</strong>明细按批次写入，图表按查询范围合并；不补造历史记录。</li></ul>
+                    : <ul><li><strong>取值范围。</strong>1～3600 秒，默认 60 秒。</li><li><strong>采集与写入。</strong>实时采集产生当前速率，本项决定历史保存密度；实际写入不会快于采集。</li><li><strong>生效范围。</strong>短间隔只影响新数据。图表可能继续合并历史点，页面刷新只负责读取。</li></ul>
               }
             >
               <NumberInput

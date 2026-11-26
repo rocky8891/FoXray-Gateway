@@ -96,7 +96,7 @@ function InterfaceAddressFields({
     <>
       <Field
         label="IP地址"
-        info="静态IPv4或IPv6地址。添加可留空。已有接口只替换选中的地址，其他地址保留。"
+        info={<ul><li><strong>地址格式。</strong>填写静态 IPv4 或 IPv6 地址；新增接口时可留空。</li><li><strong>编辑已有接口。</strong>只替换选中的地址，保留其他地址。</li></ul>}
       >
         <input
           aria-label="接口IP地址"
@@ -157,7 +157,7 @@ function InterfaceAddressFields({
             <>
               <Field
                 label="网关地址"
-                info="只操作main表。网关必须在当前接口可达网段内；不改其他接口默认路由。"
+                info={<ul><li><strong>路由表。</strong>只修改 main 表中的对应条目。</li><li><strong>网关要求。</strong>下一跳须位于当前接口的可达网段内。</li><li><strong>修改范围。</strong>不修改其他接口的默认路由。</li></ul>}
               >
                 <input
                   aria-label="接口网关地址"

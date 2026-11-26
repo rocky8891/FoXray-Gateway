@@ -547,13 +547,15 @@ export function NetworkPage({
           description={
             <>
               {descriptions[kind]}
-              {kind === "wireguard" && (
-                <p>
-                  启动／停止对应 systemctl start／stop
-                  wg-quick@接口名；开启／关闭自启对应 systemctl enable／disable
-                  wg-quick@接口名。批量操作逐项生成预览；不改变其他接口。编辑与删除在行菜单中，运行中的接口需先停止。
-                </p>
-              )}
+              {kind === "wireguard" && <ul>
+                <li><strong>接口服务。</strong>每个接口对应 <code>wg-quick@接口名</code>，可分别启动、停止和设置开机自启。</li>
+                <li><strong>操作方式。</strong><ul>
+                  <li>启动、停止立即改变选中接口的运行状态。</li>
+                  <li>开启、关闭自启只修改开机启动设置。</li>
+                  <li>批量操作逐项生成预览；核对后才执行。</li>
+                </ul></li>
+                <li><strong>编辑与删除。</strong>在行操作菜单中处理。备注修改不重启接口；运行中修改地址、路由等配置可能重启该接口，影响范围以变更预览为准。</li>
+              </ul>}
               {kind !== "wireguard" && (
                 <p>
                   系统和其他组件的现有规则保留原归属；新增规则只由 FoXray
@@ -729,10 +731,11 @@ export function NetworkPage({
         <Modal
           description={
             kind === "wireguard" ? (
-              <>
-                私钥不通过查询接口返回，不进入操作日志或
-                GitHub。运行中编辑地址或路由会重启此接口；单独启停 Peer 不重启接口。
-              </>
+              <ul>
+                <li><strong>密钥保护。</strong>私钥仅保存在服务器，不通过查询接口返回，也不写入操作日志。</li>
+                <li><strong>接口配置。</strong>修改运行中接口的地址、路由等配置可能重启该接口；先检查变更预览。</li>
+                <li><strong>独立操作。</strong>单独启停 Peer 不重启整个接口；只修改备注也不重启接口。</li>
+              </ul>
             ) : undefined
           }
           title={

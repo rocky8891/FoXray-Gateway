@@ -114,7 +114,7 @@ export function ClockSettings({ act }: { act: Act }) {
         <div className="form-grid">
           <Field
             label="时间来源"
-            info="互联网从所选HTTPS服务器的Date响应头校准；服务器读取网关时间；浏览器读取当前设备时间。都不会修改系统时钟。"
+            info={<ul><li><strong>互联网。</strong>使用所选 HTTPS 服务器的 Date 响应头校准显示时间。</li><li><strong>服务器 / 浏览器。</strong>分别读取网关时间或当前设备时间。</li><li><strong>影响范围。</strong>只影响时钟显示，不修改任何系统时钟。</li></ul>}
           >
             <select
               aria-label="时钟来源"
@@ -154,7 +154,7 @@ export function ClockSettings({ act }: { act: Act }) {
             error={
               invalidServer ? "请输入不含账号、查询参数或片段的HTTPS地址" : ""
             }
-            info="填写提供有效Date响应头的HTTPS地址。留空自动尝试Cloudflare、Microsoft、百度，每分钟校准一次；指定地址时仅使用该服务器。"
+            info={<ul><li><strong>地址要求。</strong>提供有效 Date 响应头的 HTTPS 地址。</li><li><strong>留空。</strong>按预设候选尝试，每分钟校准一次。</li><li><strong>指定地址。</strong>只使用填写的服务器；连接或响应头异常时，应检查此地址。</li></ul>}
           >
             <input
               aria-label="互联网时间服务器"

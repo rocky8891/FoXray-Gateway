@@ -261,7 +261,7 @@ export function OverviewSurfaceSettings({
               <Field
                 label="透明度（%）"
                 validateNumber
-                info="背景透明程度：0%完全不透明，100%完全透明；只影响背景，不影响文字。"
+                info={<ul><li><strong>透明度。</strong>0% 为完全不透明，100% 为完全透明。</li><li><strong>影响范围。</strong>只改变背景，文字保持原有透明度。</li></ul>}
               >
                 <NumberInput
                   aria-label={`${title}不透明度`}
@@ -350,7 +350,7 @@ function OverviewTextFields({
     <SettingsSection
       className="overview-text-card"
       title="指标文字"
-      info="三种主页共用。名称与数值分别设置；同一卡片字号保持一致，空间不足时统一缩小，保证单行完整显示。"
+      info={<ul><li><strong>适用范围。</strong>三种主页共用字号设置，名称与数值分别配置。</li><li><strong>自适应。</strong>同一卡片使用一致字号；空间不足时统一缩小，尽量保持单行完整。</li></ul>}
     >
       <div className="form-grid">
         <Field label="指标名称字号（px）" validateNumber>

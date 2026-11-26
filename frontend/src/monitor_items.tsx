@@ -132,9 +132,16 @@ export function MonitorItemsSettings({
                   <SettingInfo
                     label={`${module === "xray" ? "Xray" : module === "warp" ? "WARP" : "WireGuard"}流量监控`}
                     text={
-                      module === "xray"
-                        ? "流量监控控制 Xray 流量卡片和监控入口的显示；关闭后保留历史，不关闭核心统计，也不停止已启用的流量采集。Xray核心流量统计提供各出口的上传、下载字节计数，FoXray 据此计算速率、累计流量并保存历史。查看实时流量需要同时开启流量监控、Xray核心流量统计及 Xray 模块监控总开关，且核心统计可用；仅开启流量监控不会自动启用核心统计。模块监控总开关关闭后停止采集。"
-                        : `${module === "warp" ? "WARP" : "WireGuard"} 直接读取隧道接口计数，无需额外的核心流量统计开关。流量监控控制卡片和监控入口显示；关闭后保留历史，不停止已启用的流量采集。模块监控总开关关闭后停止采集。`
+                      <ul>
+                        <li><strong>显示开关。</strong>控制流量卡片和监控入口；关闭后保留历史，也不停止已启用的流量采集。</li>
+                        <li><strong>统计来源。</strong>{module === "xray" ? "Xray 核心提供各出口的上传、下载字节计数，FoXray 据此计算速率并保存历史。" : "直接读取隧道接口计数，无需额外开启核心流量统计。"}</li>
+                        <li><strong>查看实时流量。</strong><ol>
+                          <li>开启本项流量监控。</li>
+                          {module === "xray" && <li>开启 Xray 核心流量统计，并确认统计可用。</li>}
+                          <li>开启对应模块的监控总开关。</li>
+                        </ol></li>
+                        <li><strong>监控总开关。</strong>关闭后停止该模块采集；只开启显示不会自动开启其他统计开关。</li>
+                      </ul>
                     }
                   />
                 )}

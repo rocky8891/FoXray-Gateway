@@ -1,3 +1,4 @@
+import { InfoContent } from "./info_content";
 import { ActionMenu, type MenuAction } from "./action_menu";
 import { useTableColumnSizing } from "./table_column_sizing";
 import { CopyButton, Pagination, usePagination } from "./resource_controls";
@@ -545,12 +546,7 @@ export function SettingInfo({
   label: string;
   text: ReactNode;
 }) {
-  const sentences = typeof text === "string" && text.length >= 75
-    ? text.match(/[^。]+(?:。|$)/g)?.map(sentence => sentence.trim()).filter(Boolean)
-    : undefined;
-  const content = sentences && sentences.length >= 3
-    ? <ul>{sentences.map((sentence, index) => <li key={index}>{sentence}</li>)}</ul>
-    : text;
+  const content = <InfoContent>{text}</InfoContent>;
   const trigger = useRef<HTMLSpanElement>(null),
     tooltip = useRef<HTMLDivElement>(null),
     hide = useRef<ReturnType<typeof setTimeout> | null>(null);

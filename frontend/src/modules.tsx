@@ -39,7 +39,7 @@ export function ModuleSettings({ state }: { state: State; act: Act }) {
         <PageHeader
           title="功能模块"
           icon={<Boxes size={20} />}
-          description="先检测已有服务并纳管；缺失时按需安装。停用仅隐藏管理入口并暂停该模块自动任务，现有服务和 VPN 连接保留。"
+          description={<ul><li><strong>启用模块。</strong>先检测已有服务，保留现有配置；缺失的组件按需安装。</li><li><strong>停用模块。</strong>隐藏该模块入口并暂停其自动任务。</li><li><strong>运行服务。</strong>模块开关不等于服务启停；已有服务和 VPN 连接保留。</li></ul>}
         />
         <ErrorLine error={error || resource.error} />
         <div className="module-settings-grid">
