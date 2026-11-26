@@ -84,7 +84,7 @@ export function ManagementDDNSSettings() {
   return <Panel className="presentation-settings management-ddns-settings">
     <PageHeader title="DDNS" icon={<Globe size={20} />} actions={<Button disabled={busy} onClick={() => openEditor(null)}><Plus size={16} />新增 DDNS</Button>} />
     <div className="settings-section">
-      {status.data?.items.length === 0 && <p className="muted">暂无 DDNS 配置</p>}
+      {status.data?.items.length === 0 && <p className="muted ddns-empty">暂无 DDNS 配置</p>}
       {status.data?.items.map(item => <div className="ddns-entry" key={item.domain}>
         <div>
           <strong>{item.domain}</strong>

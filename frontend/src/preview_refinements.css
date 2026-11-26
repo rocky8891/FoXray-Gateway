@@ -1799,17 +1799,20 @@ main[data-module-page] > :is(.module-page, .module-service-settings) > .panel:nt
 .management-login-brand .brand-name-x { color: #ff8033; }
 .management-login-setup { font-size: 15px; margin: 0 0 8px; }
 
+.management-ddns-settings > .settings-section { padding-block: var(--group-gap); }
+.management-ddns-settings > .settings-section:has(> .ddns-empty) { min-height: 50px; display: flex; align-items: center; }
+.ddns-empty { margin: 0; font-size: var(--button-text-size, 13px); line-height: 18px; }
 .ddns-entry {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding-block: 10px;
+  gap: var(--group-gap);
 }
-.ddns-entry + .ddns-entry { border-top: 1px solid var(--line); }
-.ddns-entry small { display: block; }
-.ddns-entry strong { overflow-wrap: anywhere; }
+.ddns-entry + .ddns-entry { border-top: 1px solid var(--line); margin-top: var(--group-gap); padding-top: var(--group-gap); }
+.ddns-entry > div:first-child { display: grid; min-width: 0; gap: 2px; }
+.ddns-entry small { display: block; font-size: 12px; line-height: 18px; }
+.ddns-entry strong { font-size: var(--button-text-size, 13px); line-height: 18px; overflow-wrap: anywhere; }
 
 .https-current-certificate { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 16px; }
 .https-current-certificate dt { color: var(--muted); font-size: 12px; }
