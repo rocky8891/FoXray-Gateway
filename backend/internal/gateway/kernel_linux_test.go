@@ -294,3 +294,26 @@ func TestKernelSNATRulesLoadInIsolatedNamespace(t *testing.T) {
 		}
 	}
 }
+
+func TestKernelWGDirectionalSNATRulesLoad(t *testing.T) {
+	a, _ := kernelFixture(t)
+	network, err := validateWGNetwork(WGNetwork{Role: "server", LANInterface: "test0", LANToVPN: &WGDirection{SNAT: true, Sources: []string{"192.0.2.0/24"}}, VPNToLAN: &WGDirection{SNAT: true, Sources: []string{"10.24.1.2/32"}, Targets: []string{"192.0.2.0/24"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &WGProfile{Name: "testwg0", Network: &network, Peers: []WGPeer{{AllowedIPs: []string{"172.16.0.0/12"}}}}
+	steps, err := wgHelperSteps(p)
+	if err != nil || len(steps) != 1 {
+		t.Fatal(steps, err)
+	}
+	if _, err = a.command(5, steps[0].Input, "nft", "--check", "-f", "-"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = a.command(5, steps[0].Input, "nft", "-f", "-"); err != nil {
+		t.Fatal(err)
+	}
+	output, err := a.command(5, "", "nft", "list", "table", "ip", wgTableName(p.Name))
+	if err != nil || !strings.Contains(output, `oifname "testwg0"`) || !strings.Contains(output, `oifname "test0"`) {
+		t.Fatal("kernel did not load both scoped directions", output, err)
+	}
+}

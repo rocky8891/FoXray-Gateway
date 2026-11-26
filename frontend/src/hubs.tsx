@@ -1,3 +1,4 @@
+import { HelpCenter } from "./help_center";
 import { HomeHeaderToggleIcon } from "./home_header";
 import type { OverviewView } from "./overview_policy";
 import { ConnectionIcon } from "./monitor_icons";
@@ -344,6 +345,7 @@ export function GlobalSettingsHub({ state, act }: { state: State; act: Act }) {
     ...(state.components.warp ? [["warp", "WARP"]] : []),
     ...(state.components.wireguard ? [["wireguard", "WireGuard"]] : []),
     ["global", "FoXray"],
+    ["help", "帮助中心"],
   ];
   const active = tabs.some(([id]) => id === tab) ? tab : "global";
   return (
@@ -356,7 +358,7 @@ export function GlobalSettingsHub({ state, act }: { state: State; act: Act }) {
         onChange={setTab}
         dropdown={{id: "monitoring", value: settingsTarget, options: settingsOptions, onChange: setSettingsModule}}
       />
-      {active === "wireguard" ? (
+      {active === "help" ? <HelpCenter/> : active === "wireguard" ? (
         <WireGuardSettings act={act} />
       ) : active === "xray" ? (
         <XrayPage state={scopedState(state, "xray")} act={act} />

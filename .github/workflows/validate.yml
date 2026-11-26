@@ -29,7 +29,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y nftables iproute2
-          sudo env FOXRAY_KERNEL_TESTS=1 FOXRAY_TEST_BINARY="$PWD/foxray" "$(command -v go)" test ./internal/gateway -run '^TestKernel(SNATRulesLoadInIsolatedNamespace|BusinessMetersCountRealTCPUDPBothDirections|CustomVPNExclusionsLoadInIsolatedNamespace|ManagedInterfaceDeleteRestoresEmptyDevices|LANDNSRulesLoadInIsolatedNamespace)$' -count=1
+          sudo env FOXRAY_KERNEL_TESTS=1 FOXRAY_TEST_BINARY="$PWD/foxray" "$(command -v go)" test ./internal/gateway -run '^TestKernel(SNATRulesLoadInIsolatedNamespace|BusinessMetersCountRealTCPUDPBothDirections|CustomVPNExclusionsLoadInIsolatedNamespace|ManagedInterfaceDeleteRestoresEmptyDevices|LANDNSRulesLoadInIsolatedNamespace|WGDirectionalSNATRulesLoad)$' -count=1
       - name: Validate management update archive and rollback
         run: python3 -m unittest discover -s tests -v
       - name: Build frontend

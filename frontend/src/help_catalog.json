@@ -1,0 +1,1546 @@
+[
+  {
+    "id": "info-3b464aa9441966e1",
+    "title": "服务器目录（可选）",
+    "category": "部署与管理",
+    "body": "填写已存在的绝对路径。留空时由浏览器下载。",
+    "origin": "config_backup",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-0b81d825f23773ad",
+    "title": "活动连接监控",
+    "category": "监控与首页",
+    "body": "查看真实业务连接、双向流量和历史趋势；可切换到隧道传输诊断。 隧道传输诊断仅展示当前列表；切换业务连接可查看历史曲线。\n实际经过隧道的业务IP连接，Xray不猜测出站节点。\n域名识别可在Xray代理模式中开启；从核心Webhook的HTTP／TLS／QUIC握手目标提取，已有访问日志仅作补充。不反查IP，不解密HTTPS正文；ECH外层名称可能不是真实域名。将鼠标移到域名或“未观测”上可查看识别依据。Xray 模块仅统计已确认代理出站的业务连接，直连及阻断已剔除；归属未确认的单列且不计入代理数。确认依据为Xray核心Webhook或访问日志的完整IP连接元组；不以配置推断出站，未收到事件时不猜测归属。\n字节为连接观测累计，不等于所选范围内新增量；“—”表示尚无计数。首个采样不显示虚构速率。\n图表跟随时间、协议和接口筛选；关键词、状态用于明细。详情每5秒批量保存，曲线按分钟分组峰值记录，缺失采样不补零，保留周期和大小以本模块监控设置为准。",
+    "origin": "connections",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-28d8fe7dba5ef195",
+    "title": "节点",
+    "category": "监控与首页",
+    "body": "业务流归属：\n没有逐连接出站标签时，不根据当前出口推断节点。\n识别依据：\n接入核心路由日志并成功匹配后，才显示对应节点。\n隧道传输：\n可按已经识别出的节点筛选。\n按已识别的节点或WireGuard接口筛选。",
+    "origin": "connections",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-eb107789206f64af",
+    "title": "连接详情",
+    "category": "监控与首页",
+    "body": "排序筛选：\n通过列头按字段操作；字节、速率和时长按数值比较。\n数据范围：\n只筛选当前已加载的连接，不改变上方历史曲线。",
+    "origin": "connections",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-435daa6f1a992c7e",
+    "title": "Active",
+    "category": "监控与首页",
+    "body": "近期有流量",
+    "origin": "connections",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-6051fb88e67e2c4b",
+    "title": "域间规则",
+    "category": "防火墙",
+    "body": "匹配条件：\n入口区域、出口区域、来源、目标、协议和端口。\n处理范围：\n用于跨区域转发流量，不等同于访问网关本机的域内规则。",
+    "origin": "cross_zone_rules",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-01dd3f514b94c57e",
+    "title": "优先级",
+    "category": "防火墙",
+    "body": "数值越小越先执行。0 为保留值。",
+    "origin": "cross_zone_rules",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-c644987123828d98",
+    "title": "分流规则使用",
+    "category": "功能说明",
+    "body": "匹配顺序：\n规则从上到下匹配已接管的 TCP / UDP 流量。VPN、私网、DNS 与入口直连优先排除。\n新增规则集：\n可创建空白规则集，也可从内置模板选择大陆白名单、GFWList 或全局代理。已存在的模板只定位查看。\n保存与更新：\n修改先保存到草稿，再点击「保存并应用」。\n规则源可使用公共域名列表或 JSON。预定义规则源由上游项目维护。\n自动更新会替换该规则集的规则。本地专用规则适合单独保存。",
+    "origin": "custom_rules",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-117700a5cfdcaba8",
+    "title": "规则源 URL",
+    "category": "功能说明",
+    "body": "可选",
+    "origin": "custom_rules",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-ef2897f298f99755",
+    "title": "基础分流匹配",
+    "category": "功能说明",
+    "body": "基础模式规则在自定义优先规则之后匹配；VPN、私网、DNS和节点入口优先排除。需要改变某个目标的动作时，在自定义优先规则中添加覆盖。",
+    "origin": "custom_rules",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-85a99e2240cdfb6f",
+    "title": "功能说明 · 字段说明",
+    "category": "功能说明",
+    "body": "取值范围：\n1～300 秒。\n继承关系：\n启用独立设置时使用本项，取消后跟随全局。\n影响范围：\n调整采集间隔不重启转发服务，也不改变主动探测频率。\n取值范围：\n1～10240 MiB。\n统计口径：\n按各服务、各监控项的有效数据分别估算。\n磁盘表现：\n清理数据后，共享数据库文件不会立即缩小。\n取值范围：\n1～365 天。\n保留策略：\n独立设置优先于全局，到期清理对应监控记录。\n影响范围：\n不改变主动检测策略。",
+    "origin": "data_policy",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-5a9c27c7c1797eb2",
+    "title": "历史写入间隔（秒）",
+    "category": "功能说明",
+    "body": "取值范围：\n1～3600 秒，默认 1 秒。\n记录内容：\n保存已有检测结果；默认值通常可以保留每次检测。\n频率关系：\n不改变真连接或 ICMP 探测频率，实际写入不会快于检测。\n取值范围：\n1～3600 秒。\n记录密度：\n控制连接数历史保存频率，不会快于实际采集。\n明细与图表：\n明细按批次写入，图表按查询范围合并；不补造历史记录。\n取值范围：\n1～3600 秒，默认 60 秒。\n采集与写入：\n实时采集产生当前速率，本项决定历史保存密度；实际写入不会快于采集。\n生效范围：\n短间隔只影响新数据。图表可能继续合并历史点，页面刷新只负责读取。",
+    "origin": "data_policy",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-b732e5b8a6cdd71d",
+    "title": "DNS",
+    "category": "功能说明",
+    "body": "查看系统与WARP隔离解析配置，预览后应用，120秒内确认；不启停网络连接。 WARP仅更改独立解析文件，不改主机DNS。",
+    "origin": "dns",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-c40c2080cd40b15b",
+    "title": "新DNS服务器",
+    "category": "功能说明",
+    "body": "每行一个IP，1～6个",
+    "origin": "dns",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-9d7f8da32d0c8fb5",
+    "title": "接口名称",
+    "category": "防火墙",
+    "body": "可多选，最多50个接口；生成预览后逐项核对原区域及回退命令",
+    "origin": "firewall",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-b2caf9b5f3ac235c",
+    "title": "端口／端口范围",
+    "category": "防火墙",
+    "body": "443 或 8000-8100",
+    "origin": "firewall",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-63e8f64e72beec01",
+    "title": "源 IP",
+    "category": "防火墙",
+    "body": "支持多个 IPv4 地址或 CIDR，用英文逗号分隔；任一来源匹配即生效\n支持 IPv4 或 IPv6 地址／网段",
+    "origin": "firewall",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-62d5190cadd41267",
+    "title": "转换后源 IPv4 地址",
+    "category": "防火墙",
+    "body": "填写此主机出接口上可用的源地址",
+    "origin": "firewall",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-cd041da4560aee09",
+    "title": "出接口",
+    "category": "防火墙",
+    "body": "仅匹配指定出接口的转发流量\n接口必须属于当前选择的 firewalld 区域",
+    "origin": "firewall",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-efa51db1a1d192b0",
+    "title": "转换目标",
+    "category": "防火墙",
+    "body": "填写 IPv4 地址；留空为本机",
+    "origin": "firewall",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-6f49a5c68921b9c7",
+    "title": "转换后端口／范围",
+    "category": "防火墙",
+    "body": "填写转换后 IP 时可留空，保留原端口",
+    "origin": "firewall",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-a133c0ad2439b6e7",
+    "title": "优先级（越小越先匹配）",
+    "category": "防火墙",
+    "body": "仅在同一 FoXray 管理链组内排序\n同一 hook 中数值越小越早执行\n范围为 -32768 至 32767",
+    "origin": "firewall",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-624cbea433bd3578",
+    "title": "规则诊断",
+    "category": "防火墙",
+    "body": "诊断范围：\n根据网关当前运行时快照，推演指定 LAN 流量的过滤和地址转换路径。\n结果边界：\n静态推演不等于端到端连通测试；实际连接跟踪和远端回程需另行核对。",
+    "origin": "firewall_diagnosis",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-aeabe9b9b883f55d",
+    "title": "管理工具",
+    "category": "防火墙",
+    "body": "自动优先使用运行中的 firewalld。手动选择可限定诊断范围。",
+    "origin": "firewall_diagnosis",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-9832355ea250ec46",
+    "title": "来源IP／网段",
+    "category": "防火墙",
+    "body": "支持格式：\n填写单个 IPv4、IPv6 地址或 CIDR，例如 192.0.2.10、192.0.2.0/24 或 2001:db8::/64。\n变更检查：\n分别核对运行时和永久归属；发现冲突或重叠网段时，不生成变更计划。\n编辑限制：\nMAC 与 IP 集合目前仅展示，不能在此编辑。",
+    "origin": "firewall_editors",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-882c2c115a23ac89",
+    "title": "默认行为",
+    "category": "防火墙",
+    "body": "default：\n使用系统默认处理，不等于全部允许。\nACCEPT：\n允许未被其他适用规则终止的流量。\nDROP / REJECT：\nDROP 静默丢弃；REJECT 拒绝并回应。\n判断范围：\n结合流量方向和具体规则判断实际结果。",
+    "origin": "firewall_editors",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-c5afba7f0c1546a3",
+    "title": "默认行为生效方式",
+    "category": "防火墙",
+    "body": "仅保存永久配置：\n当前运行时行为保持不变；下次加载永久配置时生效。\n立即生效：\n会重新加载 firewalld。先核对运行时与永久配置的差异，避免丢失仅运行时的条目。",
+    "origin": "firewall_editors",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-ee91db9dfbc34a4c",
+    "title": "ICMP阻断类型",
+    "category": "防火墙",
+    "body": "勾选类型会加入当前区域ICMP阻断列表。ICMP承担诊断、路径MTU与错误通知等功能，应只按明确需求阻断。列表来自当前系统支持的类型，不提供禁止所有ICMP的快捷开关。",
+    "origin": "firewall_editors",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-74afae8c9f1106fb",
+    "title": "目标 IP",
+    "category": "防火墙",
+    "body": "支持格式：\n填写单个 IPv4、IPv6 地址或 CIDR。\n留空含义：\n不增加目标地址限制；仍须满足该规则的其他条件。",
+    "origin": "firewall_editors",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-e8a4ada507fac90d",
+    "title": "动作速率限制",
+    "category": "防火墙",
+    "body": "留空不限速，例如 5/m",
+    "origin": "firewall_editors",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-e3e450dba1186604",
+    "title": "源 IP",
+    "category": "防火墙",
+    "body": "留空表示当前区域内所有来源，并非整个系统所有流量。",
+    "origin": "firewall_editors",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-e97a118f20dbd1af",
+    "title": "优先级",
+    "category": "防火墙",
+    "body": "-32768至32767；0使用firewalld默认顺序",
+    "origin": "firewall_editors",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-a3ca819a657d896a",
+    "title": "防火墙",
+    "category": "防火墙",
+    "body": "操作顺序：\n先选择管理工具，再选择区域和规则分类。\n查看范围：\n切换视图只改变显示内容，不会迁移规则或启停服务。\n修改配置：\n接口归属、服务状态和规则修改均先生成预览，再确认执行。",
+    "origin": "firewall_workspace",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-65db653be50af443",
+    "title": "管理工具",
+    "category": "防火墙",
+    "body": "当前显示 （当前值） 的系统规则。此视图不使用 firewalld 的区域与接口绑定，（当前值）。\n选择查看和编辑规则的工具。切换工具不会安装、启停或迁移防火墙。",
+    "origin": "firewall_workspace",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-ebb8094e0a1f5232",
+    "title": "查看区域",
+    "category": "防火墙",
+    "body": "区域筛选：\n选择具体区域或所有区域，决定下方展示哪些规则。\n保持配置：\n筛选不会改变默认区域、接口或来源地址归属。\n匹配依据：\n某条流量是否进入该区域，要结合接口、来源绑定和实际规则判断。",
+    "origin": "firewall_workspace",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-fb80dd9f41ef9245",
+    "title": "配置范围",
+    "category": "防火墙",
+    "body": "显示范围：\n按运行时、永久配置或差异条目筛选列表。\n写入范围：\n此筛选不决定修改哪份配置。实际变更范围在预览中分别列出。",
+    "origin": "firewall_workspace",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-ff447699c479195a",
+    "title": "区域与流量归属",
+    "category": "防火墙",
+    "body": "接口和来源地址是区域匹配条件；这不是访问白名单。当前显示的是所选区域返回的真实绑定信息。",
+    "origin": "firewall_workspace",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-0d76cd29c328548e",
+    "title": "接口归属",
+    "category": "防火墙",
+    "body": "经过这些网络接口的流量按此区域处理；来源地址绑定等更具体的归属条件可能影响最终区域。调整归属需先生成变更预览并确认。",
+    "origin": "firewall_workspace",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-b2dd7659aed575d1",
+    "title": "来源地址归属",
+    "category": "防火墙",
+    "body": "区域归属：\n根据来源 IP、网段、MAC 或 IP 集合确定区域。\n访问控制：\n来源归属本身不表示放行；是否允许仍由相应规则决定。\n未设置：\n表示没有来源绑定，不等于允许全部来源。",
+    "origin": "firewall_workspace",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-310860f9ebdc948b",
+    "title": "规则概览",
+    "category": "防火墙",
+    "body": "统计范围：\n按当前视图统计条目，合并同一规则的运行时与永久配置。\n显式阻断：\n只统计动作明确为 drop 或 reject 的条目。\n快速查看：\n点击统计项筛选下方规则；计数不等于实际流量命中数。",
+    "origin": "firewall_workspace",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-df4ee64843102c40",
+    "title": "默认处理策略",
+    "category": "防火墙",
+    "body": "判断有效行为：\n结合区域 target、具体规则和流量方向判断。系统默认（default）不等于全部允许。\n编辑范围：\n可修改区域默认行为、IP 地址伪装和 ICMP 设置。\n生效方式：\n仅保存永久配置，或在核对完整配置后重新加载。所有修改均须预览和确认，并保留回退选项。",
+    "origin": "firewall_workspace",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-500e1fc531ab9031",
+    "title": "系统默认（default）",
+    "category": "防火墙",
+    "body": "未匹配放行等规则的入站流量，ICMP 默认允许，其他默认拒绝并回应；ICMP 阻断配置可改变 ICMP 处理。转发流量还需结合区域转发与策略判断。",
+    "origin": "firewall_workspace",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-993ac27531b7d578",
+    "title": "ICMP阻断配置",
+    "category": "防火墙",
+    "body": "仅展示所选区域返回的ICMP阻断项和反向匹配开关，不据此推断某个ICMP报文是否可达；最终还需结合默认策略和其他规则。",
+    "origin": "firewall_workspace",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-c613381424fafac6",
+    "title": "历史写入间隔（秒）",
+    "category": "监控与首页",
+    "body": "1～3600秒，默认1秒。仅控制已有检测结果的保存密度，不改变主动探测频率。\n1～3600秒，默认60秒。实际记录不会快于采集；仅影响新数据，不补造已有历史，图表按查询范围合并。",
+    "origin": "history_interval_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-9343c69ed6b5ce49",
+    "title": "运行状态",
+    "category": "监控与首页",
+    "body": "（当前值） · Kernel （当前值） · （当前值）",
+    "origin": "host",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-d478f835f5b3545d",
+    "title": "平均负载",
+    "category": "监控与首页",
+    "body": "1、5、15 分钟负载；与 CPU 使用率含义不同",
+    "origin": "host",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-f89fe61a903c921d",
+    "title": "CPU 使用率",
+    "category": "监控与首页",
+    "body": "使用率与 hi（硬中断）、si（软中断）、st（虚拟机等待宿主机 CPU）；均为采样周期占比",
+    "origin": "host",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-075b81df6469de6b",
+    "title": "内存使用率",
+    "category": "监控与首页",
+    "body": "默认使用率；容量指标切换为单一容量刻度，shared 与 buff/cache 不应简单相加",
+    "origin": "host",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-b6b83a63ec96a033",
+    "title": "磁盘 I/O",
+    "category": "监控与首页",
+    "body": "磁盘读取与写入速度；点击图例显示或隐藏\n左轴为平均读写延迟（ms），右轴为 IOPS（次/s）；点击图例显示或隐藏",
+    "origin": "host",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-94103bdb454c802c",
+    "title": "网卡流量",
+    "category": "监控与首页",
+    "body": "网卡上传、下载速率与累计收发量；可选择物理网卡或指定接口",
+    "origin": "host",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-3a6bb2993bca8d91",
+    "title": "默认指标与采集",
+    "category": "监控与首页",
+    "body": "采集开关决定是否采集服务器指标；上方各指标开关只控制显示，两者作用不同。采集频率、保留和历史写入间隔在监控数据卡片中管理。",
+    "origin": "host",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-01e2bd54ee2ebc18",
+    "title": "监控与首页 · 字段说明",
+    "category": "监控与首页",
+    "body": "平均负载表示系统运行和等待任务的压力，不等同于CPU使用率。这里选择详细监控页默认查看的1、5或15分钟负载；主页圆盘固定显示1分钟负载，进度按CPU核数归一化，达到或超过核数时为满环。",
+    "origin": "host",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-bd4ad52fa21ff694",
+    "title": "默认分区",
+    "category": "监控与首页",
+    "body": "决定运行状态和服务总览默认显示的分区；页面内临时选择不会改变默认值。",
+    "origin": "host",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-e16f0fdd10fc8999",
+    "title": "网络连接",
+    "category": "监控与首页",
+    "body": "主机内核连接跟踪项；支持 TCP、UDP、ICMP 等协议，包含空闲未过期流。",
+    "origin": "host",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-004948206eb049ca",
+    "title": "令牌",
+    "category": "部署与管理",
+    "body": "留空保留当前服务商的令牌\n当前使用 HTTP，令牌会经未加密连接传输",
+    "origin": "management_ddns",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-3ba819fb62f97a11",
+    "title": "新密码",
+    "category": "部署与管理",
+    "body": "留空保留该用户的密码\n填写该用户的密码",
+    "origin": "management_security",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-c2b2a6805566411d",
+    "title": "HTTPS",
+    "category": "部署与管理",
+    "body": "已启用 · 端口 （当前值）（当前值）\n启用后关闭 HTTP 管理访问",
+    "origin": "management_security",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-2ca67e4bd8aa7f6b",
+    "title": "HTTP 跳转端口",
+    "category": "部署与管理",
+    "body": "留空关闭 HTTP。填写后该端口仅跳转到 HTTPS。",
+    "origin": "management_security",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-d9d2d871d6843ab1",
+    "title": "电子邮箱",
+    "category": "部署与管理",
+    "body": "公网 80 端口须转发到网关，签发后自动续期\n签发后自动检查续期",
+    "origin": "management_security",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-62d9169779973296",
+    "title": "Cloudflare API 令牌",
+    "category": "部署与管理",
+    "body": "已保存独立令牌，留空可继续使用\n可独立填写。留空使用同域名的 Cloudflare DDNS 令牌或服务器凭据。",
+    "origin": "management_security",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-cedaa4b83a202fc5",
+    "title": "功能模块",
+    "category": "功能说明",
+    "body": "启用模块：\n先检测已有服务，保留现有配置；缺失的组件按需安装。\n停用模块：\n隐藏该模块入口并暂停其自动任务。\n运行服务：\n模块开关不等于服务启停；已有服务和 VPN 连接保留。",
+    "origin": "modules",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-1850594ea0fdf699",
+    "title": "组件接管方式",
+    "category": "功能说明",
+    "body": "仅连接独立部署的 Komari，不自动安装\n检测到已安装服务，将保留现有文件和配置\n启用时自动检查并部署；不自动启动隧道或已有 VPN 接口",
+    "origin": "modules",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-2aeb47308b84b353",
+    "title": "Komari URL",
+    "category": "功能说明",
+    "body": "留空自动检测本机 25774 端口；不允许包含认证信息或 Token",
+    "origin": "modules",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-2c0833f909e6fa92",
+    "title": "监控指标采集与展示 监控项开关",
+    "category": "监控与首页",
+    "body": "默认全部开启。关闭后隐藏对应卡片并将监控菜单置灰，历史数据保留；不修改代理、自动选路、探测策略或网络连接。连接监控关闭后停止该模块的连接采集。各指标开关控制卡片显示，隐藏卡片不会关闭服务器指标采集；下方“采集服务器指标”决定是否采集，默认指标决定首次显示内容。采集频率、保留和历史写入间隔在监控数据卡片中管理。磁盘使用率仅在服务器运行状态和服务总览显示，不生成历史图，也不参与历史卡片排序。\nsingle",
+    "origin": "monitor_items",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-e6ae861d9f3d20f6",
+    "title": "（当前值）流量监控",
+    "category": "监控与首页",
+    "body": "显示开关：\n控制流量卡片和监控入口；关闭后保留历史，也不停止已启用的流量采集。\n统计来源：\nXray 核心提供各出口的上传、下载字节计数，FoXray 据此计算速率并保存历史。\n直接读取隧道接口计数，无需额外开启核心流量统计。\n查看实时流量：\n开启本项流量监控。\n开启 Xray 核心流量统计，并确认统计可用。\n开启对应模块的监控总开关。\n监控总开关：\n关闭后停止该模块采集；只开启显示不会自动开启其他统计开关。",
+    "origin": "monitor_items",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-d8d42ec3354e5a35",
+    "title": "历史图布局",
+    "category": "监控与首页",
+    "body": "单排每行一张，双排每行两张；运行状态固定在最上方，不受布局和拖动影响。窄屏自动单列。",
+    "origin": "monitor_items",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-b141d5af367cfb18",
+    "title": "运行状态",
+    "category": "监控与首页",
+    "body": "拖动圆形指标或聚焦后用方向键排序；预览使用模拟数据，只调整显示顺序。",
+    "origin": "monitor_items",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-c01cc5c9d334305c",
+    "title": "历史写入间隔（秒）",
+    "category": "监控与首页",
+    "body": "取值范围：\n10～3600 秒。\n作用：\n汇总已采集的服务器指标并写入历史。\n频率关系：\n不改变采集、页面刷新或主动探测间隔；历史记录频率不会高于采集频率。",
+    "origin": "monitoring_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-6f37e9fbf31ecafb",
+    "title": "页面读取与刷新",
+    "category": "监控与首页",
+    "body": "只控制浏览器读取已采集数据的频率，不改变后台采集、主动探测或历史写入。",
+    "origin": "monitoring_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-367a81dd034fa9b4",
+    "title": "页面状态刷新（秒）",
+    "category": "监控与首页",
+    "body": "每 1～3600 秒获取节点、服务和配置状态，默认 5 秒。",
+    "origin": "monitoring_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-c8f4142aab1eff62",
+    "title": "页面实时指标刷新（秒）",
+    "category": "监控与首页",
+    "body": "每 1～3600 秒更新流量速率及主机实时数值，默认 2 秒。",
+    "origin": "monitoring_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-7b69da043aadc0f2",
+    "title": "页面历史图刷新（秒）",
+    "category": "监控与首页",
+    "body": "取值范围：\n1～3600 秒，默认 10 秒。\n作用：\n控制浏览器重新获取图表数据的间隔。\n独立设置：\n后台采集、主动探测和历史写入继续使用各自间隔。",
+    "origin": "monitoring_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-d5ecc68af2f7c7db",
+    "title": "流量曲线汇总间隔（秒）",
+    "category": "监控与首页",
+    "body": "取值范围：\n1～3600 秒，默认 30 秒。按真实字节量与采样时长计算区间均速。\n影响范围：\n用于 Xray、WARP 和 WireGuard 流量曲线。实时速率、采集、历史写入和累计流量保持各自设置。\n长时间范围：\n图表可能继续合并数据。可在流量监控中临时选择精细或自定义窗口。",
+    "origin": "monitoring_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-ab2a8ac932e0a57e",
+    "title": "接口保护",
+    "category": "WireGuard 与网络",
+    "body": "保护状态：\n该接口已开启保护，修改或启停需要额外确认。可在「操作 → 接口保护」中单独开启或关闭。\n用途备注：\n在「操作 → 编辑」修改。\n接口角色：\n在「操作 → 编辑 → 角色、路由与 LAN 转发」设置。修改角色不会取消接口保护。",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-6788ccb6ec461894",
+    "title": "备注",
+    "category": "WireGuard 与网络",
+    "body": "可选，最多200字；用于说明接口用途，不影响接口名称、角色或路由。",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-8481b27427ac9306",
+    "title": "接口名称",
+    "category": "WireGuard 与网络",
+    "body": "例如 wg-home、wg-work、wg-work2",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-c17f387b36cf9adc",
+    "title": "监听端口",
+    "category": "WireGuard 与网络",
+    "body": "0 为自动",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-b4a93f33ea36e1ed",
+    "title": "接口地址",
+    "category": "WireGuard 与网络",
+    "body": "多个 CIDR 用逗号分隔",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-8035a8be7a02d64b",
+    "title": "DNS",
+    "category": "WireGuard 与网络",
+    "body": "多个地址用逗号分隔。留空保持原解析",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-b7c2d62590be3189",
+    "title": "MTU",
+    "category": "WireGuard 与网络",
+    "body": "0 为自动",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-27efa44e48e7308a",
+    "title": "独立密钥对",
+    "category": "WireGuard 与网络",
+    "body": "每个接口单独生成；私钥不会返回浏览器",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-619814ea840832bf",
+    "title": "本接口公钥",
+    "category": "WireGuard 与网络",
+    "body": "可复制给对端",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-3ac6eeabec22383b",
+    "title": "本接口公钥",
+    "category": "WireGuard 与网络",
+    "body": "私钥保留在服务器，不通过接口回显",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-a4263719035dac52",
+    "title": "下一跳",
+    "category": "WireGuard 与网络",
+    "body": "可留空",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-6a1271fef20298de",
+    "title": "fwmark",
+    "category": "WireGuard 与网络",
+    "body": "可留空",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-80b8d3f296207e20",
+    "title": "角色、路由与 LAN 转发",
+    "category": "WireGuard 与网络",
+    "body": "接入角色：\n服务端提供接入地址和对端配置模板；客户端使用对端接入配置。这是管理预设，WireGuard 的 Peer 可以双向通信，角色不决定业务访问方向。\n路由：\n自动模式按本端 Peer AllowedIPs 生成路由；本端 LAN 访问远端时，远端网段必须在对应 Peer AllowedIPs 中。\n本地 LAN → VPN：\n允许本地来源网段经 WireGuard 访问远端目标；服务端角色同样可以开启。\nVPN → 本地 LAN：\n允许远端实际来源网段经 WireGuard 访问本地目标。两个方向独立，返回流量由连接跟踪及现有策略处理。\nSNAT：\n每个方向单独开启，使用该方向出接口地址；不开时需正确回程路由和对端 AllowedIPs。目标网段与来源网段不能混填。\n导出配置：\n「对端配置中的目标网段」只写入导出 AllowedIPs，不替代本端转发或路由配置。\n兼容与生效：\n旧设置按原角色映射，修改角色不改变已有方向。保存前核对预览；升级本身不改规则。IPv4 forwarding、路由和防火墙转发策略仍需满足，关闭本模块开关不清理外部放行规则。",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-6e71216446294425",
+    "title": "接入角色",
+    "category": "WireGuard 与网络",
+    "body": "管理预设；不限制哪侧主动访问，也不决定转发方向",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-b4c1baf9af67fab2",
+    "title": "接口路由模式",
+    "category": "WireGuard 与网络",
+    "body": "自动使用 Peer AllowedIPs；WireGuard 不从对端动态协商路由",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-3cd079da06ad67ac",
+    "title": "本端接入地址（供对端配置）",
+    "category": "WireGuard 与网络",
+    "body": "域名或 IP:端口，可为内网地址；用于生成对端配置",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-2a14bf50ad24d2cb",
+    "title": "本地 LAN 接口",
+    "category": "WireGuard 与网络",
+    "body": "填写实际 LAN 接口，两个方向共用；不因接入角色变化而改变",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-d5a2e087c7390fd5",
+    "title": "WireGuard 与网络 · 字段说明",
+    "category": "WireGuard 与网络",
+    "body": "填写实际 IPv4 来源 CIDR；多个网段用换行或逗号分隔",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-c2145dbd28208f00",
+    "title": "WireGuard 与网络 · 字段说明",
+    "category": "WireGuard 与网络",
+    "body": "可填写明确的 IPv4 目标 CIDR；不会自动修改 Peer AllowedIPs",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-2cba84da0df65004",
+    "title": "客户端配置模板",
+    "category": "WireGuard 与网络",
+    "body": "读取服务器上已保存的配置；客户端私钥在客户端生成，此处仅包含公钥与路由。",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-4619e98f896abaf0",
+    "title": "AllowedIPs",
+    "category": "WireGuard 与网络",
+    "body": "支持多个 IP/CIDR，用逗号、空格或换行分隔",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-cef8b4fcb575f89d",
+    "title": "Endpoint",
+    "category": "WireGuard 与网络",
+    "body": "可留空",
+    "origin": "network",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-307e8821c33bd8ca",
+    "title": "IP地址",
+    "category": "WireGuard 与网络",
+    "body": "地址格式：\n填写静态 IPv4 或 IPv6 地址；新增接口时可留空。\n编辑已有接口：\n只替换选中的地址，保留其他地址。",
+    "origin": "network_hub",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-4f28f4f443b7e101",
+    "title": "掩码／前缀",
+    "category": "WireGuard 与网络",
+    "body": "IPv4可用24或255.255.255.0；IPv6填写0～128的前缀长度。",
+    "origin": "network_hub",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-8e3b5e25e3ab9844",
+    "title": "网关地址",
+    "category": "WireGuard 与网络",
+    "body": "路由表：\n只修改 main 表中的对应条目。\n网关要求：\n下一跳须位于当前接口的可达网段内。\n修改范围：\n不修改其他接口的默认路由。",
+    "origin": "network_hub",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-16432d831d12d28c",
+    "title": "网关优先级",
+    "category": "WireGuard 与网络",
+    "body": "新增路由默认600，数值越小优先级越高；不能与已有默认路由优先级冲突。",
+    "origin": "network_hub",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-51f18184d2749aa1",
+    "title": "接口",
+    "category": "WireGuard 与网络",
+    "body": "查看物理、虚拟与 VPN 接口；支持运行期静态 IP、掩码与默认网关配置 VPN 和代理接口由对应模块维护。虚拟接口按 UP／LOWER_UP 标志显示就绪，对端连通性以握手与探测为准。",
+    "origin": "network_hub",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-ddad28baa38f68da",
+    "title": "类型与来源",
+    "category": "WireGuard 与网络",
+    "body": "按内核接口类型与后端明确管理归属筛选。来源为系统接口不等于只读；模块维护接口在对应模块操作，其他修改仍需预览和确认。",
+    "origin": "network_hub",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-8ced4d99288fb349",
+    "title": "接口类型",
+    "category": "WireGuard 与网络",
+    "body": "系统原生 lo 不能重复创建，此选项提供 Dummy 虚拟回环设备。",
+    "origin": "network_hub",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-843d249f91dd3902",
+    "title": "接口名称",
+    "category": "WireGuard 与网络",
+    "body": "1～15位字母、数字、短横线、下划线或点，首位为字母或数字；不能与现有接口重名。",
+    "origin": "network_hub",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-abe6c89e32886283",
+    "title": "综合评分",
+    "category": "功能说明",
+    "body": "评分依据：\n已选  项，可用  项。\n延迟均值：\n未测\nms；统计近  分钟的  次成功样本。\n缺失依据：",
+    "origin": "nodes",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-0d5de33fab2eb55b",
+    "title": "节点管理",
+    "category": "功能说明",
+    "body": "Xray-core 节点管理 · 每个节点独立检测与切换",
+    "origin": "nodes",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-515415d62d2d6396",
+    "title": "订阅管理",
+    "category": "功能说明",
+    "body": "管理订阅与所属节点；启用、停用同时作用于订阅和节点，停止更新仅关闭自动更新。",
+    "origin": "nodes",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-39d786c9821764ad",
+    "title": "主页时钟",
+    "category": "监控与首页",
+    "body": "互联网时间通过HTTPS响应时间校准；服务器时间由管理服务提供，浏览器时间读取本机。只显示时间，不修改系统时钟。",
+    "origin": "overview_clock",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-83e4a7c77b22682c",
+    "title": "时间来源",
+    "category": "监控与首页",
+    "body": "互联网：\n使用所选 HTTPS 服务器的 Date 响应头校准显示时间。\n服务器 / 浏览器：\n分别读取网关时间或当前设备时间。\n影响范围：\n只影响时钟显示，不修改任何系统时钟。",
+    "origin": "overview_clock",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-5399778c80de60b7",
+    "title": "时区",
+    "category": "监控与首页",
+    "body": "只影响显示时区，不影响取时来源或网关系统时区。",
+    "origin": "overview_clock",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-43be428508f9036e",
+    "title": "互联网时间服务器",
+    "category": "监控与首页",
+    "body": "地址要求：\n提供有效 Date 响应头的 HTTPS 地址。\n留空：\n按预设候选尝试，每分钟校准一次。\n指定地址：\n只使用填写的服务器；连接或响应头异常时，应检查此地址。",
+    "origin": "overview_clock",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-5f5edce69587c63f",
+    "title": "卡片外观",
+    "category": "监控与首页",
+    "body": "布局层：\n三种主页共用分层外观，每层可单独设置。\n边框：\n可独立关闭。背景、布局与服务器圆环进度继续显示。\n自定义配色：\n开启后生效。透明度只作用于背景，毛玻璃模糊背后的内容。",
+    "origin": "overview_surfaces",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-96604c6d8598b48d",
+    "title": "透明度（%）",
+    "category": "监控与首页",
+    "body": "透明度：\n0% 为完全不透明，100% 为完全透明。\n影响范围：\n只改变背景，文字保持原有透明度。",
+    "origin": "overview_surfaces",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-af397acafb75e029",
+    "title": "毛玻璃",
+    "category": "监控与首页",
+    "body": "背景模糊强度，0关闭，最大40；背景存在透明度时更容易看到效果。",
+    "origin": "overview_surfaces",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-49acd9e7a9098783",
+    "title": "透明度（%）",
+    "category": "监控与首页",
+    "body": "边框透明程度：0%完全不透明，100%完全透明。",
+    "origin": "overview_surfaces",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-6a036e5694aca842",
+    "title": "阴影",
+    "category": "监控与首页",
+    "body": "0关闭阴影，数值越大阴影越柔和。服务器指标卡片不应用自定义边框与阴影。",
+    "origin": "overview_surfaces",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-ebe1bb3a7a87b0c5",
+    "title": "指标文字",
+    "category": "监控与首页",
+    "body": "适用范围：\n三种主页共用字号设置，名称与数值分别配置。\n自适应：\n同一卡片使用一致字号；空间不足时统一缩小，尽量保持单行完整。",
+    "origin": "overview_surfaces",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-f68ee9d5b9dc13fa",
+    "title": "页面背景",
+    "category": "功能说明",
+    "body": "背景应用于当前浏览器的所有页面。",
+    "origin": "page_background",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-ef83baa674617824",
+    "title": "选择背景图片",
+    "category": "功能说明",
+    "body": "JPG、8 位 PNG、WebP · 最大 20 MB",
+    "origin": "page_background",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-55b6f33bb6b870c9",
+    "title": "页面显示范围",
+    "category": "功能说明",
+    "body": "分别设置首页和非首页的内容宽度。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-c3903a020c091372",
+    "title": "首页显示宽度（%）",
+    "category": "功能说明",
+    "body": "80% 保留两侧留白。首页右侧放不下工具按钮时，工具栏自动收起。悬停、点击或聚焦右上角标识即可展开。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-1b9a77827829060f",
+    "title": "非首页显示宽度（%）",
+    "category": "功能说明",
+    "body": "适用于监控、设置等非首页，按页面可用宽度计算。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-d0827946815fe0f4",
+    "title": "隐藏首页标题栏",
+    "category": "功能说明",
+    "body": "首页无操作达到设定时间后自动收起。点击 FoXray 图标可展开或收起。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-6f14c57eb7354391",
+    "title": "首页动效",
+    "category": "功能说明",
+    "body": "默认跟随浏览器。选择始终播放后立即生效，仅应用于这个浏览器中的 FoXray 首页。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-6d3f15e01443e691",
+    "title": "监控总开关",
+    "category": "功能说明",
+    "body": "控制各模块监控的采集、保存和显示；保留单项设置与已有历史，不停用转发服务，主动探测策略保持独立。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-9eb763456da7563b",
+    "title": "主页布局",
+    "category": "功能说明",
+    "body": "服务总览、当前出口和节点一览分别保存排列与自定义顺序。当前出口和服务总览提供三种排列，节点一览提供双列与单列；拖动预览或使用方向键调整，保存后应用，不改变监控采集、节点启用或转发服务。按住 Ctrl + Shift 可临时查看与主页同位置的预览，松开返回。 nodes",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-736c818745bc5fa6",
+    "title": "显示数量",
+    "category": "功能说明",
+    "body": "0为全部；按已保存顺序截取，不改变节点启用状态。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-24258de13470b51c",
+    "title": "默认样式",
+    "category": "功能说明",
+    "body": "默认页面：\n可选择当前出口、服务总览或节点一览。\n生效时机：\n首次打开或重新进入一级主页时使用保存的默认项。\n临时切换：\n页面内切换视图不会覆盖已保存的默认项。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-5c0ae9073bda0550",
+    "title": "卡片排列",
+    "category": "功能说明",
+    "body": "田字宫格；第一张占上方，其余在下方；或第一张占左侧，其余在右侧。小屏自动单列。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-8fe9b32d1c6cd585",
+    "title": "主题",
+    "category": "功能说明",
+    "body": "预览与应用：\n选择后立即更新卡片排列、模块样式和预览。保存后应用。\n保留项目：\n已选卡片、自定义顺序、接口选择和外观配色。手动修改后自动识别为对应主题或自定义。\n随机主题：\n可抽取内置或自定义主题，也可混搭四张卡片的样式。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-542a4450853cb00d",
+    "title": "保存自定义主题",
+    "category": "功能说明",
+    "body": "保存内容：\n记录当前服务总览的布局、指标顺序、接口选择、字号和外观。\n保存方式：\n填写名称，再点击下方「保存并应用」。\n同名主题：\n使用相同名称时更新已有主题。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-09bf28784223f8eb",
+    "title": "预定义布局",
+    "category": "功能说明",
+    "body": "恢复当前出口四卡片组合；下方可自定义卡片，最多显示4张。显示ICMP卡片不会开启检测。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-e7b59cf3ceb21c21",
+    "title": "接口 卡片样式",
+    "category": "功能说明",
+    "body": "独立接口卡片在所有总览布局中均可使用完整样式。\n每张卡片独立保存样式，可自由组合。圆形按可用宽高自动缩放并调整间距和位置，空间不足时统一缩小字号，保持单行完整。小圆环的圆心名称会移到上方。无适用样式时，矩形回退为对称矩形、圆形回退为四圆横排。指标和接口子卡片可在主页编辑模式拖动交换位置。竖排只用于左右布局左侧的大卡片，右侧保持横排。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-26391656556f4c22",
+    "title": "WireGuard 卡片",
+    "category": "功能说明",
+    "body": "自动选择：\n未指定接口时，按列表顺序显示所选数量的接口。\n指定接口：\n指定后使用已保存的名称和顺序；只影响主页展示，不启停接口。\n恢复自动：\n在「显示接口 1」选择「自动选择所选数量的接口」。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-68fccfba7c24a1ed",
+    "title": "显示接口数量",
+    "category": "功能说明",
+    "body": "显示数量：\n默认 2 个接口，可选择 1～4 个并指定名称。\n状态含义：\n主页已连接按本地接口运行状态判断，不等于每个 Peer 都可达。\n暂停监控：\n关闭模块监控后数值暂停，接口状态仍单独展示。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-0f6f4023c54145b0",
+    "title": "显示接口 （当前值）",
+    "category": "功能说明",
+    "body": "接口列表：\n提供全部接口供选择。选择已分配的接口时，交换两个位置。\n排列顺序：\n接口 1～4 对应指标卡片从前到后的顺序。\n影响范围：\n只调整主页内容，不启停接口。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-edd28743bbbe9fdc",
+    "title": "圆形直径（px）",
+    "category": "功能说明",
+    "body": "自动适配：\n填写 0 时按可用空间计算，左侧大卡片默认圆径不超过 280px。\n指定尺寸：\n支持 40～1200px；空间不足时自动缩小。\n尺寸含义：\n圆径只计算圆形本身，不包含名称。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-17a29eb8ea52fa91",
+    "title": "圆环颜色",
+    "category": "功能说明",
+    "body": "默认使用主题中性色；只调整 WireGuard 接口圆环，不改变状态和指标配色。",
+    "origin": "presentation_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-e527799402bd5c36",
+    "title": "配置与同步",
+    "category": "功能说明",
+    "body": "在此统一保存本页配置；恢复默认与放弃保存仅修改草稿。",
+    "origin": "settings_save",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-7836c2c99a3d269c",
+    "title": "主动探测间隔（秒）",
+    "category": "功能说明",
+    "body": "这是 （当前值） 检测策略中同一个间隔的快捷编辑入口，不会创建第二套检测任务。历史保留的“独立设置”、全局采集和历史写入间隔分别控制，不影响此项。修改间隔不会开启检测，也不会重启转发服务。",
+    "origin": "probe_interval_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-fbafc8e15a5b1718",
+    "title": "真连接检测间隔（秒） 检测间隔（秒）",
+    "category": "功能说明",
+    "body": "取值范围：\n0～3600 秒。\n填写 0：\n暂停周期检测，以及依赖周期检测的自动选优。\n独立设置：\n不改变监控采集间隔。\n取值范围：\n10～3600 秒，沿用本服务的检测策略。\n检测开关：\n关闭检测时，修改间隔不会自动开启检测。",
+    "origin": "probe_interval_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-865955c32103e699",
+    "title": "ICMP检测间隔（秒）",
+    "category": "功能说明",
+    "body": "0～3600秒；0暂停周期ICMP检测。仅修改间隔，保留原检测开关、包数、大小和目标。",
+    "origin": "probe_interval_settings",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-850085797a8f4f5b",
+    "title": "路由表 · 路由 策略路由",
+    "category": "功能说明",
+    "body": "查看完整路由与来源 · 支持 IPv4／IPv6、持久化与单条回退\n按优先级匹配来源、目标、标记和接口 · 保留系统与 VPN 策略 内核、DHCP 和 VPN 自动路由保持原归属；可明确接管独立静态路由。\n系统策略只读；新建策略检查优先级冲突，并保护代理与 VPN 保留标记。  更改先预览，应用后 120 秒内确认，否则独立回退。\n点击列标题排序。",
+    "origin": "routing",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-45c5445be5f61eeb",
+    "title": "流量监控",
+    "category": "监控与首页",
+    "body": "下方实时流量与统计表共用查询、筛选、时间范围和指标",
+    "origin": "traffic",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-965cc0a873885e58",
+    "title": "流量趋势",
+    "category": "监控与首页",
+    "body": "按真实字节汇总区间均速；汇总窗口只改变图表，累计量与采集频率不变，缺测保留断点",
+    "origin": "traffic",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-d321da37078ab8ca",
+    "title": "流量统计",
+    "category": "监控与首页",
+    "body": "统计范围：（当前值）；实时速率为当前采样，累计流量按所选范围统计。（当前值） 所选范围没有历史样本或读取失败时，累计显示“—”；已采集的零流量显示为 0。 历史采集与清理范围以监控设置为准。",
+    "origin": "traffic",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-4ecf805e96e6164e",
+    "title": "Xray核心流量统计",
+    "category": "监控与首页",
+    "body": "统计来源：\n控制 Xray 核心是否提供各出口的字节计数。\n开启影响：\n可能重新加载 Xray，短暂影响代理连接。\n关闭影响：\n不再读取计数；统计监听在核心下次正常更新时移除。\n独立开关：\n页面显示、模块监控和历史保留仍分别设置。",
+    "origin": "traffic_source_setting",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-9fea73cbe4480861",
+    "title": "图表汇总窗口",
+    "category": "监控与首页",
+    "body": "当前（当前值）。数值为最近一次真实采样速率；曲线按真实字节和采样时长计算区间均速，只影响曲线。跟随全局默认30秒，可设1～3600秒；页面内选择为临时覆盖，采集、历史写入与累计量不变。长范围可能进一步合并，缺测保持断点。",
+    "origin": "traffic_window",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-cf56779ac473daa1",
+    "title": "检查更新",
+    "category": "部署与管理",
+    "body": "版本来源：等待版本源检查",
+    "origin": "version_panel",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-f6364c18c8b11731",
+    "title": "自动检查新版本",
+    "category": "部署与管理",
+    "body": "只控制版本信息检查；手动检查随时可用，不自动安装更新。",
+    "origin": "version_panel",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-479e1ab299ae79e6",
+    "title": "版本信息",
+    "category": "部署与管理",
+    "body": "WireGuard 按接口管理服务；工具包可以更新，接口启停和自启仍在接口管理中设置。",
+    "origin": "version_panel",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-c7d9a0336624a616",
+    "title": "延迟监控",
+    "category": "功能说明",
+    "body": "下方最近检测与多节点曲线共用指标、查询、筛选、排序和时间范围",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-4bdcd9a5ea0f4048",
+    "title": "真连接延迟 ICMP 延迟",
+    "category": "功能说明",
+    "body": "延迟检测失败保留断点，不连线伪造数据",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-5908de3f13cf98b0",
+    "title": "切换日志",
+    "category": "功能说明",
+    "body": "记录最近 500 次出口切换，含自动／手动与失败原因；保存于服务器",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-e1a6eee2abc8dd2d",
+    "title": "服务管理",
+    "category": "功能说明",
+    "body": "启动／停止／重启分别执行 systemctl start／stop／restart foxray-engine.service，影响核心连接；启用／停用分别执行 systemctl enable／disable foxray-engine.service，仅修改开机自启。代理接管单独控制。\n启动／停止／重启分别执行 systemctl start／stop／restart warp-svc.service；启用／停用分别执行 systemctl enable／disable warp-svc.service，仅修改开机自启。隧道连接在隧道管理中通过 warp-cli --accept-tos connect／disconnect 控制。",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-6a0573c24924ea48",
+    "title": "功能说明 · 字段说明",
+    "category": "功能说明",
+    "body": "0 表示关闭周期真连接检测与自动选优",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-7e3f9caff5076ec4",
+    "title": "代理模式",
+    "category": "功能说明",
+    "body": "选择分流模式和接管范围；只接管 IPv4 公网 TCP／UDP",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-6f7ddf4159abfdbe",
+    "title": "接管范围",
+    "category": "功能说明",
+    "body": "可以只接管本机、只接管 LAN，或同时接管",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-6402ea3cd135c7dc",
+    "title": "节点检测",
+    "category": "功能说明",
+    "body": "真连接延迟和 ICMP 独立采集；关闭周期检测后仍可手动检测",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-700225801bedd8cf",
+    "title": "自动切换",
+    "category": "功能说明",
+    "body": "手动选择固定节点；自动模式按照所选指标的综合评分选优",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-83374fda3f691dc2",
+    "title": "手动选择节点",
+    "category": "功能说明",
+    "body": "自动模式由评分决定，切回手动模式时沿用此选择",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-92d8d878894206e8",
+    "title": "评分依据与权重",
+    "category": "功能说明",
+    "body": "勾选至少一项；按实际可用指标归一为100分，带宽使用最近一次成功测速。窗口内取最近20次检测的成功样本计算延迟均值；少于门槛的节点暂不参与延迟评分。默认30分钟、至少1次。",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-d1a32d5d4d416170",
+    "title": "自动切换条件",
+    "category": "功能说明",
+    "body": "满足保持时间、改善分数和确认次数后切换；连续失败达到阈值时触发故障处理。\n当前为手动模式，不自动切换；参数保留。",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-e50948fa1081b70f",
+    "title": "入口直连",
+    "category": "功能说明",
+    "body": "VPS／隧道入口必须直连，避免代理循环；手动项与自动项分开维护",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-94e6ebab74adb2dd",
+    "title": "手动直连地址",
+    "category": "功能说明",
+    "body": "每行一个 IPv4 或 CIDR；不会被自动项覆盖",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-0473107edf177d9c",
+    "title": "自动识别入口（只读）",
+    "category": "功能说明",
+    "body": "域名保留并独立解析",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-94a013980d274829",
+    "title": "配置与同步",
+    "category": "功能说明",
+    "body": "此处统一保存代理、节点选择、检测、评分、直连与 ICMP 配置；恢复默认和放弃保存仅修改草稿，保存并应用后生效。",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-16446f012cb9135e",
+    "title": "路径探测",
+    "category": "功能说明",
+    "body": "区分配置预计路径、核心事件确认的实际出站和目标响应；HTTPS测量首字节，DNS实际查询并验证A记录应答，TCP仅测建连、不代表应用可用。LAN来源只做规则模拟，实际请求由网关发起。",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-2d1b8a66f3a89645",
+    "title": "节点与订阅备份",
+    "category": "功能说明",
+    "body": "仅保存在服务器受限目录，最多 10 份；恢复前自动备份，不恢复 VPN 密钥或系统路由",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-7dfb5170bd117aa6",
+    "title": "ICMP 检测",
+    "category": "功能说明",
+    "body": "用于代理入口质量检测；禁 Ping 或无响应不会当作有效 100% 丢包参与评分",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-c1c9746ebd29d50f",
+    "title": "ICMP 检测",
+    "category": "功能说明",
+    "body": "控制入口成功率与平均延迟的独立探测。",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-668250011d7d6b37",
+    "title": "服务管理",
+    "category": "功能说明",
+    "body": "管理范围：\n这里只控制 FoXray 网页管理服务；Xray 核心和 VPN 接口由各自的服务单元维护。\n立即操作：\n启动、停止、重启分别执行 systemctl start / stop / restart foxray.service\n中对应的操作。\n停止管理服务后，当前网页将无法响应。\n开机自启：\n启用、停用分别执行 systemctl enable / disable foxray.service\n；只修改自启状态，不立即启动或停止服务。\n恢复网页：\n使用 SSH 或服务器控制台登录。\n执行 systemctl start foxray.service\n，再重新访问管理地址。",
+    "origin": "views",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-b7ea14a2b8bd8f52",
+    "title": "VPN排除模式",
+    "category": "功能说明",
+    "body": "默认保护：\n保留 VONE、现有 WireGuard 接口、私网、节点入口和 IPv6 的原有路径。\n自定义排除：\n在默认保护之外增加直连目标，不覆盖默认保护项。",
+    "origin": "vpn_exclusions",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-f6123ee15015a271",
+    "title": "排除目标CIDR",
+    "category": "功能说明",
+    "body": "每行一个",
+    "origin": "vpn_exclusions",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-843a8843142cad9c",
+    "title": "排除目标域名",
+    "category": "功能说明",
+    "body": "每行一个\n域名匹配：\nexample.com 包含其子域名；full:example.com 仅精确匹配。\n识别条件：\nXray 根据可识别的 HTTP、TLS 或 QUIC 信息匹配直连。\n识别限制：\n无法读取域名信息时，不据此推断目标域名。",
+    "origin": "vpn_exclusions",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-8e94b4a04f1c4145",
+    "title": "WARP 隧道管理",
+    "category": "WARP",
+    "body": "连接管理：\n连接或断开当前官方 WARP 隧道。\n检测项目：\nRTT 和丢包经隧道探测 1.1.1.1。真延迟使用设置中的 HTTP(S) 目标，速度使用下载地址。\n操作方式：\n左侧按钮执行检测，右侧调整项目。首次全选，之后记住上次选择，运行时可取消。",
+    "origin": "warp",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-b4650de0a24f3cd5",
+    "title": "本次检测未通过",
+    "category": "WARP",
+    "body": "本次未获得有效结果；有数值时为上次成功记录。",
+    "origin": "warp",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-e62266069e2d6b08",
+    "title": "候选端点",
+    "category": "WARP",
+    "body": "重新发现会扩大采样、初筛连通性、验证真实隧道并按质量排序；保留当前端点，不自动切换。 RTT／丢包与带宽分别保留检测时间。未建立隧道不记作 0 ms 或 100% 丢包。预检域名与官方客户端一致；独立预检通过仍需实际切换确认。重新发现最多抽样测速3个候选，每个最多5MiB；手动检测每批最多10个候选。",
+    "origin": "warp",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-36f0f87cd8e87149",
+    "title": "下载测速结果",
+    "category": "WARP",
+    "body": "（当前值）；本次检测：（当前值）（当前值）",
+    "origin": "warp",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-787e9b06354edbc4",
+    "title": "真延迟检测失败",
+    "category": "WARP",
+    "body": "本次未获得有效延迟；保留上次成功记录。",
+    "origin": "warp",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-98130990735b6df9",
+    "title": "切换模式",
+    "category": "WARP",
+    "body": "手动模式保持当前端点；自动模式仅在满足检测、保持时间和改善阈值后切换隔离 WARP",
+    "origin": "warp",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-a810b519bdb2685f",
+    "title": "Komari监控",
+    "category": "WARP",
+    "body": "完整嵌入服务器监控页面，管理与设置可在新标签页打开",
+    "origin": "warp",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-3d69c7a325b38de9",
+    "title": "隧道检测",
+    "category": "WARP",
+    "body": "真连接检测与测速分别控制；仅通过 WARP 隧道检测，不会自动连接隧道。",
+    "origin": "warp",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-e01ce4c185fccd9c",
+    "title": "速度检测",
+    "category": "WARP",
+    "body": "按需执行测速；关闭后不执行当前隧道及候选端点的下载测速。",
+    "origin": "warp",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-f1180cc8d341425e",
+    "title": "ICMP 探测",
+    "category": "WireGuard 与网络",
+    "body": "默认关闭；指定对端隧道 IP，通过对应 WireGuard 接口探测，不影响代理节点评分。",
+    "origin": "wg_monitor",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-31cff819ed84cf58",
+    "title": "对端隧道 IP",
+    "category": "WireGuard 与网络",
+    "body": "自动识别：\n使用该接口首个候选主机地址；没有候选时，请手动填写。\n手动指定：\n填写对端隧道的单个 IPv4 或 IPv6 地址。清空地址会同时关闭自动识别。\n批量操作：\n只作用于已勾选的筛选结果；改为手动时保留每个接口各自的地址。\n保存生效：\n表格修改先进入待保存配置，点击本卡片「保存并应用」后生效；不会启停 VPN 接口。",
+    "origin": "wg_probe_targets",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-9b376b70d3c43f9d",
+    "title": "对端隧道 IP",
+    "category": "WireGuard 与网络",
+    "body": "使用首个明确的候选主机地址\n单个 IPv4 或 IPv6 地址",
+    "origin": "wg_probe_targets",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-ca311893d6d80937",
+    "title": "接口保护",
+    "category": "WireGuard 与网络",
+    "body": "开启：\n接口启停、配置变更和相关受保护路由变更需要额外确认。\n关闭：\n取消该接口的额外保护确认；常规参数校验、运行中配置变更确认和 VPN 模块归属限制仍保留。\n保存：\n只修改 FoXray 元数据，不启停接口，不改地址、Peer、路由、SNAT 或开机自启。重启管理服务后继续保留。",
+    "origin": "wireguard_protection_dialog",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-90c4584902abb272",
+    "title": "DNS 分流与域名识别",
+    "category": "功能说明",
+    "body": "FoXray 按下列优先级处理已接管的 TCP / UDP 53 查询。\n自定义规则：\n显式匹配的域名规则优先。IP 规则须指定包含 53 的端口。\nDNS 强制代理：\n开启后，其余查询统一走当前 Xray 出口。\n直连清单与普通分流：\n关闭强制代理时按配置选择上游。 匹配代理域名的查询走代理组。\n其余查询优先走直连组。直连组全部失败时，可尝试代理组。\nLAN 智能接管可让客户端继续使用原 DNS 设置。系统 DNS 设置、VPN 排除和 DoH / DoT 保持原有行为。保存并应用可能短暂重启 Xray 核心。",
+    "origin": "xray_observation_policy",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-e90ff3163816a750",
+    "title": "DNS 强制代理",
+    "category": "功能说明",
+    "body": "开启后：\n已接管的传统 DNS 查询优先遵循显式的自定义 DNS 规则，其余查询走当前 Xray 出口。\nLAN 智能接管已开启时：\n其余查询使用代理 DNS 上游。同组上游失败后会尝试备用地址。\n使用条件：\n要让查询实际经代理发出，需选择可用代理节点。此开关仅影响 TCP / UDP 53。",
+    "origin": "xray_observation_policy",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-957552cceb243daf",
+    "title": "直连DNS上游",
+    "category": "功能说明",
+    "body": "预置常用国内DNS的明确IP清单，可修改或清空；每行一个IP，最多32项。不修改系统DNS，不影响该IP的其他端口。开启DNS强制代理后，普通查询暂不使用此清单；明确指定直连的自定义规则仍可使用。",
+    "origin": "xray_observation_policy",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-37b79a366f321f6b",
+    "title": "代理DNS上游",
+    "category": "功能说明",
+    "body": "智能接管下，命中代理域名规则的查询使用此组上游，直连组故障时也作为备用，通过当前Xray节点发送真实DNS查询；首选失败后切换备用。每行一个IP，最多32项。",
+    "origin": "xray_observation_policy",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-85907da5eaa7f488",
+    "title": "域名识别",
+    "category": "功能说明",
+    "body": "识别来源：\nHTTP Host、TLS / QUIC SNI 和 Xray 核心提供的目标域名。ECH 连接可能只暴露外层域名。\n显示结果：\n将域名关联到对应连接。无法识别时显示「未观测」。\n关闭后：\n停止新增识别并清除内存缓存，已有历史与分流所需的嗅探继续保留。",
+    "origin": "xray_observation_policy",
+    "kind": "页面说明"
+  },
+  {
+    "id": "table-width",
+    "title": "自动列宽与手动调整",
+    "category": "通用操作",
+    "kind": "页面说明",
+    "origin": "通用表格",
+    "body": "自动列宽：按当前页内容计算；空间不足可横向滚动，默认最大 480 px。\n手动调整：拖动表头分隔线，宽度保存在当前浏览器。\n恢复默认：双击分隔线恢复单列，点击自动列宽恢复整表。"
+  }
+]

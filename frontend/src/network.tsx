@@ -1224,6 +1224,12 @@ function NetworkForm({
     </div>
   );
 }
+function WGPrefixesInput({value,onChange}:{value:unknown;onChange:(prefixes:string[])=>void}){
+ const canonical=Array.isArray(value)?value.map(String).join("\n"):"";
+ const [draft,setDraft]=useState(canonical);const emitted=useRef(canonical);
+ useEffect(()=>{if(canonical!==emitted.current){emitted.current=canonical;setDraft(canonical);}},[canonical]);
+ return <textarea rows={2} value={draft} onChange={event=>{const text=event.target.value;setDraft(text);const prefixes=text.split(/[,，\n]+/).map(item=>item.trim()).filter(Boolean);emitted.current=prefixes.join("\n");onChange(prefixes);}}/>;
+}
 function WGNetworkEditor({
   value,
   onChange,
@@ -1233,10 +1239,16 @@ function WGNetworkEditor({
   routeTable: React.ReactNode;
   onChange: (v: Dict) => void;
 }) {
-  const [lanSources, setLanSources] = useState(() => Array.isArray(value.lan_sources) ? value.lan_sources.join(", ") : "");
   const role = String(value.role || "client"),
     mode = String(value.route_mode || "auto");
-  const change = (key: string, v: unknown) => onChange({ ...value, [key]: v });
+  const legacyForward=value.lan_forward==null?!!value.snat:value.lan_forward===true;
+  const explicit=value.lan_to_vpn!=null||value.vpn_to_lan!=null;
+  const directions:Dict={
+    lan_to_vpn:explicit?record(value.lan_to_vpn):{forward:role==="client"&&legacyForward,snat:role==="client"&&!!value.snat,sources:role==="client"?value.lan_sources||[]:[],targets:[]},
+    vpn_to_lan:explicit?record(value.vpn_to_lan):{forward:role==="server"&&legacyForward,snat:role==="server"&&!!value.snat,sources:role==="server"?value.lan_sources||[]:[],targets:role==="server"?value.advertised_routes||[]:[]},
+  };
+  const change = (key: string, v: unknown) => onChange({ ...value, ...(key==="role"?directions:{}), [key]: v });
+  const directionChange=(key:string,patch:Dict)=>onChange({...value,...directions,[key]:{...record(directions[key]),...patch}});
   const prefixes = (key: string, label: string, hint: string) => (
     <Field label={label} hint={hint}>
       <textarea
@@ -1263,28 +1275,21 @@ function WGNetworkEditor({
         <SettingInfo
           label="角色、路由与 LAN 转发"
           text={<ul>
-            <li><strong>接口角色：</strong>服务端接受客户端接入；客户端连接远端网络。角色用于解释转发方向，不会动态协商路由。</li>
-            <li><strong>接口路由：</strong>自动模式按本端 Peer AllowedIPs 生成路由；手动和不安装模式按各自设置处理。服务端 Peer AllowedIPs 应填写客户端隧道地址或其实际远端网段。</li>
-            {role === "server" ? <>
-              <li><strong>客户端访问网段：</strong>写入导出配置的 AllowedIPs，让客户端将访问目标网段的流量送进 VPN；修改后需更新客户端配置，不能动态推送。</li>
-              <li><strong>允许 VPN 客户端访问 LAN：</strong>配置对应防火墙放行规则，方向为远端客户端 → WireGuard 隧道 → 本服务器 → LAN 接口 → 目标局域网设备。</li>
-              <li><strong>VPN 来源网段：</strong>填写报文进入本服务器时的实际源网段，例如客户端隧道地址 10.24.255.2/32，或客户端后面的实际源网段；不要把目标 LAN 网段当作来源填写。</li>
-              <li><strong>启用 SNAT：</strong>独立于转发开关，将匹配流量的源地址转换为服务器 LAN 出接口地址。不开 SNAT 时，LAN 侧需有返回客户端来源网段的路由。</li>
-            </> : <>
-              <li><strong>允许 LAN 设备经此 VPN 访问远端：</strong>为指定 LAN 来源网段访问启用 Peer 的 AllowedIPs 目标范围配置防火墙放行规则。</li>
-              <li><strong>LAN 来源网段与接口：</strong>填写实际发起访问的本地 LAN 网段及其接入接口。</li>
-              <li><strong>启用 SNAT：</strong>独立于转发开关，将匹配流量的源地址转换为 WireGuard 出接口地址；不开 SNAT 时远端需有返回本地 LAN 的路由。</li>
-            </>}
-            <li><strong>生效条件：</strong>需已开启 IPv4 forwarding，并具备正确的路由、Peer AllowedIPs、回程路由与防火墙转发策略。勾选放行不保证链路必然可达，已有其他放行也不会因取消勾选而全部删除。</li>
-            <li><strong>默认路由：</strong>SNAT 本身不改变全局默认路由；接口路由仍由路由表和路由模式决定。</li>
+            <li><strong>接入角色：</strong>服务端提供接入地址和对端配置模板；客户端使用对端接入配置。这是管理预设，WireGuard 的 Peer 可以双向通信，角色不决定业务访问方向。</li>
+            <li><strong>路由：</strong>自动模式按本端 Peer AllowedIPs 生成路由；本端 LAN 访问远端时，远端网段必须在对应 Peer AllowedIPs 中。</li>
+            <li><strong>本地 LAN → VPN：</strong>允许本地来源网段经 WireGuard 访问远端目标；服务端角色同样可以开启。</li>
+            <li><strong>VPN → 本地 LAN：</strong>允许远端实际来源网段经 WireGuard 访问本地目标。两个方向独立，返回流量由连接跟踪及现有策略处理。</li>
+            <li><strong>SNAT：</strong>每个方向单独开启，使用该方向出接口地址；不开时需正确回程路由和对端 AllowedIPs。目标网段与来源网段不能混填。</li>
+            <li><strong>导出配置：</strong>「对端配置中的目标网段」只写入导出 AllowedIPs，不替代本端转发或路由配置。</li>
+            <li><strong>兼容与生效：</strong>旧设置按原角色映射，修改角色不改变已有方向。保存前核对预览；升级本身不改规则。IPv4 forwarding、路由和防火墙转发策略仍需满足，关闭本模块开关不清理外部放行规则。</li>
           </ul>}
         />
       </h3>
       <div className="form-grid">
-        <Field label="接口角色">
+        <Field label="接入角色" hint="管理预设；不限制哪侧主动访问，也不决定转发方向">
           <select value={role} onChange={(e) => change("role", e.target.value)}>
-            <option value="client">客户端 · 连接远端网络</option>
-            <option value="server">服务端 · 接受客户端接入</option>
+            <option value="client">客户端 · 使用对端接入配置</option>
+            <option value="server">服务端 · 提供接入与配置模板</option>
           </select>
         </Field>
         <Field
@@ -1319,8 +1324,8 @@ function WGNetworkEditor({
         {role === "server" && (
           <>
             <Field
-              label="服务端公网入口"
-              hint="用于生成客户端配置，例如 vpn.example.com:51820"
+              label="本端接入地址（供对端配置）"
+              hint="域名或 IP:端口，可为内网地址；用于生成对端配置"
             >
               <input
                 value={String(value.server_endpoint || "")}
@@ -1329,44 +1334,35 @@ function WGNetworkEditor({
             </Field>
             {prefixes(
               "advertised_routes",
-              "客户端访问网段（写入导出配置）",
+              "对端配置中的目标网段（导出 AllowedIPs）",
               "例如LAN 网段；修改后需要更新客户端配置，不能动态推送",
             )}
           </>
         )}
       </div>
-      <div className="wg-forward-controls">
-      <label className="check">
-        <input type="checkbox" checked={value.lan_forward == null ? !!value.snat : value.lan_forward === true}
-          onChange={event => change("lan_forward", event.target.checked)} />
-        {role === "client" ? "允许 LAN 设备经此 VPN 访问远端" : "允许 VPN 客户端访问 LAN"}
-      </label>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={!!value.snat}
-          onChange={event => onChange({...value, lan_forward: value.lan_forward ?? !!value.snat, snat: event.target.checked})}
-        />
-        启用 SNAT（使用出接口地址）
-      </label>
-      </div>
-      {(!!value.snat || value.lan_forward === true) && (
-        <div className="form-grid">
-          <Field label={role === "server" ? "VPN 客户端来源网段" : "LAN 转发／SNAT 来源网段"} hint={role === "server" ? "填写客户端隧道网段或其后方实际源网段；多个网段用逗号分隔" : "填写本地 LAN 来源网段；多个网段用逗号分隔"}>
-            <textarea rows={1} className="wg-resizable-text" value={lanSources} onChange={event => {
-              const draft = event.target.value;
-              setLanSources(draft);
-              change("lan_sources", draft.split(/[,，\n]+/).map(prefix => prefix.trim()).filter(Boolean));
-            }} />
-          </Field>
-          <Field label="LAN 接口" hint="用于限定转发范围，填写连接测试 LAN 的实际接口">
-            <input
-              value={String(value.lan_interface || "")}
-              onChange={(e) => change("lan_interface", e.target.value)}
-            />
-          </Field>
-        </div>
-      )}
+      <Field label="本地 LAN 接口" hint="填写实际 LAN 接口，两个方向共用；不因接入角色变化而改变">
+        <input value={String(value.lan_interface||"")} onChange={event=>change("lan_interface",event.target.value)}/>
+      </Field>
+      {([["lan_to_vpn","本地 LAN → VPN","本地 LAN 来源网段","远端目标网段（留空使用启用 Peer 的 AllowedIPs）"],["vpn_to_lan","VPN → 本地 LAN","VPN 实际来源网段","本地 LAN 目标网段（留空使用导出目标网段）"]] as string[][]).map(([key,title,sourceLabel,targetLabel])=>{
+        const direction=record(directions[key]);
+        const enabled=direction.forward===true||direction.snat===true;
+        return <section className="wg-direction" key={key} aria-label={title}>
+          <h4>{title}</h4>
+          <div className="wg-forward-controls">
+            <label className="check"><input aria-label={title+"允许转发"} type="checkbox" checked={direction.forward===true} onChange={event=>directionChange(key,{forward:event.target.checked})}/>允许此方向转发</label>
+            <label className="check"><input aria-label={title+"启用 SNAT"} type="checkbox" checked={direction.snat===true} onChange={event=>directionChange(key,{snat:event.target.checked})}/>启用此方向 SNAT（使用出接口地址）</label>
+          </div>
+          {enabled&&<div className="form-grid">
+            <Field label={sourceLabel} hint="填写实际 IPv4 来源 CIDR；多个网段用换行或逗号分隔">
+              <WGPrefixesInput value={direction.sources} onChange={prefixes=>directionChange(key,{sources:prefixes})}/>
+            </Field>
+            <Field label={targetLabel} hint="可填写明确的 IPv4 目标 CIDR；不会自动修改 Peer AllowedIPs">
+              <WGPrefixesInput value={direction.targets} onChange={prefixes=>directionChange(key,{targets:prefixes})}/>
+            </Field>
+          </div>}
+        </section>;
+      })}
+
     </section>
   );
 }

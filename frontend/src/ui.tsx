@@ -1,3 +1,4 @@
+import "./info_spacing.css";
 import { InfoContent } from "./info_content";
 import { ActionMenu, type MenuAction } from "./action_menu";
 import { useTableColumnSizing } from "./table_column_sizing";
@@ -553,6 +554,30 @@ export function SettingInfo({
   const [open, setOpen] = useState(false),
     [position, setPosition] = useState({ top: 0, left: 0 });
   const id = useId();
+  useLayoutEffect(()=>{
+    const element=trigger.current,parent=element?.parentElement;
+    if(!element||!parent)return;
+    let frame=0,disposed=false;
+    const align=()=>{
+      element.style.setProperty("--info-leading-gap","0px");
+      let previous:ChildNode|null=element.previousSibling;
+      while(previous&&previous.nodeType===Node.TEXT_NODE&&!previous.textContent?.trim())previous=previous.previousSibling;
+      if(!previous){element.style.setProperty("--info-leading-gap","0px");return;}
+      let bounds:DOMRect|undefined;
+      if(previous.nodeType===Node.TEXT_NODE){
+        const text=previous.textContent||"",end=text.trimEnd().length,start=text.length-text.trimStart().length;
+        if(end>start){const range=document.createRange();range.setStart(previous,start);range.setEnd(previous,end);const rects=Array.from(range.getClientRects());bounds=rects[rects.length-1];}
+      }else if(previous instanceof Element)bounds=previous.getBoundingClientRect();
+      const rect=element.getBoundingClientRect(),scale=element.offsetWidth?rect.width/element.offsetWidth:1;
+      const sameLine=bounds&&rect.top<bounds.bottom+2&&rect.bottom>bounds.top-2;
+      const existing=sameLine?(rect.left-bounds!.right)/Math.max(scale,.01):0;
+      element.style.setProperty("--info-leading-gap",(sameLine?8-existing:8)+"px");
+    };
+    const schedule=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(align);};
+    align();const observer=new ResizeObserver(schedule);observer.observe(parent);window.addEventListener("resize",schedule);
+    void document.fonts.ready.then(()=>{if(!disposed&&element.isConnected)schedule();});
+    return ()=>{disposed=true;cancelAnimationFrame(frame);observer.disconnect();window.removeEventListener("resize",schedule);};
+  },[label,text]);
   const cancelHide = () => {
     if (hide.current) clearTimeout(hide.current);
     hide.current = null;
@@ -615,6 +640,7 @@ export function SettingInfo({
   return (
     <span
       className="setting-info"
+      data-info-gap="8"
       ref={trigger}
       tabIndex={0}
       role="button"
@@ -1019,11 +1045,7 @@ export function Table<T>({
   const widthControl = (
     <div className="adaptive-table-width-control">
           <Button onClick={sizing.reset}><svg viewBox="0 0 1024 1024" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M422.4 486.4H288l57.6-57.6c12.8-12.8 12.8-25.6 0-38.4-12.8-6.4-25.6-6.4-38.4 0L224 480V128h-64v768h64V544l83.2 89.6c12.8 6.4 25.6 6.4 38.4 0 12.8-12.8 12.8-25.6 0-38.4l-57.6-57.6h134.4c12.8 0 25.6-12.8 25.6-25.6s-12.8-25.6-25.6-25.6zM480 192h64v640h-64zM800 128v352l-83.2-89.6c-12.8-6.4-25.6-6.4-38.4 0-12.8 12.8-12.8 25.6 0 38.4l57.6 57.6H601.6c-12.8 0-25.6 12.8-25.6 25.6s12.8 25.6 25.6 25.6h134.4l-57.6 57.6c-12.8 12.8-12.8 25.6 0 38.4 6.4 12.8 25.6 12.8 32 0l83.2-89.6V896h64V128h-57.6z" /></svg>自动列宽</Button>
-          <SettingInfo label="自动列宽" text={<ul>
-            <li><strong>自动列宽：</strong>按当前页内容计算，空间不足时可横向滚动。默认最大 480 px。</li>
-            <li><strong>手动调整：</strong>拖动表头分隔线，宽度会保存在当前浏览器。</li>
-            <li><strong>恢复默认：</strong>双击分隔线恢复单列，点击「自动列宽」恢复整表。</li>
-          </ul>} />
+
         </div>
   );
   return rows.length || keepHeaders || sizing.enabled ? (

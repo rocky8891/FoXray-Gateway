@@ -163,7 +163,7 @@ func (p *WGProfile) render() string {
 	if len(p.DNS) > 0 {
 		b.WriteString("DNS = " + strings.Join(p.DNS, ", ") + "\n")
 	}
-	if p.Network != nil && (p.Network.RouteMode == "manual" || p.Network.SNAT || p.Network.allowsLANForward()) || wgProfileAutoWithdraw(p) {
+	if p.Network != nil && (p.Network.RouteMode == "manual" || p.Network.hasSNAT() || p.Network.allowsLANForward()) || wgProfileAutoWithdraw(p) {
 		b.WriteString("PostUp = /opt/foxray/foxray --wireguard-network up --interface %i\nPreDown = /opt/foxray/foxray --wireguard-network down --interface %i\n")
 	}
 	for _, line := range p.extras {
@@ -534,8 +534,17 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 				return errors.New("手动路由未被任何 Peer 的 AllowedIPs 覆盖")
 			}
 		}
-		if network.SNAT {
-			plan.Warnings = append(plan.Warnings, "SNAT 仅匹配指定 LAN 网段与该 VPN 出接口；回程可无需配置 LAN 路由。已有连接停止后会中断，其他 VPN 不变")
+		if network.hasSNAT() {
+			plan.Warnings = append(plan.Warnings, "SNAT 按配置方向匹配来源、目标与出接口；请核对预览。已有连接可能受影响，其他 VPN 不变")
+		}
+	}
+	if p.Network != nil && p.Network.directional() {
+		flows, err := wgDirectionFlows(p)
+		if err != nil {
+			return err
+		}
+		for _, flow := range flows {
+			plan.Preview = append(plan.Preview, fmt.Sprintf("方向 %s → %s；来源 %s；目标 %s；允许转发=%t；SNAT=%t", flow.Ingress, flow.Egress, strings.Join(flow.Sources, ", "), strings.Join(flow.Targets, ", "), flow.Forward, flow.SNAT))
 		}
 	}
 	if err := validateWGPeerProbes(p); err != nil {

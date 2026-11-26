@@ -23,3 +23,5 @@ Windows 交叉编译时显式设置 GOOS=linux、GOARCH=amd64、CGO_ENABLED=0；
 运行包仅包含0.9.67安装／升级工具及对应文档，旧版本脚本与手册保留在源码历史中。前端构建使用同版本 check_radius_v0.9.67.mjs 控件检查器。
 
 收到明确的离线发布要求后，手动运行 `Package offline release` 工作流分别在 Rocky Linux 9 和 10 x86_64 容器内组装依赖。在线包通过校验后，工作流生成两个离线整包及各自的 SHA256 文件。
+
+前端构建会执行 `frontend/scripts/build_help_v0.9.67.mjs`，从页面说明生成帮助索引并合入帮助中心；对应手册为 `frontend/scripts/build_help_v0.9.67_README.md`。完整使用指南为 `docs/HELP_v0.9.67.md`。
