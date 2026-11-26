@@ -809,6 +809,7 @@ body .overview-footer > .data-freshness {
 .home-header-shell {
   display: contents;
 }
+.home-header-shell[data-awaiting-home-policy="true"] { display: none; }
 .home-header-shell[data-auto-hide="true"] {
   display: block;
   height: 0;
@@ -945,44 +946,6 @@ header .brand .brand-logo, header nav .nav-home-fox-icon {
 }
 .overview-side-tools .home-header-toggle svg, header .brand .brand-logo { overflow: visible; }
 .overview-side-tools button.home-header-toggle svg { width: 27px !important; height: 29px !important; flex: none; }
-.home-tools-dock:where(
-    :not([data-auto-hide="true"]),
-    [data-header-handoff="true"],
-    [data-pointer-open="true"],
-    :hover,
-    :has(.home-tools-handle:focus),
-    :has(.overview-side-tools :focus-visible),
-    :has(.overview-side-tools [aria-expanded="true"]:not(.home-header-toggle))
-  ) {
-    & .home-header-toggle > svg { animation: home-sidebar-logo-arrive 590ms both; }
-    & .overview-side-tools > .home-header-toggle ~ :where(:not(.overview-edit-controls)),
-    & .overview-side-tools > .home-header-toggle ~ .overview-edit-controls > .button {
-      animation: home-sidebar-tools-shift 530ms cubic-bezier(.48,0,.82,.52) both;
-    }
-    & .overview-side-tools > .home-header-toggle + * + * {
-      animation-duration: 495ms;
-      animation-delay: 55ms;
-    }
-    & .overview-side-tools > .home-header-toggle + * + * + * {
-      animation-duration: 460ms;
-      animation-delay: 110ms;
-    }
-    & .overview-side-tools > .home-header-toggle + * + * + * + :not(.overview-edit-controls),
-    & .overview-side-tools > .home-header-toggle ~ .overview-edit-controls > .button {
-      animation-duration: 425ms;
-      animation-delay: 165ms;
-    }
-}
-@keyframes home-sidebar-tools-shift {
-  from { translate: 0 calc(-1 * (var(--button-height-regular) + 6px)); }
-  to { translate: 0 0; }
-}
-@keyframes home-sidebar-logo-arrive {
-  0% { transform: scale(.72); }
-  52% { transform: translateY(-3px) scale(1.12); }
-  76% { transform: translateY(1px) scale(.96); }
-  100% { transform: none; }
-}
 .task-detail-heading { display: flex; flex-wrap: wrap; }
 .task-detail-heading > strong { flex: 0 0 100%; order: -1; white-space: normal; overflow-wrap: anywhere; }
 .task-detail-heading > .button:last-child { margin-left: auto; }
@@ -1119,7 +1082,8 @@ header .brand .brand-logo, header nav .nav-home-fox-icon {
 .home-tools-dock[data-auto-hide="true"]:is(
   [data-pointer-open="true"],
   [data-header-handoff="true"],
-  :hover,
+  [data-view-switch="true"],
+  :hover:not([data-awaiting-pointer="true"]),
   :has(.home-tools-handle:focus),
   :has(.overview-side-tools :focus-visible),
   :has(.overview-side-tools [aria-expanded="true"]:not(.home-header-toggle))
@@ -1178,11 +1142,7 @@ header .brand .brand-logo, header nav .nav-home-fox-icon {
 .custom-routing > summary > .setting-info {
   margin-left: 8px;
 }
-@media (prefers-reduced-motion: reduce) {
-  :root:not([data-home-motion="on"]) .home-tools-dock :is(.home-header-toggle > svg, .home-header-toggle ~ *, .overview-edit-controls > .button) {
-    animation: none !important;
-  }
-}
+
 @media (max-width: 600px) {
   .version-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));

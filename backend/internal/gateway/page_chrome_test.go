@@ -7,8 +7,8 @@ func TestHomeHeaderAutoHidePreference(t *testing.T) {
 	if a.presentationPolicy()["home_header_auto_hide"] != false {
 		t.Fatal("header must default visible")
 	}
-	if num(a.presentationPolicy()["home_header_idle_seconds"]) != 30 {
-		t.Fatal("idle duration must default to 30 seconds")
+	if num(a.presentationPolicy()["home_header_idle_seconds"]) != 5 {
+		t.Fatal("idle duration must default to 5 seconds")
 	}
 	if err := a.savePresentation(M{"home_header_idle_seconds": 75}); err != nil || num(a.presentationPolicy()["home_header_idle_seconds"]) != 75 {
 		t.Fatal("idle duration was not saved")

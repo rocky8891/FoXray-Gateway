@@ -105,23 +105,43 @@
   backdrop-filter: var(--menu-selected-glass);
 }
 
-header .header-status > .header-tools { grid-template-columns: max-content repeat(3, 36px); }
-header .header-tools:not(:has(.management-user-menu)) { grid-template-columns: max-content repeat(2, 36px); }
+header .header-status > .header-tools {
+  --header-control-size: 36px;
+  --header-control-icon: 18px;
+  grid-template-columns: max-content repeat(3, var(--header-control-size));
+  grid-auto-rows: var(--header-control-size);
+}
+header .header-tools:not(:has(.management-user-menu)) { grid-template-columns: max-content repeat(2, var(--header-control-size)); }
+header .header-tools > .button,
+header .header-tools :is(.task-center-trigger, .management-user-menu .more-actions-trigger) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--header-control-size) !important;
+  height: var(--header-control-size) !important;
+  max-height: var(--header-control-size);
+  box-sizing: border-box;
+}
+header .header-tools > .button,
+header .header-tools .management-user-menu .more-actions-trigger { width: var(--header-control-size); }
+header .header-tools :is(.button, .more-actions-trigger) > svg {
+  flex: none;
+  width: var(--header-control-icon);
+  height: var(--header-control-icon);
+}
 header .header-tools > .task-center-shell > .task-center-trigger { position: relative; }
 header .header-tools .task-count { position: static; }
 header .management-user-menu .more-actions-trigger {
-  width: 36px;
-  height: 36px;
   padding: 4px;
   border-color: transparent !important;
   background: transparent !important;
   box-shadow: none !important;
 }
-header .management-user-menu .more-actions-trigger > svg { width: 20px; height: 20px; }
 @media (max-width: 599px) {
-  header .header-status > .header-tools { grid-template-columns: max-content repeat(3, 32px); }
-  header .header-tools:not(:has(.management-user-menu)) { grid-template-columns: max-content repeat(2, 32px); }
-  header .management-user-menu .more-actions-trigger { width: 32px; }
+  header .header-status > .header-tools { --header-control-size: 32px; }
+  header .header-tools > .task-center-shell > .task-center-trigger {
+    min-width: var(--header-control-size) !important;
+  }
 }
 
 .management-password-dialog .modal-body { overflow-x: hidden; }

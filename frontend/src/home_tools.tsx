@@ -14,10 +14,15 @@ export function HomeTools({
   const header = useContext(HomeHeaderContext);
   const edge = useRef<HTMLDivElement>(null);
   const showHeaderButton = header.hidden && !header.collapseInNav;
-  const hadHeaderButton = useRef(false);
+  const previousView = useRef(view);
+  const previousHeaderButton = useRef(showHeaderButton);
+  const toolsRef = useRef<HTMLElement>(null);
+  const animations = useRef<Animation[]>([]);
   const [handoff, setHandoff] = useState(false);
   const [autoHide, setAutoHide] = useState(true);
   const [pointerOpen, setPointerOpen] = useState(false);
+  const [switchingView, setSwitchingView] = useState(false);
+  const [awaitingPointer, setAwaitingPointer] = useState(false);
   const hideTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => () => window.clearTimeout(hideTimer.current), []);
@@ -33,24 +38,60 @@ export function HomeTools({
     return () => window.clearTimeout(timer);
   }, [handoff, header.closing]);
 
-  useLayoutEffect(() => {
-    const opening = hadHeaderButton.current && !showHeaderButton && header.expanded;
-    hadHeaderButton.current = showHeaderButton;
-    const tools = edge.current?.querySelector(".overview-side-tools");
-    if (!dock || !opening || !tools || reduceHomeMotion()) return;
-    const distance = Number.parseFloat(getComputedStyle(tools).getPropertyValue("--button-height-regular")) + 6;
-    if (!Number.isFinite(distance)) return;
-    const animations = Array.from(tools.children, (child, index) => {
-      const delay = Math.min(index, 3) * 55;
-      return child.animate([{ translate: `0 ${distance}px` }, { translate: "0 0" }], {
-        duration: 530 - delay,
-        delay,
+  const animateTools = () => {
+    const tools = toolsRef.current;
+    if (!tools || reduceHomeMotion() || getComputedStyle(tools).pointerEvents === "none") return;
+    animations.current.forEach(animation => animation.cancel());
+    const buttons = Array.from(tools.querySelectorAll<HTMLElement>("button"))
+      .filter(button => button.getClientRects().length);
+    const first = buttons[0]?.getBoundingClientRect();
+    if (!first) return;
+    animations.current = buttons.slice(1).map((button, index) => {
+      const position = button.getBoundingClientRect();
+      return button.animate([
+        { translate: `${first.left - position.left}px ${first.top - position.top}px`, scale: 0.9, opacity: 0 },
+        { translate: "0 0", scale: 1, opacity: 1 },
+      ], {
+        duration: 560,
+        delay: index * 55,
         easing: "cubic-bezier(.22,.8,.24,1)",
         fill: "backwards",
       });
     });
-    return () => animations.forEach(animation => animation.cancel());
-  }, [dock, header.expanded, showHeaderButton]);
+  };
+
+  useLayoutEffect(() => {
+    const changed = previousView.current !== view;
+    previousView.current = view;
+    if (!dock || !changed) return;
+    window.clearTimeout(hideTimer.current);
+    setPointerOpen(false);
+    setAwaitingPointer(true);
+    setSwitchingView(!reduceHomeMotion());
+  }, [dock, view]);
+
+  useEffect(() => {
+    if (!switchingView) return;
+    const tools = toolsRef.current;
+    const count = tools ? Array.from(tools.querySelectorAll("button")).filter(button => button.getClientRects().length).length : 0;
+    const timer = window.setTimeout(() => setSwitchingView(false), 660 + Math.max(0, count - 2) * 55);
+    return () => window.clearTimeout(timer);
+  }, [switchingView, view]);
+
+  useLayoutEffect(() => {
+    const changed = previousHeaderButton.current !== showHeaderButton;
+    previousHeaderButton.current = showHeaderButton;
+    const tools = toolsRef.current;
+    if (!dock || !tools) return;
+    if (switchingView || changed || !autoHide) animateTools();
+    const onReveal = (event: TransitionEvent) => {
+      if (event.target === tools && event.propertyName === "transform") animateTools();
+    };
+    tools.addEventListener("transitionrun", onReveal);
+    return () => tools.removeEventListener("transitionrun", onReveal);
+  }, [dock, view, switchingView, showHeaderButton, autoHide]);
+
+  useEffect(() => () => animations.current.forEach(animation => animation.cancel()), []);
 
   useLayoutEffect(() => {
     const rail = edge.current;
@@ -78,7 +119,7 @@ export function HomeTools({
   }, [dock, view, header.expanded, header.hidden]);
 
   const tools = (
-    <aside className="overview-side-tools" data-overview-view={view} aria-label="主页快捷工具">
+    <aside ref={toolsRef} className="overview-side-tools" data-overview-view={view} aria-label="主页快捷工具">
       {showHeaderButton && (
         <button
           type="button"
@@ -103,8 +144,15 @@ export function HomeTools({
       data-auto-hide={autoHide || undefined}
       data-pointer-open={pointerOpen || undefined}
       data-header-handoff={handoff || undefined}
+      data-view-switch={switchingView || undefined}
+      data-awaiting-pointer={awaitingPointer || undefined}
+      onPointerMove={(event) => {
+        if (!awaitingPointer || event.pointerType === "touch") return;
+        setAwaitingPointer(false);
+        setPointerOpen(true);
+      }}
       onPointerEnter={(event) => {
-        if (event.pointerType === "touch") return;
+        if (event.pointerType === "touch" || awaitingPointer) return;
         window.clearTimeout(hideTimer.current);
         setPointerOpen(true);
       }}

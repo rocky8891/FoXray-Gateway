@@ -25,6 +25,7 @@ export function IconSelect({
   showIcon = true,
   triggerTitle,
   triggerIcon,
+  focusOnPointerSelection = true,
 }: {
   label: string;
   value: string;
@@ -34,6 +35,7 @@ export function IconSelect({
   showIcon?: boolean;
   triggerTitle?: string;
   triggerIcon?: ReactNode;
+  focusOnPointerSelection?: boolean;
 }) {
   const [open, setOpen] = useState(false),
     [position, setPosition] = useState({
@@ -202,9 +204,9 @@ export function IconSelect({
                 aria-selected={row.value === value}
                 disabled={row.disabled}
                 tabIndex={-1}
-                onClick={() => {
+                onClick={(event) => {
                   onChange(row.value);
-                  close(true);
+                  close(event.detail === 0 || focusOnPointerSelection);
                 }}
               >
                 {showIcon && (

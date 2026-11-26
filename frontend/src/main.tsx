@@ -226,11 +226,14 @@ function App() {
     setHeaderClosing(!reduceHomeMotion());
     setHeaderExpanded(false);
   };
-  const homeIdleSeconds = Number(presentation.home_header_idle_seconds ?? 30);
+  const previousHeaderPage = useRef(page);
+  const homeIdleSeconds = Number(presentation.home_header_idle_seconds ?? 5);
   useLayoutEffect(() => {
+    const returningHome = previousHeaderPage.current !== page && page === "overview";
+    previousHeaderPage.current = page;
     setHeaderClosing(false);
     setHeaderExpanded(false);
-    if (!headerAutoHide || page !== "overview") return;
+    if (!headerAutoHide || !returningHome) return;
     if (reduceHomeMotion()) {
       setHeaderExpanded(true);
       return;
@@ -462,7 +465,6 @@ function App() {
             randomTheme={randomTheme}
             state={state}
             act={act}
-            onMonitoring={() => navigate("monitoring", hideHomeHeader)}
             onLayout={(view) => {
               navigate("monitoring");
               setOverviewEditor(view);
@@ -574,6 +576,7 @@ function App() {
       <div
         className="home-header-shell"
         data-auto-hide={hideHomeHeader || undefined}
+        data-awaiting-home-policy={page === "overview" && !state && !cachedNavigation && !error || undefined}
         data-expanded={headerExpanded || undefined}
         data-nav-fox={headerAutoHide && (headerExpanded || headerClosing) || undefined}
         style={{"--home-header-origin": headerOrigin} as React.CSSProperties}

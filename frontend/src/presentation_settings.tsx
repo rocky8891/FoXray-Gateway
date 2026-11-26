@@ -146,7 +146,7 @@ export function PageWidthSettings({ act }: { act: Act }) {
       content_width_percent: Number(resource.data?.content_width_percent ?? 99),
       module_width_percent: Number(resource.data?.module_width_percent ?? 95),
       home_header_auto_hide: resource.data?.home_header_auto_hide === true,
-      home_header_idle_seconds: Number(resource.data?.home_header_idle_seconds ?? 30),
+      home_header_idle_seconds: Number(resource.data?.home_header_idle_seconds ?? 5),
     },
     value = { ...saved, ...draft };
   return (
@@ -230,7 +230,7 @@ export function PageWidthSettings({ act }: { act: Act }) {
           )
         }
         defaults={() =>
-          setDraft({ content_width_percent: 99, module_width_percent: 95, home_header_auto_hide: false, home_header_idle_seconds: 30 })
+          setDraft({ content_width_percent: 99, module_width_percent: 95, home_header_auto_hide: false, home_header_idle_seconds: 5 })
         }
         discard={() => setDraft(null)}
         save={async () => {
