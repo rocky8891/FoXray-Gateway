@@ -226,7 +226,7 @@ func wgHelperSteps(p *WGProfile) ([]Step, error) {
 			rules = append(rules, "ip saddr { "+strings.Join(flow.Sources, ", ")+" } ip daddr { "+strings.Join(flow.Targets, ", ")+" } oifname \""+flow.Egress+"\" masquerade;")
 		}
 		if len(rules) > 0 {
-			steps = append(steps, Step{Args: []string{"nft", "-f", "-"}, Input: "table ip " + wgTableName(p.Name) + " { chain postrouting { type nat hook postrouting priority 98; policy accept; " + strings.Join(rules, " ") + " } }\n"})
+			steps = append(steps, Step{Args: []string{"nft", "-f", "-"}, Input: "table ip " + wgTableName(p.Name) + " { chain postrouting { type nat hook postrouting priority 98; policy accept; " + strings.Join(rules, " ") + " }\n}\n"})
 		}
 	}
 	return steps, nil
