@@ -255,8 +255,11 @@ func nativeNFTScript(r M) string {
 		family = "ip6"
 	}
 	source := ""
-	if str(r["source"]) != "" {
-		source = family + " saddr " + str(r["source"]) + " "
+	if value := str(r["source"]); value != "" {
+		if strings.Contains(value, ",") {
+			value = "{ " + value + " }"
+		}
+		source = family + " saddr " + value + " "
 	}
 	if destination := str(r["destination"]); destination != "" {
 		source += family + " daddr " + destination + " "
@@ -303,6 +306,15 @@ func nativeNFTScript(r M) string {
 	return "table inet " + name + " { chain " + chain + " { " + hook + "\n" + strings.Join(rules, "\n") + "\n}\n}\n"
 }
 func nativeIPSpecs(r M) [][]string {
+	if str(r["kind"]) == "masquerade" && strings.Contains(str(r["source"]), ",") {
+		rows := [][]string{}
+		for _, source := range strings.Split(str(r["source"]), ",") {
+			child := clone(r)
+			child["source"] = strings.TrimSpace(source)
+			rows = append(rows, nativeIPSpecs(child)...)
+		}
+		return rows
+	}
 	protocols := []string{str(r["protocol"])}
 	if protocols[0] == "tcpudp" {
 		protocols = []string{"tcp", "udp"}

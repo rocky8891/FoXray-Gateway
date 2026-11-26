@@ -1,8 +1,10 @@
+import { LogDetailHeading } from "./log_detail_heading";
+import { AdaptiveSearch } from "./adaptive_search";
 import { ResetFilters } from "./list_controls";
 import { ALL_FIREWALL_ZONES } from "./firewall_view_state";
 import { logReadKeys, useReadState } from "./read_state";
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, CircleAlert, LoaderCircle } from "lucide-react";
+import { CheckCircle2, CircleAlert, LoaderCircle, Search } from "lucide-react";
 import {
   api,
   errorMessage,
@@ -13,7 +15,7 @@ import {
   type Dict,
   type Operation,
 } from "./api";
-import { Button, JsonDetails, Modal, PageHeader, Panel, Table } from "./ui";
+import { Button, JsonDetails, Modal, Panel, Table } from "./ui";
 import type { Act } from "./nodes";
 
 export function useDiagnosticRunner(act: Act) {
@@ -155,13 +157,17 @@ function FirewallDiagnosticFacts({ data, onRefresh }: { data: Dict; onRefresh?: 
       <ul>{result.warnings.map((warning, index) => <li key={index}>{String(warning)}</li>)}</ul>
     </details>}
     {onRefresh && reverse.dev && reverse.dev !== params.ingress && <Button onClick={() => onRefresh({...params, ingress: reverse.dev, probe: false})}>按 {text(reverse.dev)} 重新推演</Button>}
-    {result.status != null && <>
-      <h4>运行时候选规则</h4>
+    {result.status != null && <section className="diagnostic-candidates">
+      <h4 className="diagnostic-candidates-title">运行时候选规则</h4>
       <Table
         keepHeaders
-        toolbar={<div className="actions">
+        resizeInModal
+        columnSizingKey="diagnostic-candidates"
+        toolbar={<div className="diagnostic-candidates-tools">
           {onRefresh && <Button onClick={() => onRefresh({...params, probe: false})}>刷新</Button>}
-          <input aria-label="搜索候选规则" placeholder="搜索候选规则" value={query} onChange={event => setQuery(event.target.value)} />
+          <AdaptiveSearch tableWidthKey="diagnostic-candidates"><Search size={15} />
+            <input aria-label="搜索候选规则" placeholder="搜索候选规则" value={query} onChange={event => setQuery(event.target.value)} />
+          </AdaptiveSearch>
           <ResetFilters active={!!query} onClick={() => setQuery("")} />
         </div>}
         rows={candidates}
@@ -194,7 +200,7 @@ function FirewallDiagnosticFacts({ data, onRefresh }: { data: Dict; onRefresh?: 
           { key: "details", label: "详情", render: row => <Button size="compact" onClick={() => setSelected(row)}>查看</Button> },
         ]}
       />
-    </>}
+    </section>}
     {selected && <Modal title="候选规则详情" onClose={() => setSelected(null)}><JsonDetails data={selected} /></Modal>}
   </>;
 }
@@ -203,9 +209,11 @@ export function DiagnosticReport({
   operation,
   embedded = false,
   onRefresh,
+  copyText,
 }: {
   operation: Operation;
   embedded?: boolean;
+  copyText?: string;
   onRefresh?: (params: Dict) => void;
 }) {
   const d = {
@@ -223,8 +231,9 @@ export function DiagnosticReport({
   const firewall = p.kind === "firewall";
   const body = (
     <>
-      <PageHeader
-        title={firewall ? "防火墙规则诊断结果" : "诊断结果"}
+      <LogDetailHeading
+        title={firewall ? "防火墙规则诊断结果" : "路径探测诊断结果"}
+        copyText={copyText}
         icon={passed && !tcpOnly ? <CheckCircle2 size={20} /> : <CircleAlert size={20} />}
         description={timestamp(operation.time)}
       />

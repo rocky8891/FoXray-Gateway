@@ -437,9 +437,11 @@ export function Modal({
   titleControl,
   className = "",
   copyText,
+  inlineCopy = false,
 }: {
   className?: string;
   copyText?: string;
+  inlineCopy?: boolean;
   title: string;
   description?: ReactNode;
   children: ReactNode;
@@ -482,7 +484,7 @@ export function Modal({
         </Button>
       </div>
       <div className="modal-body">
-        {copyText !== undefined && (
+        {copyText !== undefined && !inlineCopy && (
           <div className="modal-detail-tools">
             <CopyButton text={copyText} />
           </div>
@@ -933,6 +935,7 @@ export function Table<T>({
   paginationResetKey,
   columnSizingKey,
   toolbar,
+  resizeInModal = false,
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -947,6 +950,7 @@ export function Table<T>({
   paginationResetKey?: string;
   columnSizingKey?: string;
   toolbar?: ReactNode;
+  resizeInModal?: boolean;
 }) {
   const edgeWidth = (c: Column<T>) =>
     c.label === "选择" || ["selected", "select"].includes(c.key)
@@ -987,7 +991,7 @@ export function Table<T>({
     fullPage?.scope === pageScope && fullPage.size === pagination.pageSize ? fullPage.height : undefined;
   const widthKey = columnSizingKey ?? columns.map(column => column.key + "=" + column.label).join("|");
   const modalTable = useContext(ModalTableContext);
-  const sizing = useTableColumnSizing(tableRef, columns, widthKey, !modalTable);
+  const sizing = useTableColumnSizing(tableRef, columns, widthKey, !modalTable || resizeInModal);
   const [widthSlot, setWidthSlot] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
     const scope = tableRef.current?.closest("dialog, main");

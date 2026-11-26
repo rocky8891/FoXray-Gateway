@@ -201,3 +201,11 @@ main[data-module-page] .module-settings-grid {
   main[data-module-page] { --settings-form-columns: minmax(0, 1fr); }
   main[data-module-page] .module-settings-grid { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
 }
+
+/* Both navigation levels use the same blur, including unselected buttons. */
+:root :is(header nav .nav-tab, .secondary-nav button, .module-tabs > button,
+  .subtabs > button, .monitor-settings-tabs > button, .monitor-view-switch > button,
+  .secondary-nav .module-tab-dropdown .icon-select-trigger):not(:disabled) {
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+}

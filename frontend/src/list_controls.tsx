@@ -250,12 +250,14 @@ export function CompactFilters({
   active = false,
   actions,
   before,
+  reset,
 }: {
   children: ReactNode;
   label: string;
   active?: boolean;
   actions?: ReactNode;
   before?: ReactNode;
+  reset?: ReactNode;
 }) {
   const parts = Children.toArray(children).filter(
     (child) => typeof child !== "string" || child.trim(),
@@ -270,6 +272,7 @@ export function CompactFilters({
             {parts.slice(1)}
           </ListFilter>
         )}
+        {reset}
       </div>
       {actions && <div className="actions">{actions}</div>}
     </div>

@@ -421,6 +421,34 @@ export function RoutingPage({
         </div>
 
         <CompactFilters
+          reset={<ResetFilters
+                active={
+                  query !== "" ||
+                  owner !== "all" ||
+                  status !== "all" ||
+                  table !== "all" ||
+                  family !== "4"
+                }
+                selectedCount={selection.chosen.length}
+                summary={[
+                  `IPv${family}`,
+                  query && `搜索：${query}`,
+                  owner !== "all" && `归属：${owner}`,
+                  status !== "all" && `状态：${status}`,
+                  table !== "all" && `路由表：${table}`,
+                  `${rows.length} 项`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                onClick={() => {
+                  selection.setSelected(new Set());
+                  setQuery("");
+                  setOwner("all");
+                  setStatus("all");
+                  setTable("all");
+                  setFamily("4");
+                }}
+              />}
           before={
             <>
               <Button onClick={() => begin("add", initial)}>
@@ -478,34 +506,7 @@ export function RoutingPage({
                     : null
                 }
               />
-              <ResetFilters
-                active={
-                  query !== "" ||
-                  owner !== "all" ||
-                  status !== "all" ||
-                  table !== "all" ||
-                  family !== "4"
-                }
-                selectedCount={selection.chosen.length}
-                summary={[
-                  `IPv${family}`,
-                  query && `搜索：${query}`,
-                  owner !== "all" && `归属：${owner}`,
-                  status !== "all" && `状态：${status}`,
-                  table !== "all" && `路由表：${table}`,
-                  `${rows.length} 项`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-                onClick={() => {
-                  selection.setSelected(new Set());
-                  setQuery("");
-                  setOwner("all");
-                  setStatus("all");
-                  setTable("all");
-                  setFamily("4");
-                }}
-              />
+
               <ExportButton
                 rows={selection.chosen.length ? selection.chosen : rows}
                 name={title}

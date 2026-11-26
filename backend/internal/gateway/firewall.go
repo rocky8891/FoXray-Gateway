@@ -3,7 +3,10 @@ package gateway
 import (
 	"errors"
 	"net"
+	"net/netip"
 	"regexp"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -119,7 +122,44 @@ func normalizeFirewall(item M) (M, error) {
 	if r["enabled"] == nil {
 		r["enabled"] = true
 	}
-	if source := str(r["source"]); source != "" {
+	if source := str(r["source"]); strings.Contains(source, ",") {
+		if kind != "masquerade" || !slices.Contains([]string{"nftables", "iptables", "firewalld"}, firewallDriver(r)) {
+			return nil, errors.New("当前规则类型只支持单个来源 IP／CIDR")
+		}
+		if family := str(r["family"]); family != "" && family != "ipv4" {
+			return nil, errors.New("SNAT 规则目前仅支持 IPv4")
+		}
+		prefixes := make([]netip.Prefix, 0)
+		for _, entry := range strings.Split(source, ",") {
+			_, prefix, err := canonicalSource(strings.TrimSpace(entry))
+			if err != nil || !prefix.Addr().Is4() {
+				return nil, errors.New("来源 IP／CIDR 列表须包含有效的 IPv4 地址或网段")
+			}
+			prefixes = append(prefixes, prefix.Masked())
+		}
+		sort.Slice(prefixes, func(i, j int) bool {
+			if prefixes[i].Bits() != prefixes[j].Bits() {
+				return prefixes[i].Bits() < prefixes[j].Bits()
+			}
+			return prefixes[i].Addr().Less(prefixes[j].Addr())
+		})
+		kept := make([]netip.Prefix, 0, len(prefixes))
+		values := make([]string, 0, len(prefixes))
+		for _, prefix := range prefixes {
+			covered := false
+			for _, previous := range kept {
+				if previous.Contains(prefix.Addr()) {
+					covered = true
+					break
+				}
+			}
+			if !covered {
+				kept = append(kept, prefix)
+				values = append(values, prefix.String())
+			}
+		}
+		r["source"] = strings.Join(values, ", ")
+	} else if source != "" {
 		ip, subnet, e := net.ParseCIDR(source)
 		if e != nil {
 			ip = net.ParseIP(source)
@@ -268,6 +308,16 @@ func normalizeFirewall(item M) (M, error) {
 	return r, nil
 }
 func firewallSpecs(item M) [][2]string {
+	// Keep one managed rule while expanding each source into backend-native rules.
+	if str(item["kind"]) == "masquerade" && strings.Contains(str(item["source"]), ",") {
+		out := [][2]string{}
+		for _, source := range strings.Split(str(item["source"]), ",") {
+			child := clone(item)
+			child["source"] = strings.TrimSpace(source)
+			out = append(out, firewallSpecs(child)...)
+		}
+		return out
+	}
 	kind := str(item["kind"])
 	if kind == "service-rule" {
 		return [][2]string{{"service", str(item["service"])}}

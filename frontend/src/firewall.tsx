@@ -586,11 +586,7 @@ export function FirewallPage({ act }: { act: Act }) {
         )}
         <div className="firewall-rules-heading" ref={ruleAnchor}><h3>{labelIcon(categoryLabel, 20)}{ruleHeading} <span>{native ? driver : allZones ? "所有区域" : zone}</span></h3><span className="muted">{native ? "当前工具规则快照" : ({all:"运行时与永久配置 · 合并展示",runtime:"运行时配置",permanent:"永久配置",difference:"存在差异的配置"} as Record<string,string>)[configScope]}</span></div>
         <CompactFilters
-          before={
-            <>
-              {category === "all" ? <ActionMenu label="新增规则" triggerLabel="新增规则" showLabel items={zoneRuleTypes.filter(([kind])=>!native||kind==="ip"||kind==="port").map(([kind,label])=>({label,disabled:!running||!writable,onClick:()=>start("add",defaultRule(kind))}))} /> :
-                <Button disabled={!running||!writable} onClick={()=>start("add",defaultRule())}><Plus size={15}/>添加</Button>}
-              <ResetFilters
+          reset={<ResetFilters
                 active={
                   query !== "" || ruleType !== "all" ||
                   protocol !== "all" ||
@@ -616,7 +612,12 @@ export function FirewallPage({ act }: { act: Act }) {
                   setStatus("all");
                   setOwner("all");setRuleAction("all");
                 }}
-              />
+              />}
+          before={
+            <>
+              {category === "all" ? <ActionMenu label="新增规则" triggerLabel="新增规则" showLabel items={zoneRuleTypes.filter(([kind])=>!native||kind==="ip"||kind==="port").map(([kind,label])=>({label,disabled:!running||!writable,onClick:()=>start("add",defaultRule(kind))}))} /> :
+                <Button disabled={!running||!writable} onClick={()=>start("add",defaultRule())}><Plus size={15}/>添加</Button>}
+
               <ExportButton
                 name={"防火墙-" + category}
                 rows={chosen.length ? chosen : rows}
@@ -1026,7 +1027,7 @@ function FirewallForm({
               label="源 IP"
               hint={
                 kind === "masquerade"
-                  ? "SNAT 动作或原生防火墙模式必须指定来源 IPv4／网段"
+                  ? "支持多个 IPv4 地址或 CIDR，用英文逗号分隔；任一来源匹配即生效"
                   : "支持 IPv4 或 IPv6 地址／网段"
               }
             >

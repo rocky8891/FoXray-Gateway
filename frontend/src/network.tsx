@@ -14,6 +14,8 @@ import { useEffect, useState, useRef } from "react";
 import {
   AlertTriangle,
   ArrowRight,
+  Eye,
+  EyeOff,
   ShieldCheck,
   Plus,
   RefreshCw,
@@ -893,8 +895,10 @@ function WireGuardPublicKey({ value, onChange }: { value: string; onChange?: (va
   return <div className="wg-public-key-field">
     <input type={visible ? "text" : "password"} autoComplete="off" value={value}
       readOnly={!onChange} onChange={event => onChange?.(event.target.value)} />
-    <Button type="button" aria-pressed={visible} onClick={() => setVisible(!visible)}>
-      {visible ? "隐藏公钥" : "查看明文"}
+    <Button type="button" variant="ghost" iconOnly aria-pressed={visible}
+      ariaLabel={visible ? "隐藏公钥" : "显示公钥"} title={visible ? "隐藏公钥" : "显示公钥"}
+      onClick={() => setVisible(!visible)}>
+      {visible ? <EyeOff size={16} /> : <Eye size={16} />}
     </Button>
   </div>;
 }

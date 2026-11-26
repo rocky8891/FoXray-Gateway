@@ -48,8 +48,13 @@ func firewallAddressMatch(value string, address netip.Addr) bool {
 	if value == "" {
 		return true
 	}
-	_, prefix, err := canonicalSource(value)
-	return err == nil && prefix.Contains(address)
+	for _, entry := range strings.Split(value, ",") {
+		_, prefix, err := canonicalSource(strings.TrimSpace(entry))
+		if err == nil && prefix.Contains(address) {
+			return true
+		}
+	}
+	return false
 }
 
 func firewallPortBounds(value string) (int, int, bool) {

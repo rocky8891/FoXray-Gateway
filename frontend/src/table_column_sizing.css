@@ -87,3 +87,21 @@
 .wg-public-key-field { display: flex; gap: 8px; }
 .wg-public-key-field input { flex: 1; min-width: 0; }
 .wg-public-key-field button { flex: none; }
+
+.diagnostic-candidates-title { font-size: inherit; color: var(--text); }
+.diagnostic-candidates-tools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; width: 100%; min-width: 0; }
+.diagnostic-candidates-tools .filter-reset { order: 0; margin: 0; flex: none; }
+.log-table-panel > .page-heading > .actions > .filter-reset { order: 0; margin-inline-start: 0; flex: none; }
+
+.management-query-tools > .filter-reset { order: 0; margin-inline-start: 0; flex: none; }
+.diagnostic-candidates .table-wrap table.adaptive-columns :is(th, td)[data-column]:is(:first-child, :last-child) { position: relative; z-index: auto; }
+
+.log-detail-modal > .modal-heading h2 { font-size: 22px !important; line-height: 30px; }
+.log-detail-heading > .page-heading { display: flex; align-items: center; flex-wrap: nowrap; gap: 16px; margin: 0 0 16px; }
+.log-detail-heading > .page-heading > div:first-child { min-width: 0; flex: 1; }
+.log-detail-heading > .page-heading h2 { font-size: 18px !important; line-height: 26px; overflow-wrap: anywhere; margin: 0; }
+.log-detail-heading > .page-heading > .actions { flex: none; margin: 0; }
+.log-detail-heading > .page-heading h2 > svg { width: 18px; height: 18px; }
+.wg-probe-target-table { min-width: 0; margin-top: 16px; }
+.wg-probe-target-table .settings-section-title { margin-bottom: 8px; }
+@media (max-width: 479px) { .log-detail-heading > .page-heading { flex-wrap: wrap; } }

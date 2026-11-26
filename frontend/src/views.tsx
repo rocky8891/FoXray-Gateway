@@ -1,3 +1,4 @@
+import { LogDetailHeading } from "./log_detail_heading";
 import { HomeHeaderToggleIcon } from "./home_header";
 import { AdaptiveSearch } from "./adaptive_search";
 import { Search } from "lucide-react";
@@ -623,11 +624,13 @@ export function Operations({
       {detail && (
         <Modal
           title="操作日志详情"
+          className="log-detail-modal"
+          inlineCopy
           copyText={JSON.stringify(detail, null, 2)}
           onClose={() => setDetail(null)}
           wide
         >
-          <h3>{text(detail.message)}</h3>
+          <LogDetailHeading title={text(detail.message)} copyText={JSON.stringify(detail, null, 2)} />
           <p>
             {timestamp(detail.time)} · {text(detail.action)}
           </p>
@@ -685,7 +688,8 @@ export function Switches() {
           { key: "details", label: "详情", render: (r) => <Button iconOnly title="查看日志" ariaLabel="查看日志" onClick={() => { setDetail(r); markRead(switchReadKeys(r)); }}>{labelIcon("查看日志", 18)}</Button> },
         ], ["method", "read", "status"])}
       />
-      {detail && <Modal title="切换日志详情" copyText={JSON.stringify(detail, null, 2)} onClose={() => setDetail(null)}>
+      {detail && <Modal title="切换日志详情" className="log-detail-modal" inlineCopy copyText={JSON.stringify(detail, null, 2)} onClose={() => setDetail(null)}>
+        <LogDetailHeading title={detail.status === "success" ? "出口切换成功" : "出口切换失败"} copyText={JSON.stringify(detail, null, 2)} />
         <p>{timestamp(detail.time)} · {detail.method === "auto" ? "自动" : "手动"} · {detail.status === "success" ? "成功" : "失败"}</p>
         <p>原出口：{text(detail.source)}</p>
         <p>目标出口：{text(detail.target)}</p>
@@ -1883,11 +1887,13 @@ export function DiagnosticLog({ act, firewallOnly = false, pathOnly = false }: {
         {detail && (
           <Modal
             title="诊断详情"
+            className="log-detail-modal"
             copyText={JSON.stringify(detail, null, 2)}
+            inlineCopy
             onClose={() => setDetail(null)}
             wide
           >
-            <DiagnosticReport operation={detail} embedded />
+            <DiagnosticReport operation={detail} embedded copyText={JSON.stringify(detail, null, 2)} />
           </Modal>
         )}
       </Panel>

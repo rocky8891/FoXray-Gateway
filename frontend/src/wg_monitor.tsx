@@ -1,3 +1,4 @@
+import { WireGuardProbeTargets } from "./wg_probe_targets";
 import { hasChanges } from "./settings_save";
 import { HistoryIntervalSettings } from "./history_interval_settings";
 import { NumberInput } from "./ui";
@@ -17,7 +18,7 @@ import {
   SettingsSection,
   useResource,
 } from "./ui";
-import { record, list, type Dict, type State, type Node } from "./api";
+import { list, type Dict, type State, type Node } from "./api";
 import type { Act } from "./nodes";
 const defaults = {
   enabled: false,
@@ -70,62 +71,8 @@ export function WireGuardSettings({ act }: { act: Act }) {
               </Field>
             ))}
           </div>
-          <div className="form-grid wg-probe-targets">
-            {list(wg.data?.items).map((v) => {
-              const name = String(v.name),
-                candidates = Array.isArray(v.probe_candidates)
-                  ? v.probe_candidates.map(String)
-                  : [],
-                saved = String(record(p.targets)[name] || ""),
-                auto =
-                  typeof record(p.auto_targets)[name] === "boolean"
-                    ? !!record(p.auto_targets)[name]
-                    : !saved;
-              return (
-                <div key={name} className="field wg-probe-target">
-                  <span className="field-title">{name} 对端隧道 IP</span>
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={auto}
-                      onChange={(e) =>
-                        set("auto_targets", {
-                          ...record(p.auto_targets),
-                          [name]: e.target.checked,
-                        })
-                      }
-                    />
-                    自动识别
-                  </label>
-                  <input
-                    aria-label={name + " 对端隧道 IP"}
-                    list={"wg-targets-" + name}
-                    value={auto ? candidates[0] || "" : saved}
-                    placeholder="选择候选或手动输入对端隧道 IP"
-                    onChange={(e) =>
-                      setDraft({
-                        ...p,
-                        auto_targets: {
-                          ...record(p.auto_targets),
-                          [name]: false,
-                        },
-                        targets: {
-                          ...record(p.targets),
-                          [name]: e.target.value.trim(),
-                        },
-                      })
-                    }
-                  />
-                  {auto && !candidates.length && <small>未发现明确的对端主机路由，请手动填写</small>}
-                  <datalist id={"wg-targets-" + name}>
-                    {candidates.map((ip) => (
-                      <option key={ip} value={ip} />
-                    ))}
-                  </datalist>
-                </div>
-              );
-            })}
-          </div>
+          <WireGuardProbeTargets items={list(wg.data?.items)} policy={p}
+            onChange={setDraft} onRefresh={() => { void wg.refresh(); }} />
         </SettingsSection>
         <SaveCard
  dirty={hasChanges(draft,r.data || defaults)}

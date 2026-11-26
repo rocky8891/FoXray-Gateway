@@ -91,7 +91,8 @@ export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule =
       <h3><CrossZoneIcon size={20} className="firewall-heading-icon"/>域间规则<SettingInfo label="域间规则" text="按入口区域、出口区域、来源、目标和协议匹配转发流量。" /></h3>
       <span className="muted">运行时与永久配置 · 合并展示</span>
     </div>
-    <CompactFilters label="域间规则筛选"
+    <CompactFilters
+      reset={<ResetFilters active={!!filterSummary} summary={filterSummary} selectedCount={selection.chosen.length} onClick={() => {selection.setSelected(new Set()); setQuery(""); setFilters({}); setPriorityOrder(1); resetFilter()}} />} label="域间规则筛选"
       before={<>
         <Button disabled={!complete} onClick={() => start("add")}><Plus size={15} />添加</Button>
         <Button disabled={!canBatch} onClick={() => beginBatch("enable")}>启用</Button>
@@ -99,7 +100,7 @@ export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule =
         <ActionMenu label="批量" triggerLabel="批量操作" showLabel items={Object.entries(batchLabels).map(([operation,label])=>({label,disabled:!canBatch,onClick:()=>beginBatch(operation)}))} />
       </>}
       actions={<span className="cross-zone-toolbar-actions"><ExportButton rows={selection.chosen.length ? selection.chosen : rows} name="域间规则" columns={[["优先级", r => r.priority], ["名称", r => r.name || r.policy_name], ["入口区域", r => r.ingress_zone], ["出口区域", r => r.egress_zone], ["来源", r => r.source], ["目标", r => r.destination], ["协议", r => r.protocol], ["端口", r => r.port], ["动作", r => facetLabel("action", actionValue(r))]]} />
-        <ResetFilters active={!!filterSummary} summary={filterSummary} selectedCount={selection.chosen.length} onClick={() => {selection.setSelected(new Set()); setQuery(""); setFilters({}); setPriorityOrder(1); resetFilter()}} /></span>}
+        </span>}
     >
       <AdaptiveSearch tableWidthKey="cross-zone-rules"><Search size={15} /><input aria-label="搜索域间规则" placeholder="查询区域、IP、网段或协议" value={query} onChange={event => setQuery(event.target.value)} /></AdaptiveSearch>
     </CompactFilters>

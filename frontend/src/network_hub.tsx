@@ -405,6 +405,27 @@ function Interfaces({ act }: { act: Act }) {
           <div className="network-stat-card interface-kind-card" data-filter-active={!!(columnFilters.type||columnFilters.owner)}><Layers size={19}/><span className="interface-kind-title">类型与来源<SettingInfo label="类型与来源" text="按内核接口类型与后端明确管理归属筛选。来源为系统接口不等于只读；模块维护接口在对应模块操作，其他修改仍需预览和确认。"/></span><Field label="类型"><select aria-label="接口类型筛选" value={columnFilters.type||""} onChange={e=>{setColumnFilters(old=>({...old,type:e.target.value}));selection.setSelected(new Set())}}><option value="">全部类型</option>{types.map(type=><option key={type} value={type}>{type}（{searchedRows.filter(r=>String(r.type||"未上报")===type).length}）</option>)}</select></Field><Field label="来源"><select aria-label="接口来源筛选" value={columnFilters.owner||""} onChange={e=>{setColumnFilters(old=>({...old,owner:e.target.value}));selection.setSelected(new Set())}}><option value="">全部来源</option>{Object.values(interfaceOwnerLabels).map(label=><option key={label} value={label}>{label}（{searchedRows.filter(r=>interfaceOwnerLabels[interfaceOwner(r)]===label).length}）</option>)}</select></Field></div>
         </div>
         <CompactFilters
+          reset={<ResetFilters
+                active={
+                  query !== "" ||
+                  Object.values(columnFilters).some((v) => v && v !== "all")
+                }
+                selectedCount={selection.chosen.length}
+                summary={[
+                  query && `搜索：${query}`,
+                  ...Object.entries(columnFilters)
+                    .filter(([, v]) => v && v !== "all")
+                    .map(([k, v]) => `${k}：${v}`),
+                  `${rows.length} 项`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                onClick={() => {
+                  selection.setSelected(new Set());
+                  setQuery("");
+                  setColumnFilters({});
+                }}
+              />}
           before={
             <>
               <Button
@@ -469,27 +490,7 @@ function Interfaces({ act }: { act: Act }) {
                     : null
                 }
               />
-              <ResetFilters
-                active={
-                  query !== "" ||
-                  Object.values(columnFilters).some((v) => v && v !== "all")
-                }
-                selectedCount={selection.chosen.length}
-                summary={[
-                  query && `搜索：${query}`,
-                  ...Object.entries(columnFilters)
-                    .filter(([, v]) => v && v !== "all")
-                    .map(([k, v]) => `${k}：${v}`),
-                  `${rows.length} 项`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-                onClick={() => {
-                  selection.setSelected(new Set());
-                  setQuery("");
-                  setColumnFilters({});
-                }}
-              />
+
               <ExportButton
                 name="网络接口"
                 rows={selection.chosen.length ? selection.chosen : rows}
