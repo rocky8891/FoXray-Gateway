@@ -5,6 +5,7 @@ import {Button,Panel,Modal,SettingInfo} from "./ui";
 import {CopyButton} from "./resource_controls";
 import catalog from "./help_catalog.json";
 import manuals from "./help_articles.json";
+import categoryOrder from "./help_categories.json";
 import "./help_center.css";
 type Article={id:string;title:string;category:string;body:string;kind:string;origin:string;keywords?:string;common?:boolean};
 const articles:Article[]=[...manuals,...catalog];
@@ -52,7 +53,7 @@ function ArticleBody({body}:{body:string}){
 export function HelpCenter(){
  const [query,setQuery]=useState(""),[category,setCategory]=useState("全部"),[kind,setKind]=useState("全部"),[limit,setLimit]=useState(30),[opened,setOpened]=useState<Article|null>(null);
  const [saved,setSaved]=useState<string[]>(()=>{try{const v=JSON.parse(localStorage.getItem("foxray.help.saved")||"[]");return Array.isArray(v)?v.filter(x=>typeof x==="string"):[];}catch{return []}});
- const categories=["全部",...new Set(articles.map(article=>article.category))];
+ const categories=["全部",...categoryOrder.filter(category=>articles.some(article=>article.category===category))];
  const results=useMemo(()=>articles.filter(article=>(category==="全部"||article.category===category)&&(kind==="全部"||article.kind===kind)).map(article=>({article,rank:score(article,query)})).filter(row=>row.rank>0).sort((a,b)=>b.rank-a.rank||a.article.title.localeCompare(b.article.title)),[query,category,kind]);
  const favorites=articles.filter(article=>saved.includes(article.id));
  const common=[...favorites,...manuals.filter(article=>!saved.includes(article.id))].slice(0,8) as Article[];

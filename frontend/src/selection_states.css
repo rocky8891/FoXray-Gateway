@@ -1,0 +1,30 @@
+/* Selected controls share a borderless surface with 2/3 of the original green tint. */
+:root {
+  --selected-control-fill: color-mix(in srgb,var(--accent-bg) 66.6667%,var(--card));
+  --selected-nav-fill: color-mix(in srgb,var(--menu-selected-nav-fill,var(--accent-bg)) 66.6667%,var(--card));
+  --selected-option-fill: color-mix(in srgb,var(--menu-selected-fill,rgba(145,235,189,.18)) 66.6667%,transparent);
+}
+:is(#root,body) :is(button,a.button,a.nav-tab):is([aria-pressed="true"],[aria-selected="true"],[aria-current="page"],[data-highlighted="true"],.active,.selected,.primary):not(:disabled):not(.danger),
+:is(#root,body) .secondary-nav .module-tab-dropdown[data-active="true"] .icon-select-trigger:not(:disabled),
+:is(#root,body) .list-tool-button[aria-expanded="true"]:not(:disabled),
+:is(#root,body) :is(.multi-select-options,.metric-picker-menu) label:has(>input:checked) {
+  background: var(--selected-control-fill) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+:is(#root,body) :is(header nav .nav-tab,.secondary-nav button,.module-tabs>button,.subtabs>button,.monitor-settings-tabs>button,.monitor-view-switch>button):is([aria-current="page"],[aria-selected="true"],.selected):not(:disabled):not(.danger),
+:is(#root,body) .secondary-nav .module-tab-dropdown[data-active="true"] .icon-select-trigger:not(:disabled) {
+  background: var(--selected-nav-fill) !important;
+}
+:is(#root,body) :is(.app-select-options,.firewall-service-options,.managed-icon-select-menu .menu-scroll-content,.icon-select-menu,.overview-view-menu,.service-theme-menu) button[aria-selected="true"]:not(:disabled),
+:is(#root,body) :is(.multi-select-options,.metric-picker-menu) label:has(>input:checked) {
+  background: var(--selected-option-fill) !important;
+}
+:is(#root,body) :is(button,a.button,a.nav-tab):is([aria-pressed="true"],[aria-selected="true"],[aria-current="page"],[data-highlighted="true"],.active,.selected,.primary):not(:disabled):focus-visible {
+  outline: 2px solid color-mix(in srgb,var(--text) 55%,transparent);
+  outline-offset: 2px;
+}
+
+:is(#root,body) :is(button.primary,.button[data-highlighted="true"]):not(:disabled):not(.danger) {
+  color: var(--text) !important;
+}
