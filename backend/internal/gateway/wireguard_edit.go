@@ -62,6 +62,9 @@ func (n *Network) planWGEditFiles(plan *NetworkPlan, profile *WGProfile, path, n
 		return err
 	}
 	rename := newName != name
+	if rename {
+		plan.wgProtectionRename = &wgProtectionRename{From: name, To: newName, Protected: n.wireguardProtected(name)}
+	}
 	target := filepath.Join(filepath.Dir(path), newName+".conf")
 	if rename {
 		next := n.app.service("wg-quick@" + newName)

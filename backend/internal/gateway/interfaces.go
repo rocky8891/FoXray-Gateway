@@ -47,8 +47,9 @@ func (n *Network) InterfaceSnapshot() M {
 				r["admin_up"] = true
 			}
 		}
-		r["protected"] = name == uplink() || name == "lo" || name == "vone0" || strings.HasPrefix(name, "wg-") || name == "CloudflareWARP" || name == "vpm-tun"
-		r["managed_by_vpn"] = name == "vone0" || strings.HasPrefix(name, "wg-") || name == "CloudflareWARP" || name == "vpm-tun"
+		wireguard := str(r["type"]) == "wireguard" || strings.HasPrefix(name, "wg-") || regular("/etc/wireguard/"+name+".conf")
+		r["protected"] = name == uplink() || name == "lo" || name == "vone0" || (wireguard && n.wireguardProtected(name)) || name == "CloudflareWARP" || name == "vpm-tun"
+		r["managed_by_vpn"] = name == "vone0" || wireguard || name == "CloudflareWARP" || name == "vpm-tun"
 		r["managed"] = n.ownedItem("interfaces", name) != nil
 		r["can_delete"] = yes(r["managed"]) && !yes(r["protected"]) && !yes(r["admin_up"]) && len(arr(r["addr_info"])) == 0
 		r["gateways"] = []any{}

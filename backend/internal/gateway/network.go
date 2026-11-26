@@ -18,6 +18,7 @@ type Step struct {
 	Input string   `json:"input,omitempty"`
 }
 type NetworkPlan struct {
+	wgProtectionRename          *wgProtectionRename
 	ID                          string                `json:"id"`
 	Kind                        string                `json:"kind"`
 	Summary                     string                `json:"summary"`
@@ -43,17 +44,20 @@ type NetworkPlan struct {
 	revision                    string
 }
 type Network struct {
-	app          *App
-	mu           sync.Mutex
-	plans        map[string]*NetworkPlan
-	managed      M
-	peerHealthMu sync.RWMutex
-	peerHealth   map[string]wgPeerHealth
+	wgProtectionMu sync.RWMutex
+	wgProtection   M
+	app            *App
+	mu             sync.Mutex
+	plans          map[string]*NetworkPlan
+	managed        M
+	peerHealthMu   sync.RWMutex
+	peerHealth     map[string]wgPeerHealth
 }
 
 func NewNetwork(a *App) *Network {
 	n := &Network{app: a, plans: map[string]*NetworkPlan{}, managed: M{"routes": []any{}, "rules": []any{}, "firewall": []any{}}}
 	_ = readJSON(filepath.Join(a.base, "private", "network-managed.json"), &n.managed)
+	n.syncWGProtectionLocked()
 	n.recoverPlans()
 	return n
 }
@@ -207,6 +211,9 @@ func (n *Network) Confirm(identity string, uiAction ...string) error {
 			}
 			candidate[key] = next
 		}
+	}
+	renameWireGuardProtection(candidate, p.wgProtectionRename)
+	if p.persist != nil || p.wgProtectionRename != nil {
 		if e = writeJSON(filepath.Join(n.app.base, "private", "network-managed.json"), candidate); e != nil {
 			return e
 		}
@@ -218,6 +225,7 @@ func (n *Network) Confirm(identity string, uiAction ...string) error {
 		return e
 	}
 	n.managed = candidate
+	n.syncWGProtectionLocked()
 	p.Status = "confirmed"
 	n.app.audit("network.confirm", p.Summary+"：已确认", true, M{"plan_id": p.ID}, uiAction...)
 	return nil
@@ -259,7 +267,7 @@ func (n *Network) Preview(data M) (*NetworkPlan, error) {
 			if kind == "firewall" && op == "replace" && (str(old["kind"]) == "cross-zone" || str(item["kind"]) == "cross-zone") && str(old["kind"]) != str(item["kind"]) {
 				return nil, errors.New("跨区域规则不能转换为区域入站规则")
 			}
-			if kind == "routes" && (str(old["dev"]) == "wg-home" || str(old["dev"]) == "vone0") && !yes(data["allow_protected"]) {
+			if kind == "routes" && (n.wireguardProtected(str(old["dev"])) || str(old["dev"]) == "vone0") && !yes(data["allow_protected"]) {
 				return nil, errors.New("原路由属于受保护 VPN，需要本次明确确认")
 			}
 			if op == "delete" {
@@ -387,7 +395,7 @@ func (n *Network) wireguard() []M {
 		for _, r := range strings.Fields(running) {
 			active = active || r == name
 		}
-		row := M{"name": name, "active": active, "configured": regular("/etc/wireguard/" + name + ".conf"), "service": a.service("wg-quick@" + name), "protected": name == "wg-home", "peers": []M{}}
+		row := M{"name": name, "active": active, "configured": regular("/etc/wireguard/" + name + ".conf"), "service": a.service("wg-quick@" + name), "protected": n.wireguardProtected(name), "protection_source": n.wireguardProtectionSource(name), "peers": []M{}}
 		var profile *WGProfile
 		if yes(row["configured"]) {
 			var err error

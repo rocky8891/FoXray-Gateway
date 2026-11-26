@@ -655,6 +655,12 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 		return M{"ok": e == nil, "id": j}, e
 	case "/api/network/wireguard/test-peer-probe":
 		return a.network.testWGPeerProbe(r.Context(), str(d["name"]), str(d["public_key"]), str(d["target"]))
+	case "/api/network/wireguard/protection":
+		result, err := a.network.setWireGuardProtection(d)
+		if err == nil {
+			a.audit("wireguard.protection", "修改 WireGuard 接口保护", true, result, uiAction)
+		}
+		return result, err
 	case "/api/network/wireguard/keys":
 		return a.newWGKey(str(d["name"]))
 	case "/api/network/plan":

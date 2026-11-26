@@ -222,8 +222,8 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 	if op == "remark" {
 		return n.planWGRemarkFile(plan, name, "/etc/wireguard/"+name+".conf", item["remark"])
 	}
-	if name == "wg-home" && !yes(d["allow_protected"]) {
-		return errors.New("wg-home 为内置保护接口，须明确确认本次接口操作")
+	if n.wireguardProtected(name) && !yes(d["allow_protected"]) {
+		return errors.New("此接口已开启保护，须明确确认本次接口操作")
 	}
 	if op == "peer-enable" || op == "peer-disable" {
 		return n.planWGPeerState(plan, name, str(item["public_key"]), op == "peer-disable")
@@ -543,8 +543,8 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 	}
 	if op == "replace" {
 		newName := firstNonempty(str(item["new_name"]), name)
-		if newName == "wg-home" && !yes(d["allow_protected"]) {
-			return errors.New("wg-home 为保护接口，请确认本次操作")
+		if n.wireguardProtected(newName) && !yes(d["allow_protected"]) {
+			return errors.New("目标接口已开启保护，请确认本次操作")
 		}
 		return n.planWGEditFiles(plan, p, path, newName, oldBytes, active, yes(state["autostart"]))
 	}

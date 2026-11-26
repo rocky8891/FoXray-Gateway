@@ -143,7 +143,7 @@ export function NetworkBatchDialog({
               : "提交成功"
             : `已生成 ${passed} 项预览，${failed} 项未通过`}
       </p>
-      {!finished && (
+      {!finished && (kind !== "wireguard" || rows.some(row=>row.protected===true)) && (
         <label className="check">
           <input
             type="checkbox"

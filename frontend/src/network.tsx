@@ -1,3 +1,4 @@
+import { WireGuardProtectionDialog } from "./wireguard_protection_dialog";
 import { MultiSelect } from "./multi_select";
 import { remainingPlanSeconds } from "./network_display";
 import { AdaptiveSearch } from "./adaptive_search";
@@ -75,6 +76,7 @@ export function NetworkPage({
     [plan, setPlan] = useState<Plan | null>(null),
     [failure, setFailure] = useState(""),
     [details, setDetails] = useState<unknown>(null),
+    [protectionRows, setProtectionRows] = useState<Dict[] | null>(null),
     [peerDetails, setPeerDetails] = useState<{ name: string; key: string; label: string } | null>(null),
     [query, setQuery] = useState(""),
     [family, setFamily] = useState("4"),
@@ -106,6 +108,7 @@ export function NetworkPage({
     setForm(null);
     setPlan(null);
     setDetails(null);
+    setProtectionRows(null);
     setFailure("");
     setQuery("");
   }, [kind]);
@@ -274,7 +277,7 @@ export function NetworkPage({
               {text(r.name)}
             </button>
             {!!r.remark && <small className="wg-interface-remark" title={String(r.remark)}>{String(r.remark)}</small>}
-            {r.protected && <small className="accent wg-protection-label">受保护<SettingInfo label="接口保护" text={<ul><li><strong>保护状态：</strong>系统保护 wg-home 接口。修改或启停需要额外确认。</li><li><strong>用途备注：</strong>在「操作 → 编辑」修改。</li><li><strong>接口角色：</strong>在「操作 → 编辑 → 角色、路由与 LAN 转发」设置。修改角色不会取消接口保护。</li></ul>} /></small>}
+            {r.protected && <small className="accent wg-protection-label">受保护<SettingInfo label="接口保护" text={<ul><li><strong>保护状态：</strong>该接口已开启保护，修改或启停需要额外确认。可在「操作 → 接口保护」中单独开启或关闭。</li><li><strong>用途备注：</strong>在「操作 → 编辑」修改。</li><li><strong>接口角色：</strong>在「操作 → 编辑 → 角色、路由与 LAN 转发」设置。修改角色不会取消接口保护。</li></ul>} /></small>}
           </>
         ),
       },
@@ -393,6 +396,7 @@ export function NetworkPage({
                     name: r.name,
                   }),
               },
+              { label: "接口保护", onClick: () => setProtectionRows([r]) },
               { label: "管理 Peer", disabled: !r.configured, onClick: () => begin("peers", r) },
               {
                 label: "删除",
@@ -552,7 +556,8 @@ export function NetworkPage({
                 <li><strong>操作方式：</strong><ul>
                   <li>启动、停止立即改变选中接口的运行状态。</li>
                   <li>开启、关闭自启只修改开机启动设置。</li>
-                  <li>批量操作逐项生成预览；核对后才执行。</li>
+                  <li>接口保护独立保存，只修改保护标记，不启停接口。</li>
+                  <li>批量启停、自启和删除逐项生成预览；核对后才执行。</li>
                 </ul></li>
                 <li><strong>编辑与删除：</strong>在行操作菜单中处理。备注修改不重启接口；运行中修改地址、路由等配置可能重启该接口，影响范围以变更预览为准。</li>
               </ul>}
@@ -625,15 +630,17 @@ export function NetworkPage({
                 label="所选接口"
                 triggerLabel="批量操作"
                 items={[
-                  ["enable", "开启自启"],
-                  ["disable", "关闭自启"],
-                  ["delete", "删除"],
-                ].map(([operation, label]) => ({
-                  label,
-                  disabled:
-                    !selection.chosen.length || selection.chosen.length > 50,
-                  onClick: () => setBulk({ operation, rows: selection.chosen }),
-                }))}
+                  {label:"接口保护",disabled:!selection.chosen.length||selection.chosen.length>50,onClick:()=>setProtectionRows(selection.chosen)},
+                  ...[
+                    ["enable", "开启自启"],
+                    ["disable", "关闭自启"],
+                    ["delete", "删除"],
+                  ].map(([operation, label]) => ({
+                    label,
+                    disabled:!selection.chosen.length || selection.chosen.length > 50,
+                    onClick: () => setBulk({ operation, rows: selection.chosen }),
+                  })),
+                ]}
               />
             </>
           ) : (
@@ -713,6 +720,7 @@ export function NetworkPage({
           rowKey={(r) => String(r.id || r.name || JSON.stringify(r))}
         />
       </Panel>
+      {protectionRows && <WireGuardProtectionDialog rows={protectionRows} act={act} onClose={()=>setProtectionRows(null)} onSaved={async()=>{await refresh();}}/>}
       {peerDetails && <WireGuardPeerStatusDetail
         name={peerDetails.name}
         label={peerDetails.label}
@@ -772,10 +780,9 @@ export function NetworkPage({
             } : undefined}
             savedPeers={list(originalWireGuardForm.current?.peers)}
           />
-          {operation !== "remark" && !onlyWireGuardRemarkChanged && (form.name === "wg-home" || form.new_name === "wg-home" || (kind === "wireguard" && ["add","replace"].includes(operation)) ||
+          {operation !== "remark" && !onlyWireGuardRemarkChanged && ((kind === "wireguard" && (list(data?.items).some(row=>row.name===form.name&&row.protected===true) || form.new_name === "wg-home" || ["add","replace"].includes(operation))) ||
             operation === "delete" ||
             (kind === "routes" && form.dst === "default") ||
-            kind === "wireguard" ||
             (kind === "rules" && Number(form.priority) < 16070)) && (
             <label className="check risk">
               <input
@@ -783,7 +790,9 @@ export function NetworkPage({
                 checked={allowProtected}
                 onChange={(e) => setAllowProtected(e.target.checked)}
               />
-              我了解本次操作可能影响该接口或路由承载的连接；允许本次修改受保护对象
+              {kind === "wireguard" && !list(data?.items).some(row=>row.name===form.name&&row.protected===true)
+                ? "我了解本次配置变更可能影响该接口承载的连接，确认继续"
+                : "我了解本次操作可能影响该接口或路由承载的连接；允许本次修改受保护对象"}
             </label>
           )}
           <ErrorLine error={failure} />

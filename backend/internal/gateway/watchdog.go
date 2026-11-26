@@ -19,18 +19,19 @@ type FileRestore struct {
 	Existed      bool   `json:"existed"`
 }
 type rollbackSpec struct {
-	ID         string         `json:"id"`
-	Kind       string         `json:"kind"`
-	Summary    string         `json:"summary"`
-	Created    float64        `json:"created"`
-	Expires    float64        `json:"expires"`
-	Status     string         `json:"status"`
-	Undo       []Step         `json:"undo"`
-	File       *FileRestore   `json:"file,omitempty"`
-	Persist    M              `json:"persist,omitempty"`
-	Files      []*FileRestore `json:"files,omitempty"`
-	BeforeFile []Step         `json:"before_file,omitempty"`
-	AfterFile  []Step         `json:"after_file,omitempty"`
+	WGProtectionRename *wgProtectionRename `json:"wireguard_protection_rename,omitempty"`
+	ID                 string              `json:"id"`
+	Kind               string              `json:"kind"`
+	Summary            string              `json:"summary"`
+	Created            float64             `json:"created"`
+	Expires            float64             `json:"expires"`
+	Status             string              `json:"status"`
+	Undo               []Step              `json:"undo"`
+	File               *FileRestore        `json:"file,omitempty"`
+	Persist            M                   `json:"persist,omitempty"`
+	Files              []*FileRestore      `json:"files,omitempty"`
+	BeforeFile         []Step              `json:"before_file,omitempty"`
+	AfterFile          []Step              `json:"after_file,omitempty"`
 }
 
 func (n *Network) specPath(p *NetworkPlan) string {
@@ -48,7 +49,7 @@ func (n *Network) writeSpec(p *NetworkPlan, done int) error {
 	if len(p.undoStates) == len(p.steps) && done > 0 {
 		undo = p.undoStates[min(done, len(p.steps))-1]
 	}
-	return writeJSON(n.specPath(p), rollbackSpec{ID: p.ID, Kind: p.Kind, Summary: p.Summary, Created: p.Created, Expires: p.Expires, Status: p.Status, Undo: undo, File: p.restoreFile, Files: p.restoreFiles, BeforeFile: p.beforeRestore, AfterFile: p.afterRestore, Persist: p.persist})
+	return writeJSON(n.specPath(p), rollbackSpec{ID: p.ID, Kind: p.Kind, Summary: p.Summary, Created: p.Created, Expires: p.Expires, Status: p.Status, Undo: undo, File: p.restoreFile, Files: p.restoreFiles, BeforeFile: p.beforeRestore, AfterFile: p.afterRestore, Persist: p.persist, WGProtectionRename: p.wgProtectionRename})
 }
 func (n *Network) arm(p *NetworkPlan) error {
 	p.Expires = now() + 120
@@ -82,7 +83,7 @@ func (n *Network) recoverPlans() {
 		if readJSON(path, &s) != nil || !regexpID(s.ID) {
 			continue
 		}
-		n.plans[s.ID] = &NetworkPlan{ID: s.ID, Kind: s.Kind, Summary: s.Summary, Created: s.Created, Expires: s.Expires, Status: s.Status, Warnings: []string{}, Preview: []string{}, undo: s.Undo, restoreFile: s.File, persist: s.Persist}
+		n.plans[s.ID] = &NetworkPlan{ID: s.ID, Kind: s.Kind, Summary: s.Summary, Created: s.Created, Expires: s.Expires, Status: s.Status, Warnings: []string{}, Preview: []string{}, undo: s.Undo, restoreFile: s.File, persist: s.Persist, wgProtectionRename: s.WGProtectionRename}
 	}
 }
 func RollbackFile(path string) error { return rollbackFile(path, SystemRunner{}) }

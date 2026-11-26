@@ -142,7 +142,7 @@ func (n *Network) planRoute(p *NetworkPlan, d M) error {
 	}
 	op := str(d["operation"])
 	dev := str(item["dev"])
-	if (str(item["dst"]) == "default" && num(item["table"]) == 254 || dev == "wg-home" || dev == "vone0") && !yes(d["allow_protected"]) {
+	if (str(item["dst"]) == "default" && num(item["table"]) == 254 || n.wireguardProtected(dev) || dev == "vone0") && !yes(d["allow_protected"]) {
 		return errors.New("此路由影响默认出口或受保护 VPN，需要本次明确确认")
 	}
 	identity := str(item["id"])

@@ -10,12 +10,12 @@ from pathlib import Path
 import unittest
 import zipfile
 
-spec = importlib.util.spec_from_file_location("upgrade093", Path(__file__).parents[1] / "upgrade_v0.9.3.py")
+spec = importlib.util.spec_from_file_location("upgrade093", Path(__file__).parents[1] / "upgrade_v0.9.67.py")
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 def archive(extra=None):
-    files = {"foxray_v0.9.3": b"\x7fELFfixture", "web/index.html": b"<html>test</html>",
+    files = {"foxray_v0.9.67": b"\x7fELFfixture", "web/index.html": b"<html>test</html>",
              "rules/gfwlist_domains.json": b'{"direct":[],"proxy":["example.test"]}'}
     files.update(extra or {})
     manifest = {k: hashlib.sha256(v).hexdigest() for k, v in files.items()}
@@ -93,7 +93,7 @@ class UpgradeSwitchTest(unittest.TestCase):
                     self.assertEqual((base / "web").resolve(), old / "web")
                 else:
                     m.main()
-                    self.assertEqual((base / "foxray").resolve().name, "foxray_v0.9.3")
+                    self.assertEqual((base / "foxray").resolve().name, "foxray_v0.9.67")
                     self.assertTrue(list((base / "private").glob("migration*.json")))
     def test_success_switch(self): self.scenario(False)
     def test_health_failure_rolls_back(self): self.scenario(True)
