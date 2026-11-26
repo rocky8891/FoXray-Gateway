@@ -17,7 +17,7 @@ import { TrueLatencyIcon } from "./requirement_icons";
 import { useOverviewDrag } from "./overview_editor";
 import { ConnectionIcon, GatewayIcon, ThemePaletteIcon } from "./monitor_icons";
 import { IconSelect } from "./icon_select";
-import { overviewPolicy, splitWireGuardCards, type OverviewView } from "./overview_policy";
+import { overviewPolicy, overviewOrderPatch, wireguardMetricOrder, splitWireGuardCards, type OverviewView } from "./overview_policy";
 import { ServiceOverviewCards } from "./monitor_overview";
 import { rangeHours } from "./presentation_settings";
 import { SettingInfo } from "./ui";
@@ -1057,7 +1057,7 @@ export function Home({
   const [editing, setEditing] = useState(false),
     [editDraft, setEditDraft] = useState<Dict>({}),
     [savingLayout, setSavingLayout] = useState(false);
-  const editOriginal = useRef<Record<string, string[]>>({});
+  const editOriginal = useRef<Dict>({});
   const layoutDirty = Object.keys(editDraft).length > 0;
   useEffect(() => {
     editOriginal.current = {};
@@ -1077,7 +1077,7 @@ export function Home({
   const wireguard = useResource<Dict>("/api/network/wireguard", 15000, shown.includes("service-wireguard"));
   const wgCount = Number(presentation.services_wireguard_count || 2);
   const wgSlots = splitWireGuardCards(presentation)
-    ? Math.min(wgCount, 4 - shown.filter(id => id !== "service-wireguard").length)
+    ? Math.max(0, Math.min(wgCount, 4 - shown.filter(id => id !== "service-wireguard").length))
     : wgCount;
   const wgExtraCards = servicesView && splitWireGuardCards(presentation)
     ? Math.max(0, Math.min(wgSlots, list(wireguard.data?.items).length) - 1)
@@ -1147,29 +1147,22 @@ export function Home({
 
   const move = useCallback(
     (scope: string, from: string, to: string, ids: string[]) => {
-      const prefix = page === "services" ? "services_" : "overview_";
-      const key = ["host", "xray", "warp"].includes(scope)
-        ? "services_" + scope + "_order"
-        : scope === "wireguard"
-          ? "services_wireguard_interfaces"
-          : scope === "nodes"
-            ? "nodes_order"
-            : prefix + "cards";
       setEditDraft((old) => {
-        const base = (old[key] ||
-          record(state.manager_settings.presentation)[key]) as
-          | string[]
-          | undefined;
-        const order = [...new Set([...(base || []), ...ids])];
-        const a = order.indexOf(from),
-          b = order.indexOf(to);
-        if (a < 0 || b < 0) return old;
-        editOriginal.current[key] ??= [...order];
-        [order[a], order[b]] = [order[b], order[a]];
-        const next = { ...old };
-        if (JSON.stringify(order) === JSON.stringify(editOriginal.current[key]))
-          delete next[key];
-        else next[key] = order;
+        const current = {...record(state.manager_settings.presentation),...old};
+        const patch = overviewOrderPatch(current,page,scope,from,to,ids);
+        const next = {...old};
+        for (const [key,value] of Object.entries(patch)) {
+          editOriginal.current[key] ??= Array.isArray(value)
+            ? [...new Set([...(Array.isArray(current[key]) ? current[key] as string[] : []),...ids])]
+            : structuredClone(record(current[key]));
+          const original = editOriginal.current[key];
+          const unchanged = key === "services_wireguard_metric_orders"
+            ? [...new Set([...Object.keys(record(original)),...Object.keys(record(value))])].every(name =>
+                JSON.stringify(wireguardMetricOrder({[key]:original},name)) === JSON.stringify(wireguardMetricOrder({[key]:value},name)))
+            : JSON.stringify(value) === JSON.stringify(original);
+          if (unchanged) delete next[key];
+          else next[key] = value;
+        }
         return next;
       });
     },

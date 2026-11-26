@@ -159,6 +159,7 @@ export function wireguardMetricOrder(value: unknown, name: string): string[] {
 }
 export function overviewOrderPatch(presentation: Dict, view: OverviewView, scope: string, from: string, to: string, ids: string[]): Dict {
   const name=scope.startsWith("wireguard-metrics:")?scope.slice("wireguard-metrics:".length):null;
+  if (!name && !["host","xray","warp","wireguard","nodes","cards"].includes(scope)) return {};
   const key=name?"services_wireguard_metric_orders": ["host","xray","warp"].includes(scope)?"services_"+scope+"_order"
     :scope==="wireguard"?"services_wireguard_interfaces":scope==="nodes"?"nodes_order":(view==="services"?"services_":"overview_")+"cards";
   const base=name?wireguardMetricOrder(presentation,name):presentation[key] as string[]|undefined;
