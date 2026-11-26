@@ -9,7 +9,7 @@ export function HomeTools({
 }: {
   dock?: boolean;
   view: string;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   const header = useContext(HomeHeaderContext);
   const edge = useRef<HTMLDivElement>(null);

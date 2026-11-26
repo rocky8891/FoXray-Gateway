@@ -705,9 +705,7 @@ function App() {
                         description={pageHeadings[page]?.[1]}
                       />
                       <div id="secondary-navigation">
-                        {page === "monitoring" && hideHomeHeader && <HomeTools view="monitoring">
-                          <Button title="返回主页" aria-label="返回主页" onClick={() => navigate("overview")}>{labelIcon("主页", 18)}</Button>
-                        </HomeTools>}
+                        {page === "monitoring" && hideHomeHeader && <HomeTools view="monitoring" />}
                       </div>
                     </section>
                   )}

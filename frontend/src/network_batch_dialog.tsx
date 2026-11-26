@@ -117,8 +117,8 @@ export function NetworkBatchDialog({
       title={
         "批量" +
         ({
-          start: "启用",
-          stop: "停用",
+          start: kind === "wireguard" ? "启动" : "启用",
+          stop: kind === "wireguard" ? "停止" : "停用",
           enable: "开启自启",
           disable: "关闭自启",
           delete: "删除",

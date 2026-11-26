@@ -548,7 +548,7 @@ export function NetworkPage({
               {kind === "wireguard" && (
                 <p>
                   启动／停止对应 systemctl start／stop
-                  wg-quick@接口名；启用／停用自启对应 systemctl enable／disable
+                  wg-quick@接口名；开启／关闭自启对应 systemctl enable／disable
                   wg-quick@接口名。批量操作逐项生成预览；不改变其他接口。编辑与删除在行菜单中，运行中的接口需先停止。
                 </p>
               )}
@@ -605,7 +605,7 @@ export function NetworkPage({
                   setBulk({ operation: "start", rows: selection.chosen })
                 }
               >
-                启用
+                启动
               </Button>
               <Button
                 disabled={
@@ -615,7 +615,7 @@ export function NetworkPage({
                   setBulk({ operation: "stop", rows: selection.chosen })
                 }
               >
-                停用
+                停止
               </Button>
               <ActionMenu
                 label="所选接口"
