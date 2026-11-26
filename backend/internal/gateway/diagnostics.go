@@ -303,14 +303,18 @@ var _ = filepath.Separator
 func diagnosticResultSummary(result M) string {
 	p := obj(result["parameters"])
 	if str(p["kind"]) == "firewall" {
-		summary := "防火墙规则诊断 · " + str(p["destination"])
+		port := "—"
+		if str(p["port"]) != "" {
+			port = str(p["port"])
+		}
+		summary := strings.Join([]string{str(p["source"]), str(p["destination"]), strings.ToUpper(str(p["protocol"])), port}, " · ")
 		if err := str(result["error"]); err != "" {
 			return summary + " · " + err
 		}
 		if yes(result["gateway_probe"]) {
 			return summary + " · 网关 TCP 建连完成"
 		}
-		return summary + " · 推演完成"
+		return summary + " · 完成"
 	}
 	target := str(p["target"])
 	if target == "" {

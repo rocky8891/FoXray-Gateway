@@ -57,6 +57,7 @@ func moduleSNATCandidates(raw string, flow firewallFlow, device string) []M {
 			continue
 		}
 		matches, known, nat, outputKnown := true, true, false, false
+		var sourcePrefixes []string
 		for _, item := range arr(rule["expr"]) {
 			expr := obj(item)
 			if _, ok := expr["masquerade"]; ok {
@@ -97,6 +98,7 @@ func moduleSNATCandidates(raw string, flow firewallFlow, device string) []M {
 					parsed = false
 					continue
 				}
+				sourcePrefixes = append(sourcePrefixes, prefix.String())
 				found = found || prefix.Contains(flow.source)
 			}
 			if !parsed && !found {
@@ -114,6 +116,11 @@ func moduleSNATCandidates(raw string, flow firewallFlow, device string) []M {
 		}
 		data, _ := json.Marshal(rule)
 		candidate := M{"name": origin + " · " + table, "kind": "masquerade", "action": "masquerade", "out_interface": device, "priority": priority, "chain": chain, "table": table, "raw": string(data), "evidence": evidence}
+		if !known {
+			candidate["source"] = "未解析"
+		} else if len(sourcePrefixes) > 0 {
+			candidate["source"] = strings.Join(sourcePrefixes, "、")
+		}
 		key := string(ruleJSON)
 		if matching := links[key]; len(matching) > 0 {
 			candidate["id"] = matching[0]["id"]

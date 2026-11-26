@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -450,6 +451,11 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 			}
 		}
 		candidates = append(natRules, inputRules...)
+		if pathScope == "input" {
+			for _, row := range inputRules {
+				row["stage"] = "本机入站"
+			}
+		}
 		if pathScope == "forward" {
 			warnings = append(warnings, "域内服务放行只用于访问本机。区域地址伪装需核对实际出口及 POSTROUTING 链，本次未据此确认源地址转换。")
 			if egressZone != "" {
@@ -460,8 +466,21 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 						if row["ingress_zone"] != zone || row["egress_zone"] != egressZone || !yes(row["runtime"]) {
 							continue
 						}
+						if !yes(row["enabled"]) {
+							continue
+						}
 						row["kind"] = "cross-zone"
 						extra, _ := firewallFlowCandidates([]any{row}, translatedFlow, driver)
+						for _, candidate := range extra {
+							candidate["stage"] = "转发过滤"
+							candidate["ingress_zone"], candidate["egress_zone"] = zone, egressZone
+							if str(candidate["action"]) == "" {
+								candidate["action"] = str(row["policy_target"])
+								candidate["policy_default"] = true
+								candidate["raw"] = row["runtime_raw"]
+								candidate["evidence"] = "入口与出口区域相符，详见策略默认动作及附加条件"
+							}
+						}
 						candidates = append(candidates, extra...)
 					}
 				} else {
@@ -470,10 +489,25 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 			}
 		}
 	}
+	verdict, reason := "未确认", "未确认转发或入站链的最终动作"
+	if pathScope == "forward" && driver == "firewalld" && dnatCount == 0 && binding == "接口显式绑定" && activeZonesErr == nil && !strings.Contains(strings.Join(warnings, " "), "源地址归属无法唯一确认") && !strings.Contains(strings.Join(warnings, " "), "IP 集合") {
+		verdict, reason = firewallInterfaceForwardVerdict(cmd, f, str(route["dev"]), candidates)
+	}
 	if pathScope == "forward" && driver == "firewalld" {
 		if raw, err := cmd(6, "", "nft", "-j", "list", "ruleset"); err == nil {
 			moduleRules := moduleSNATCandidates(raw, f, str(route["dev"]))
+			for _, row := range moduleRules {
+				row["stage"] = "源地址转换"
+				if verdict == "预计拒绝" {
+					row["evidence"] = "未到达：转发阶段预计拒绝"
+				}
+			}
 			candidates = append(candidates, moduleRules...)
+			if verdict == "预计拒绝" {
+				translated["status"] = "未到达源地址转换阶段"
+			} else if verdict == "预计放行" && len(moduleRules) == 1 && str(moduleRules[0]["evidence"]) == "运行时 POSTROUTING 条件相符，实际转换待验证" {
+				translated["status"] = "预计匹配模块伪装，实际源地址转换未观测"
+			}
 			if len(moduleRules) > 0 && translated["status"] == "未确认地址转换" {
 				translated["status"] = "存在运行时模块伪装候选，源地址转换未确认"
 			}
@@ -481,6 +515,27 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 			warnings = append(warnings, "未能读取内核 NAT 链，模块伪装无法核实。")
 		}
 	}
+	if verdict == "预计拒绝" {
+		translated["status"] = "未到达源地址转换阶段"
+		candidates = append(candidates, M{"name": "firewalld 转发链拒绝", "stage": "转发过滤", "action": "reject", "ingress_zone": zone, "egress_zone": egressZone, "evidence": reason})
+	}
+	for _, row := range candidates {
+		if row["kind"] == "masquerade" && verdict == "预计拒绝" {
+			row["evidence"] = "未到达：转发阶段预计拒绝"
+		}
+	}
+	slices.SortStableFunc(candidates, func(left, right M) int {
+		stage := func(row M) int {
+			if row["kind"] == "forward" || row["action"] == "dnat" {
+				return 0
+			}
+			if row["kind"] == "masquerade" {
+				return 2
+			}
+			return 1
+		}
+		return stage(left) - stage(right)
+	})
 	if driver == "firewalld" {
 		hasOverlap := false
 		for _, candidate := range candidates {
@@ -495,5 +550,94 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 		}
 	}
 
-	return M{"host": host, "resolved_ip": resolved, "input_port": f.port, "driver": driver, "zone": zone, "binding": binding, "egress_zone": egressZone, "path_scope": pathScope, "route": route, "reverse_route": reverse, "rules": candidates, "nat": translated, "warnings": uniq(warnings), "status": "需结合运行时实际匹配确认"}, nil
+	return M{"host": host, "resolved_ip": resolved, "input_port": f.port, "driver": driver, "zone": zone, "binding": binding, "egress_zone": egressZone, "path_scope": pathScope, "route": route, "reverse_route": reverse, "verdict": verdict, "verdict_reason": reason, "rules": candidates, "nat": translated, "warnings": uniq(warnings), "status": "需结合运行时实际匹配确认"}, nil
+}
+
+// Confirm the generated firewalld path only when its first matching dispatch
+// and the chains it calls can be understood without packet state or sets.
+func firewallInterfaceForwardVerdict(cmd func(int, string, ...string) (string, error), f firewallFlow, output string, candidates []M) (string, string) {
+	unknown := "无法确认 firewalld 转发链的最终动作"
+	read := func(chain string) ([]string, bool) {
+		raw, err := cmd(3, "", "nft", "list", "chain", "inet", "firewalld", chain)
+		if err != nil {
+			return nil, false
+		}
+		var rules []string
+		for _, line := range strings.Split(raw, "\n") {
+			if !strings.HasPrefix(line, "\t\t") {
+				continue
+			}
+			rules = append(rules, strings.TrimSpace(line))
+		}
+		return rules, true
+	}
+	base, ok := read("filter_FORWARD")
+	if !ok || !slices.Contains(base, "jump filter_FORWARD_POLICIES") {
+		return "未确认", unknown
+	}
+	for _, rule := range base {
+		if rule == "jump filter_FORWARD_POLICIES" {
+			break
+		}
+		if strings.HasPrefix(rule, "type filter hook forward ") || rule == "ct state { established, related } accept" || rule == "ct status dnat accept" || rule == "ct state invalid drop" || (rule == `iifname "lo" accept` && f.ingress != "lo") || (f.source.Is4() && strings.HasPrefix(rule, "ip6 ")) {
+			continue
+		}
+		return "未确认", unknown
+	}
+	dispatch, ok := read("filter_FORWARD_POLICIES")
+	if !ok {
+		return "未确认", unknown
+	}
+	for _, rule := range dispatch {
+		fields := strings.Fields(rule)
+		if len(fields) < 2 {
+			return "未确认", unknown
+		}
+		for len(fields) >= 2 && (fields[0] == "iifname" || fields[0] == "oifname") {
+			actual := output
+			if fields[0] == "iifname" {
+				actual = f.ingress
+			}
+			if !strings.HasPrefix(fields[1], `"`) || !strings.HasSuffix(fields[1], `"`) {
+				return "未确认", unknown
+			}
+			if fields[1] != strconv.Quote(actual) {
+				fields = nil
+				break
+			}
+			fields = fields[2:]
+		}
+		if fields == nil {
+			continue
+		}
+		if len(fields) == 4 && strings.Join(fields, " ") == "reject with icmpx admin-prohibited" {
+			return "预计拒绝", "firewalld 转发链拒绝新请求"
+		}
+		if len(fields) != 2 || fields[0] != "jump" || !firewallZoneName.MatchString(strings.TrimPrefix(strings.TrimPrefix(fields[1], "filter_FWD_"), "policy_")) {
+			return "未确认", unknown
+		}
+		chain := fields[1]
+		rules, ok := read(chain)
+		if !ok {
+			return "未确认", unknown
+		}
+		for _, item := range rules {
+			if item == "accept" {
+				for _, candidate := range candidates {
+					if "filter_FWD_policy_"+str(candidate["policy"]) == chain && str(candidate["action"]) == "ACCEPT" {
+						return "预计放行", str(candidate["policy"]) + " · 策略默认允许"
+					}
+				}
+				return "预计放行", chain + " · 允许转发"
+			}
+			sub, ok := strings.CutPrefix(item, "jump ")
+			if !ok || !strings.HasPrefix(sub, chain+"_") {
+				return "未确认", unknown
+			}
+			if rows, ok := read(sub); !ok || len(rows) != 0 {
+				return "未确认", unknown
+			}
+		}
+	}
+	return "未确认", unknown
 }

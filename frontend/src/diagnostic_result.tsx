@@ -1,3 +1,4 @@
+import { ResetFilters } from "./list_controls";
 import { ALL_FIREWALL_ZONES } from "./firewall_view_state";
 import { logReadKeys, useReadState } from "./read_state";
 import { useEffect, useRef, useState } from "react";
@@ -122,20 +123,22 @@ export function DiagnosticProgress({
     </p>
   );
 }
-function FirewallDiagnosticFacts({ data }: { data: Dict }) {
+function FirewallDiagnosticFacts({ data, onRefresh }: { data: Dict; onRefresh?: (params: Dict) => void }) {
   const params = record(data.parameters);
   const result = record(data.firewall);
   const route = record(result.route), reverse = record(result.reverse_route);
   const nat = record(result.nat);
-  const candidates = list(result.rules);
+  const [query, setQuery] = useState("");
+  const candidates = list(result.rules).filter(row => JSON.stringify(row).toLowerCase().includes(query.trim().toLowerCase()));
   const [selected, setSelected] = useState<Dict | null>(null);
   return <>
+    {result.status != null && <p role="status"><strong>{text(result.verdict || "未确认")}</strong> · {text(params.ingress)} ({text(result.zone)}) → {text(route.dev)} ({text(result.egress_zone)}) · {text(result.verdict_reason || "运行时规则候选")}</p>}
     <dl className="diagnostic-facts">
       <div><dt>目标</dt><dd>{text(params.destination)}{params.port ? `:${text(params.port)}` : ""}</dd></div>
       <div><dt>解析地址</dt><dd>{text(result.resolved_ip || "未取得")}</dd></div>
-      <div><dt>入口接口与区域</dt><dd>{text(params.ingress)}{result.zone ? ` · ${text(result.zone)} · ${text(result.binding)}` : ""}</dd></div>
+      <div><dt>指定入口与区域</dt><dd>{text(params.ingress)}{result.zone ? ` · ${text(result.zone)} · ${text(result.binding)}` : ""}</dd></div>
       <div><dt>内核路由查询</dt><dd>{text(route.dev || "未取得")}{result.egress_zone ? ` · ${text(result.egress_zone)}` : ""}{result.path_scope === "input" ? " · 本机入站" : result.path_scope === "forward" ? " · 转发" : ""}</dd></div>
-      <div><dt>网关本机回程出口</dt><dd>{text(reverse.dev || "未取得")}</dd></div>
+      <div><dt>网关到源地址的路由</dt><dd>{text(reverse.dev || "未取得")}</dd></div>
       <div><dt>FoXray 配置预计路径</dt><dd>{text(data.expected || "未取得")}</dd></div>
       {nat.status != null && <div><dt>地址转换推演</dt><dd>{text(nat.source)} → {text(nat.destination)}{nat.port ? ` · 端口 ${text(nat.port)}` : ""} · {text(nat.status)}</dd></div>}
     </dl>
@@ -147,10 +150,20 @@ function FirewallDiagnosticFacts({ data }: { data: Dict }) {
       </dl>
     </>}
     {params.probe === true && data.gateway_probe !== true && result.resolved_ip != null && <p className="hint">网关 TCP 建连测试仅支持 IPv4，本次已完成规则推演。</p>}
-    {Array.isArray(result.warnings) && result.warnings.map((warning, index) => <p className="hint" key={index}>{String(warning)}</p>)}
+    {result.status != null && <p className="hint">基于运行时快照静态推演新请求。连接跟踪和实际地址转换需单独核实。</p>}
+    {Array.isArray(result.warnings) && result.warnings.length > 0 && <details><summary>查看推演限制</summary>
+      <ul>{result.warnings.map((warning, index) => <li key={index}>{String(warning)}</li>)}</ul>
+    </details>}
+    {onRefresh && reverse.dev && reverse.dev !== params.ingress && <Button onClick={() => onRefresh({...params, ingress: reverse.dev, probe: false})}>按 {text(reverse.dev)} 重新推演</Button>}
     {result.status != null && <>
       <h4>运行时候选规则</h4>
-      {candidates.length === 0 ? <p className="muted">没有匹配到可解析的运行时规则。</p> : <Table
+      <Table
+        keepHeaders
+        toolbar={<div className="actions">
+          {onRefresh && <Button onClick={() => onRefresh({...params, probe: false})}>刷新</Button>}
+          <input aria-label="搜索候选规则" placeholder="搜索候选规则" value={query} onChange={event => setQuery(event.target.value)} />
+          <ResetFilters active={!!query} onClick={() => setQuery("")} />
+        </div>}
         rows={candidates}
         rowKey={(row) => String(candidates.indexOf(row))}
         columns={[
@@ -174,12 +187,13 @@ function FirewallDiagnosticFacts({ data }: { data: Dict }) {
             });
             return <a className="table-link diagnostic-rule-link" href={`/?${params}`} target="_blank" rel="noopener noreferrer">{name}</a>;
           } },
-          { key: "action", label: "动作", render: row => text(row.action) },
-          { key: "range", label: "匹配范围", render: row => `${text(row.source || "任意来源")} → ${text(row.destination || "任意目标")}${row.port ? ` · ${text(row.port)}` : ""}` },
+          { key: "stage", label: "处理阶段", render: row => text(row.stage || (row.kind === "forward" ? "目的地址转换" : row.kind === "masquerade" ? "源地址转换" : "过滤")) },
+          { key: "action", label: "动作", render: row => row.policy_default && row.action === "ACCEPT" ? "允许（策略默认 ACCEPT）" : text(row.action) },
+          { key: "range", label: "匹配范围", render: row => row.ingress_zone ? `${text(row.ingress_zone)} → ${text(row.egress_zone)}` : `${text(row.source || "任意来源")} → ${text(row.destination || "任意目标")}${row.port ? ` · ${text(row.port)}` : ""}${row.out_interface ? ` · 出接口 ${text(row.out_interface)}` : ""}` },
           { key: "evidence", label: "匹配依据", render: row => text(row.evidence || "无可解析字段") },
           { key: "details", label: "详情", render: row => <Button size="compact" onClick={() => setSelected(row)}>查看</Button> },
         ]}
-      />}
+      />
     </>}
     {selected && <Modal title="候选规则详情" onClose={() => setSelected(null)}><JsonDetails data={selected} /></Modal>}
   </>;
@@ -188,9 +202,11 @@ function FirewallDiagnosticFacts({ data }: { data: Dict }) {
 export function DiagnosticReport({
   operation,
   embedded = false,
+  onRefresh,
 }: {
   operation: Operation;
   embedded?: boolean;
+  onRefresh?: (params: Dict) => void;
 }) {
   const d = {
       ...record(record(operation.details).legacy_result),
@@ -216,7 +232,7 @@ export function DiagnosticReport({
         <strong>{firewall ? d.firewall ? "规则推演完成" : "规则推演未完成" : resultTitle}</strong> ·{" "}
         {operation.message}
       </p>
-      {firewall ? <FirewallDiagnosticFacts data={d} /> : <dl className="diagnostic-facts">
+      {firewall ? <FirewallDiagnosticFacts data={d} onRefresh={onRefresh} /> : <dl className="diagnostic-facts">
         <div>
           <dt>{d.dns_routing_mode ? "请求填写的DNS目标" : "目标"}</dt>
           <dd>

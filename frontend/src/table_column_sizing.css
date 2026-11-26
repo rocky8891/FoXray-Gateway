@@ -74,3 +74,16 @@
 .diagnostic-log-panel .table-wrap table { font-size: 13px; }
 .diagnostic-log-panel .table-wrap th { font-size: 12px; }
 .diagnostic-log-panel .table-wrap td { font-size: 13px; }
+
+.table-wrap table.adaptive-columns :is(th, td)[data-column]:first-child,
+.table-wrap table.adaptive-columns :is(th, td)[data-column]:last-child {
+  position: sticky;
+  z-index: 1;
+  background: var(--card);
+}
+.table-wrap table.adaptive-columns :is(th, td)[data-column]:first-child { left: 0; }
+.table-wrap table.adaptive-columns :is(th, td)[data-column]:last-child:not(:first-child) { right: 0; }
+.table-wrap table.adaptive-columns thead th[data-column]:is(:first-child, :last-child) { z-index: 2; }
+.wg-public-key-field { display: flex; gap: 8px; }
+.wg-public-key-field input { flex: 1; min-width: 0; }
+.wg-public-key-field button { flex: none; }

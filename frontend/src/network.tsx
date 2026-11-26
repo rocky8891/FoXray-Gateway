@@ -888,6 +888,17 @@ function WireGuardPeerManager({ name, peers, onClose, onToggle }: {
   );
 }
 
+function WireGuardPublicKey({ value, onChange }: { value: string; onChange?: (value: string) => void }) {
+  const [visible, setVisible] = useState(false);
+  return <div className="wg-public-key-field">
+    <input type={visible ? "text" : "password"} autoComplete="off" value={value}
+      readOnly={!onChange} onChange={event => onChange?.(event.target.value)} />
+    <Button type="button" aria-pressed={visible} onClick={() => setVisible(!visible)}>
+      {visible ? "隐藏公钥" : "查看明文"}
+    </Button>
+  </div>;
+}
+
 function WireGuardRemarkField({value,onChange}:{value:string;onChange:(value:string)=>void}) {
   return <Field label="备注" hint="可选，最多200字；用于说明接口用途，不影响接口名称、角色或路由。"><input aria-label="WireGuard接口备注" value={value} maxLength={200} placeholder="例如：回家 VPN、办公网络" onChange={e=>onChange(e.target.value)}/></Field>;
 }
@@ -1006,22 +1017,14 @@ function NetworkForm({
               </Field>
               {!!value.public_key && (
                 <Field label="本接口公钥" hint="可复制给对端">
-                  <input
-                    readOnly
-                    value={String(value.public_key)}
-                    onFocus={(e) => e.target.select()}
-                  />
+                  <WireGuardPublicKey value={String(value.public_key)} />
                 </Field>
               )}
               <ErrorLine error={keyError} />
             </div>
           ) : (
             <Field label="本接口公钥" hint="私钥保留在服务器，不通过接口回显">
-              <input
-                readOnly
-                value={String(value.public_key || "")}
-                onFocus={(e) => e.target.select()}
-              />
+              <WireGuardPublicKey value={String(value.public_key || "")} />
             </Field>
           )}
         </div>
@@ -1493,10 +1496,7 @@ function PeerEditor({
           <p className="hint">Peer {i+1} · {peer.disabled ? "已停用（保留配置）" : "已启用"}</p>
           <div className="form-grid">
             <Field label={"Peer " + (i + 1) + " 公钥"}>
-              <input
-                value={String(peer.public_key || "")}
-                onChange={(e) => change(i, "public_key", e.target.value)}
-              />
+              <WireGuardPublicKey value={String(peer.public_key || "")} onChange={key => change(i, "public_key", key)} />
             </Field>
             <Field label="AllowedIPs" hint="支持多个 IP/CIDR，用逗号、空格或换行分隔">
               <textarea rows={1} className="wg-resizable-text"

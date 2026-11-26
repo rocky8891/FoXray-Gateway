@@ -60,7 +60,7 @@ export function FirewallDiagnosis({ act }: { act: Act }) {
       </form>
       <DiagnosticProgress pending={diagnostic.pending} message={diagnostic.message} />
     </Panel>
-    {diagnostic.result && <DiagnosticReport operation={diagnostic.result} />}
+    {diagnostic.result && <DiagnosticReport operation={diagnostic.result} onRefresh={params => void diagnostic.run("/api/diagnostics", params)} />}
     <DiagnosticLog act={act} firewallOnly />
   </>;
 }

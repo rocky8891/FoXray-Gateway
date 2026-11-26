@@ -1029,7 +1029,7 @@ export function Table<T>({
   return rows.length || keepHeaders || sizing.enabled ? (
     <>
       {!modalTable && (widthSlot ? createPortal(widthControl, widthSlot) : !toolbar && <div className="adaptive-table-tools">{widthControl}</div>)}
-      {!modalTable && toolbar && <div className="adaptive-table-tools"><div className="adaptive-table-actions">{toolbar}</div></div>}
+      {toolbar && <div className="adaptive-table-tools">{!widthSlot && widthControl}<div className="adaptive-table-actions">{toolbar}</div></div>}
       <div className="table-wrap" style={{ minHeight: reservedPageHeight }}>
         <table
           className={

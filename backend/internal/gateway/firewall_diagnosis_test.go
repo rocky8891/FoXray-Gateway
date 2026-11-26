@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/netip"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -59,5 +60,34 @@ func TestFirewallDiagnosisModuleSNATLinksToOriginRows(t *testing.T) {
 		if row["id"] != origins[i]["id"] || row["rule_origin"] != "wireguard" || origins[i]["editable"] != false {
 			t.Fatalf("diagnosis link does not identify the read-only inventory row: %v vs %v", row, origins[i])
 		}
+	}
+}
+
+func TestFirewallForwardVerdictUsesIngressAndStopsBeforeSNAT(t *testing.T) {
+	chains := map[string][]string{
+		"filter_FORWARD":                  {"ct state { established, related } accept", "jump filter_FORWARD_POLICIES", "reject with icmpx admin-prohibited"},
+		"filter_FORWARD_POLICIES":         {`iifname "ens16" oifname "wg-zstack" jump filter_FWD_policy_lan-to-zstack`, `iifname "wg-zstack" oifname "wg-zstack" jump filter_FWD_zstack-vpn`, `iifname "wg-zstack" oifname "wg-zstack" reject with icmpx admin-prohibited`},
+		"filter_FWD_policy_lan-to-zstack": {"jump filter_FWD_policy_lan-to-zstack_allow", "accept"},
+		"filter_FWD_zstack-vpn":           {"jump filter_FWD_zstack-vpn_allow"},
+	}
+	read := func(_ int, _ string, args ...string) (string, error) {
+		var rules strings.Builder
+		for _, rule := range chains[args[len(args)-1]] {
+			rules.WriteString("\t\t" + rule + "\n")
+		}
+		return rules.String(), nil
+	}
+	var flow firewallFlow
+	flow.source = netip.MustParseAddr("192.168.1.10")
+	for ingress, want := range map[string]string{"ens16": "预计放行", "wg-zstack": "预计拒绝"} {
+		flow.ingress = ingress
+		if got, _ := firewallInterfaceForwardVerdict(read, flow, "wg-zstack", nil); got != want {
+			t.Fatalf("%s: got %s, want %s", ingress, got, want)
+		}
+	}
+	flow.ingress = "ens16"
+	chains["filter_FWD_policy_lan-to-zstack_allow"] = []string{"ip saddr @dynamic_set accept"}
+	if got, _ := firewallInterfaceForwardVerdict(read, flow, "wg-zstack", nil); got != "未确认" {
+		t.Fatal(got)
 	}
 }
