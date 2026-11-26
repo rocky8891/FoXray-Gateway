@@ -15,9 +15,9 @@ export function XrayObservationPolicy({value,onChange,disabled,runtime}:{runtime
  return <SettingsSection className="xray-observation-policy" title="DNS 分流与域名识别" info={<>
   <p>FoXray 按下列优先级处理已接管的 TCP / UDP 53 查询。</p>
   <ol>
-   <li><strong>自定义规则。</strong>显式匹配的域名规则优先。IP 规则须指定包含 53 的端口。</li>
-   <li><strong>DNS 强制代理。</strong>开启后，其余查询统一走当前 Xray 出口。</li>
-   <li><strong>直连清单与普通分流。</strong>关闭强制代理时按配置选择上游。
+   <li><strong>自定义规则：</strong>显式匹配的域名规则优先。IP 规则须指定包含 53 的端口。</li>
+   <li><strong>DNS 强制代理：</strong>开启后，其余查询统一走当前 Xray 出口。</li>
+   <li><strong>直连清单与普通分流：</strong>关闭强制代理时按配置选择上游。
     <ul><li>匹配代理域名的查询走代理组。</li><li>其余查询优先走直连组。直连组全部失败时，可尝试代理组。</li></ul>
    </li>
   </ol>
@@ -29,9 +29,9 @@ export function XrayObservationPolicy({value,onChange,disabled,runtime}:{runtime
   <div className="monitor-item-option">
    <label className="check"><input type="checkbox" aria-label="DNS强制代理" checked={value.dns_force_proxy===true} disabled={disabled} onChange={e=>onChange("dns_force_proxy",e.target.checked)} />DNS 强制代理</label>
    <SettingInfo label="DNS 强制代理" text={<ul>
-    <li><strong>开启后。</strong>已接管的传统 DNS 查询优先遵循显式的自定义 DNS 规则，其余查询走当前 Xray 出口。</li>
-    <li><strong>LAN 智能接管已开启时。</strong>其余查询使用代理 DNS 上游。同组上游失败后会尝试备用地址。</li>
-    <li><strong>使用条件。</strong>要让查询实际经代理发出，需选择可用代理节点。此开关仅影响 TCP / UDP 53。</li>
+    <li><strong>开启后：</strong>已接管的传统 DNS 查询优先遵循显式的自定义 DNS 规则，其余查询走当前 Xray 出口。</li>
+    <li><strong>LAN 智能接管已开启时：</strong>其余查询使用代理 DNS 上游。同组上游失败后会尝试备用地址。</li>
+    <li><strong>使用条件：</strong>要让查询实际经代理发出，需选择可用代理节点。此开关仅影响 TCP / UDP 53。</li>
    </ul>} />
   </div>
   </div>
@@ -44,9 +44,9 @@ export function XrayObservationPolicy({value,onChange,disabled,runtime}:{runtime
    </Field>
   </div>
    <Field label="域名识别" info={<ul>
-    <li><strong>识别来源。</strong>HTTP Host、TLS / QUIC SNI 和 Xray 核心提供的目标域名。ECH 连接可能只暴露外层域名。</li>
-    <li><strong>显示结果。</strong>将域名关联到对应连接。无法识别时显示「未观测」。</li>
-    <li><strong>关闭后。</strong>停止新增识别并清除内存缓存，已有历史与分流所需的嗅探继续保留。</li>
+    <li><strong>识别来源：</strong>HTTP Host、TLS / QUIC SNI 和 Xray 核心提供的目标域名。ECH 连接可能只暴露外层域名。</li>
+    <li><strong>显示结果：</strong>将域名关联到对应连接。无法识别时显示「未观测」。</li>
+    <li><strong>关闭后：</strong>停止新增识别并清除内存缓存，已有历史与分流所需的嗅探继续保留。</li>
    </ul>}>
     <label className="check"><input type="checkbox" aria-label="启用域名识别" disabled={disabled} checked={value.domain_identification===true} onChange={e=>onChange("domain_identification",e.target.checked)} />启用HTTP／TLS／QUIC域名识别</label>
    </Field>

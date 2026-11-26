@@ -2111,13 +2111,13 @@ function ManagerServicePanel({ state, act }: { state: State; act: Act }) {
         icon={<span className="settings-foxray-logo"><HomeHeaderToggleIcon /></span>}
         description={
           <ul>
-            <li><strong>管理范围。</strong>这里只控制 FoXray 网页管理服务；Xray 核心和 VPN 接口由各自的服务单元维护。</li>
-            <li><strong>立即操作。</strong><ul>
+            <li><strong>管理范围：</strong>这里只控制 FoXray 网页管理服务；Xray 核心和 VPN 接口由各自的服务单元维护。</li>
+            <li><strong>立即操作：</strong><ul>
               <li>启动、停止、重启分别执行 <code>systemctl start / stop / restart foxray.service</code> 中对应的操作。</li>
               <li>停止管理服务后，当前网页将无法响应。</li>
             </ul></li>
-            <li><strong>开机自启。</strong>启用、停用分别执行 <code>systemctl enable / disable foxray.service</code>；只修改自启状态，不立即启动或停止服务。</li>
-            <li><strong>恢复网页。</strong><ol>
+            <li><strong>开机自启：</strong>启用、停用分别执行 <code>systemctl enable / disable foxray.service</code>；只修改自启状态，不立即启动或停止服务。</li>
+            <li><strong>恢复网页：</strong><ol>
               <li>使用 SSH 或服务器控制台登录。</li>
               <li>执行 <code>systemctl start foxray.service</code>，再重新访问管理地址。</li>
             </ol></li>

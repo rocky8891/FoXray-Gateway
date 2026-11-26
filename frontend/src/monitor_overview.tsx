@@ -7,6 +7,7 @@ import {
   serviceStyle,
   splitWireGuardCards,
   wireguardNameStyle,
+  wireguardMetricOrder,
   SERVICE_METRICS,
   SERVICE_CIRCLE_STYLES,
 } from "./overview_policy";
@@ -392,7 +393,7 @@ function SummaryHeader({
     });
     classes.observe(card, {
       attributes: true,
-      attributeFilter: ["class"],
+      attributeFilter: ["class", "data-summary-slot"],
       childList: true,
       subtree: true,
       characterData: true,
@@ -870,6 +871,7 @@ export function ServiceOverviewCards({
             />
             <div className="service-overview-surface">
               <SummaryMetrics
+                order={wireguardMetricOrder(presentation, name)}
                 rows={ready ? rows.filter(row => row.id === id) : []}
                 count={ready && record(connections.wireguard).available ? (peer.count ?? 0) : null}
                 latency={ready ? samples[samples.length - 1]?.latency : undefined}
@@ -987,6 +989,7 @@ export function ServiceOverviewCards({
                       </button>
                     </div>
                     <SummaryMetrics
+                      order={wireguardMetricOrder(presentation, String(row.name))}
                       rows={ready ? rows.filter((r) => r.id === id) : []}
                       count={
                         ready && record(connections.wireguard).available

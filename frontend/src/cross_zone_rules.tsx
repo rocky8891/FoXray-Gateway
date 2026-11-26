@@ -88,7 +88,7 @@ export function CrossZoneRules({act, resource, filter, resetFilter, linkedRule =
   };
   return <Panel className="firewall-main-panel management-panel">
     <div className="firewall-rules-heading" id="cross-zone-rules">
-      <h3><CrossZoneIcon size={20} className="firewall-heading-icon"/>域间规则<SettingInfo label="域间规则" text={<ul><li><strong>匹配条件。</strong>入口区域、出口区域、来源、目标、协议和端口。</li><li><strong>处理范围。</strong>用于跨区域转发流量，不等同于访问网关本机的域内规则。</li></ul>} /></h3>
+      <h3><CrossZoneIcon size={20} className="firewall-heading-icon"/>域间规则<SettingInfo label="域间规则" text={<ul><li><strong>匹配条件：</strong>入口区域、出口区域、来源、目标、协议和端口。</li><li><strong>处理范围：</strong>用于跨区域转发流量，不等同于访问网关本机的域内规则。</li></ul>} /></h3>
       <span className="muted">运行时与永久配置 · 合并展示</span>
     </div>
     <CompactFilters

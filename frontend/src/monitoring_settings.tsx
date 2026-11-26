@@ -68,7 +68,7 @@ function HostDataSettings({ act }: { act: Act }) {
       fields={
         <Field
           label="历史写入间隔（秒）"
-          info={<ul><li><strong>取值范围。</strong>10～3600 秒。</li><li><strong>作用。</strong>汇总已采集的服务器指标并写入历史。</li><li><strong>频率关系。</strong>不改变采集、页面刷新或主动探测间隔；历史记录频率不会高于采集频率。</li></ul>}
+          info={<ul><li><strong>取值范围：</strong>10～3600 秒。</li><li><strong>作用：</strong>汇总已采集的服务器指标并写入历史。</li><li><strong>频率关系：</strong>不改变采集、页面刷新或主动探测间隔；历史记录频率不会高于采集频率。</li></ul>}
         >
           <NumberInput
             aria-label="服务器历史写入间隔（秒）"
@@ -141,7 +141,7 @@ export function DisplaySettings({ act }: { act: Act }) {
         </Field>
         <Field
           label="页面历史图刷新（秒）"
-          info={<ul><li><strong>取值范围。</strong>1～3600 秒，默认 10 秒。</li><li><strong>作用。</strong>控制浏览器重新获取图表数据的间隔。</li><li><strong>独立设置。</strong>后台采集、主动探测和历史写入继续使用各自间隔。</li></ul>}
+          info={<ul><li><strong>取值范围：</strong>1～3600 秒，默认 10 秒。</li><li><strong>作用：</strong>控制浏览器重新获取图表数据的间隔。</li><li><strong>独立设置：</strong>后台采集、主动探测和历史写入继续使用各自间隔。</li></ul>}
         >
           <NumberInput
             type="number"
@@ -155,7 +155,7 @@ export function DisplaySettings({ act }: { act: Act }) {
         </Field>
         <Field
           label="流量曲线汇总间隔（秒）"
-          info={<ul><li><strong>取值范围。</strong>1～3600 秒，默认 30 秒。按真实字节量与采样时长计算区间均速。</li><li><strong>影响范围。</strong>用于 Xray、WARP 和 WireGuard 流量曲线。实时速率、采集、历史写入和累计流量保持各自设置。</li><li><strong>长时间范围。</strong>图表可能继续合并数据。可在流量监控中临时选择精细或自定义窗口。</li></ul>}
+          info={<ul><li><strong>取值范围：</strong>1～3600 秒，默认 30 秒。按真实字节量与采样时长计算区间均速。</li><li><strong>影响范围：</strong>用于 Xray、WARP 和 WireGuard 流量曲线。实时速率、采集、历史写入和累计流量保持各自设置。</li><li><strong>长时间范围：</strong>图表可能继续合并数据。可在流量监控中临时选择精细或自定义窗口。</li></ul>}
         >
           <NumberInput
             aria-label="流量曲线汇总间隔（秒）"

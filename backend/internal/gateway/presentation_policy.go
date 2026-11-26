@@ -12,7 +12,7 @@ var overviewCards = []string{"info", "traffic", "https", "connections", "icmp", 
 var rangeUnits = map[string]int{"minute": 1, "hour": 60, "day": 1440, "month": 43200, "year": 525600}
 
 func defaultPresentation() M {
-	p := M{"home_header_auto_hide": false, "home_header_idle_seconds": 5, "overview_show_clock": false, "overview_show_data_status": false, "overview_color_schemes": M{}, "clock_source": "internet", "clock_server": "", "clock_timezone": "Asia/Shanghai", "nodes_limit": 0, "nodes_visibility_mode": "all", "nodes_visible_ids": []any{}, "service_custom_themes": []any{}, "overview_text": M{}, "overview_surfaces": M{}, "content_width_percent": 99, "module_width_percent": 95, "range_value": 24, "range_unit": "hour", "default_overview_view": "services", "services_host_style": "radial", "services_xray_style": "metrics", "services_warp_style": "radial-diamond-compact", "services_wireguard_layout": "metrics", "services_xray_order": []any{"upload", "download", "latency", "connections"}, "services_warp_order": []any{"upload", "download", "latency", "connections"}, "services_style": "metrics", "services_wireguard_count": 2, "services_wireguard_axis": "auto", "services_wireguard_diameter": 0, "services_wireguard_label_size": 14, "services_wireguard_value_size": 24, "services_wireguard_ring_opacity": 100, "services_wireguard_ring_shadow": 0, "services_wireguard_ring_color": "", "services_wireguard_style": "above", "services_host_order": []any{"cpu", "load", "memory", "root"}, "services_wireguard_interfaces": []any{}, "nodes_layout": "grid", "nodes_order": []any{}, "overview_independent": false, "overview_range_value": 24, "overview_range_unit": "hour", "services_layout": "top", "services_cards": []any{"service-host", "service-xray", "service-warp", "service-wireguard"}, "overview_layout": "grid", "overview_cards": []any{"info", "traffic", "https", "connections"}}
+	p := M{"home_header_auto_hide": false, "home_header_idle_seconds": 5, "overview_show_clock": false, "overview_show_data_status": false, "overview_color_schemes": M{}, "clock_source": "internet", "clock_server": "", "clock_timezone": "Asia/Shanghai", "nodes_limit": 0, "nodes_visibility_mode": "all", "nodes_visible_ids": []any{}, "service_custom_themes": []any{}, "overview_text": M{}, "overview_surfaces": M{}, "content_width_percent": 99, "module_width_percent": 95, "range_value": 24, "range_unit": "hour", "default_overview_view": "services", "services_host_style": "radial", "services_xray_style": "metrics", "services_warp_style": "radial-diamond-compact", "services_wireguard_layout": "metrics", "services_xray_order": []any{"upload", "download", "latency", "connections"}, "services_warp_order": []any{"upload", "download", "latency", "connections"}, "services_style": "metrics", "services_wireguard_count": 2, "services_wireguard_axis": "auto", "services_wireguard_diameter": 0, "services_wireguard_label_size": 14, "services_wireguard_value_size": 24, "services_wireguard_ring_opacity": 100, "services_wireguard_ring_shadow": 0, "services_wireguard_ring_color": "", "services_wireguard_style": "above", "services_host_order": []any{"cpu", "load", "memory", "root"}, "services_wireguard_interfaces": []any{}, "services_wireguard_metric_orders": M{}, "nodes_layout": "grid", "nodes_order": []any{}, "overview_independent": false, "overview_range_value": 24, "overview_range_unit": "hour", "services_layout": "top", "services_cards": []any{"service-host", "service-xray", "service-warp", "service-wireguard"}, "overview_layout": "grid", "overview_cards": []any{"info", "traffic", "https", "connections"}}
 	for _, module := range []string{"xray", "warp", "wireguard"} {
 		for view, sections := range monitorSectionOptions {
 			p["monitor_"+module+"_"+view+"_sections"] = clone(sections)
@@ -256,6 +256,15 @@ func validatePresentation(p M) error {
 	if !validOrder(p["services_host_order"], []string{"cpu", "load", "memory", "root"}, true) {
 		return errors.New("服务器圆形指标顺序须包含CPU、负载、内存、分区各一次")
 	}
+	metricOrders, ok := p["services_wireguard_metric_orders"].(map[string]any)
+	if !ok || len(metricOrders) > 128 {
+		return errors.New("WireGuard 指标顺序须按接口保存，最多128个接口")
+	}
+	for name, order := range metricOrders {
+		if iface(name) != nil || !validOrder(order, []string{"upload", "download", "latency", "connections"}, true) {
+			return errors.New("WireGuard 接口名称或指标顺序无效，每项指标须且仅须出现一次")
+		}
+	}
 	interfaces, ok := p["services_wireguard_interfaces"].([]any)
 	if !ok || len(interfaces) > 4 {
 		return errors.New("WireGuard主页最多选择四个接口")
@@ -308,7 +317,7 @@ func validatePresentation(p M) error {
 	}
 	ids, names := map[string]bool{}, map[string]bool{}
 	allowed := map[string]bool{}
-	for _, key := range []string{"overview_color_schemes", "services_layout", "services_cards", "services_style", "services_host_style", "services_xray_style", "services_warp_style", "services_wireguard_layout", "services_wireguard_style", "services_wireguard_count", "services_wireguard_axis", "services_wireguard_diameter", "services_wireguard_ring_color", "services_wireguard_label_size", "services_wireguard_value_size", "services_wireguard_ring_opacity", "services_wireguard_ring_shadow", "services_host_order", "services_xray_order", "services_warp_order", "services_wireguard_interfaces", "overview_text", "overview_surfaces"} {
+	for _, key := range []string{"overview_color_schemes", "services_layout", "services_cards", "services_style", "services_host_style", "services_xray_style", "services_warp_style", "services_wireguard_layout", "services_wireguard_style", "services_wireguard_count", "services_wireguard_axis", "services_wireguard_diameter", "services_wireguard_ring_color", "services_wireguard_label_size", "services_wireguard_value_size", "services_wireguard_ring_opacity", "services_wireguard_ring_shadow", "services_host_order", "services_xray_order", "services_warp_order", "services_wireguard_interfaces", "services_wireguard_metric_orders", "overview_text", "overview_surfaces"} {
 		allowed[key] = true
 	}
 	for _, raw := range themes {

@@ -150,3 +150,20 @@ export function normalizeServiceLayoutChange(p: Dict, layout: string): Dict {
     }
   return patch;
 }
+
+export function wireguardMetricOrder(value: unknown, name: string): string[] {
+  const order=record(record(value).services_wireguard_metric_orders)[name];
+  return Array.isArray(order) && order.length===SERVICE_METRICS.length &&
+    new Set(order).size===SERVICE_METRICS.length && order.every(key=>SERVICE_METRICS.includes(String(key)))
+    ? order.map(String) : [...SERVICE_METRICS];
+}
+export function overviewOrderPatch(presentation: Dict, view: OverviewView, scope: string, from: string, to: string, ids: string[]): Dict {
+  const name=scope.startsWith("wireguard-metrics:")?scope.slice("wireguard-metrics:".length):null;
+  const key=name?"services_wireguard_metric_orders": ["host","xray","warp"].includes(scope)?"services_"+scope+"_order"
+    :scope==="wireguard"?"services_wireguard_interfaces":scope==="nodes"?"nodes_order":(view==="services"?"services_":"overview_")+"cards";
+  const base=name?wireguardMetricOrder(presentation,name):presentation[key] as string[]|undefined;
+  const order=[...new Set([...(base||[]),...ids])], a=order.indexOf(from), b=order.indexOf(to);
+  if(a<0||b<0||a===b)return {};
+  [order[a],order[b]]=[order[b],order[a]];
+  return {[key]:name?{...record(presentation[key]),[name]:order}:order};
+}

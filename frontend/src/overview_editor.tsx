@@ -51,6 +51,12 @@ export function useOverviewDrag(
             }),
           );
       element
+        .querySelectorAll<HTMLElement>(".service-wireguard-interface [data-summary-metric], .service-wireguard .service-tunnel-row [data-summary-metric]")
+        .forEach(el => {
+          const name=el.closest<HTMLElement>("[data-interface-name]")?.dataset.interfaceName;
+          if(name)result.push({scope:"wireguard-metrics:"+name,id:el.dataset.summaryMetric!,element:el});
+        });
+      element
         .querySelectorAll<HTMLElement>(".service-wireguard .service-tunnel-row")
         .forEach((el) =>
           result.push({
@@ -252,7 +258,7 @@ export function useOverviewDrag(
             Number(getComputedStyle(y.element).order),
         );
       const card = a.element.closest<HTMLElement>(".service-overview-card");
-      const local = ["host", "xray", "warp"].includes(a.scope)
+      const local = (["host", "xray", "warp"].includes(a.scope) || a.scope.startsWith("wireguard-metrics:"))
         ? card?.dataset.circleLayout ||
           (card?.classList.contains("service-style-radial-diamond")
             ? "diamond"

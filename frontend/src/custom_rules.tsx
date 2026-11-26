@@ -566,9 +566,9 @@ export function RuleSetsEditor({
           label="分流规则使用"
           text={
             <ul>
-              <li><strong>匹配顺序。</strong>规则从上到下匹配已接管的 TCP / UDP 流量。VPN、私网、DNS 与入口直连优先排除。</li>
-              <li><strong>新增规则集。</strong>可创建空白规则集，也可从内置模板选择大陆白名单、GFWList 或全局代理。已存在的模板只定位查看。</li>
-              <li><strong>保存与更新。</strong>
+              <li><strong>匹配顺序：</strong>规则从上到下匹配已接管的 TCP / UDP 流量。VPN、私网、DNS 与入口直连优先排除。</li>
+              <li><strong>新增规则集：</strong>可创建空白规则集，也可从内置模板选择大陆白名单、GFWList 或全局代理。已存在的模板只定位查看。</li>
+              <li><strong>保存与更新：</strong>
                 <ol>
                   <li>修改先保存到草稿，再点击「保存并应用」。</li>
                   <li>规则源可使用公共域名列表或 JSON。预定义规则源由上游项目维护。</li>

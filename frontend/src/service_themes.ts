@@ -111,6 +111,7 @@ export const CUSTOM_THEME_KEYS = [
   "services_xray_order",
   "services_warp_order",
   "services_wireguard_interfaces",
+  "services_wireguard_metric_orders",
   "overview_text",
   "overview_surfaces",
 ];
@@ -145,7 +146,8 @@ function stable(value: unknown): string {
 }
 export function customServiceTheme(value: unknown) {
   return listThemes(value).find(
-    (theme) => stable(theme.values) === stable(serviceThemeSnapshot(value)),
+    (theme) => stable({...theme.values, services_wireguard_metric_orders: record(theme.values.services_wireguard_metric_orders)}) ===
+      stable({...serviceThemeSnapshot(value), services_wireguard_metric_orders: record(record(value).services_wireguard_metric_orders)}),
   );
 }
 export function listThemes(
@@ -166,6 +168,8 @@ export function randomServiceTheme(
   random = Math.random,
 ): { source: "builtin" | "custom" | "mixed"; label: string; values: Dict } {
   const p = record(input);
+  const cards = overviewPolicy(p, "services").cards;
+  const visibleValues = (values: Dict): Dict => ({ ...values, services_cards: [...cards] });
   const pick = <T>(items: T[]): T => items[Math.floor(random() * items.length)];
   const current = currentServiceTheme(p),
     selectedCustom = customServiceTheme(p);
@@ -191,7 +195,7 @@ export function randomServiceTheme(
     return {
       source,
       label: theme.label,
-      values: structuredClone(theme.values),
+      values: visibleValues(structuredClone(theme.values)),
     };
   }
   if (source === "custom") {
@@ -199,7 +203,7 @@ export function randomServiceTheme(
     return {
       source,
       label: theme.name,
-      values: serviceThemeSnapshot(theme.values),
+      values: visibleValues(serviceThemeSnapshot(theme.values)),
     };
   }
   const values: Dict = {
@@ -217,7 +221,7 @@ export function randomServiceTheme(
       ),
     );
   }
-  return { source, label: "随机混搭", values };
+  return { source, label: "随机混搭", values: visibleValues(values) };
 }
 
 export function randomHomeServiceTheme(input: unknown, random = Math.random) {

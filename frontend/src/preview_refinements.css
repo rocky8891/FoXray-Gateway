@@ -1866,3 +1866,6 @@ table :is(th, td):is([data-column="selected"], [data-column="select"], :has(> in
 .setting-tooltip code { font-size: .95em; white-space: normal; overflow-wrap: anywhere; }
 .wg-probe-target-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .wg-probe-target-heading .settings-section-title { display: flex; align-items: center; gap: 8px; margin: 0; }
+
+/* The settings section already supplies the standard 16px gap. */
+.module-service-settings .settings-section > .wg-probe-target-table { margin-block-start: 0; }

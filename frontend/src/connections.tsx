@@ -257,7 +257,7 @@ export function ConnectionsPage({
             label="节点"
             info={
               module === "xray" && scope !== "transport"
-                ? <ul><li><strong>业务流归属。</strong>没有逐连接出站标签时，不根据当前出口推断节点。</li><li><strong>识别依据。</strong>接入核心路由日志并成功匹配后，才显示对应节点。</li><li><strong>隧道传输。</strong>可按已经识别出的节点筛选。</li></ul>
+                ? <ul><li><strong>业务流归属：</strong>没有逐连接出站标签时，不根据当前出口推断节点。</li><li><strong>识别依据：</strong>接入核心路由日志并成功匹配后，才显示对应节点。</li><li><strong>隧道传输：</strong>可按已经识别出的节点筛选。</li></ul>
                 : "按已识别的节点或WireGuard接口筛选。"
             }
           >
@@ -361,7 +361,7 @@ export function ConnectionsPage({
         ),
         details: (
           <Panel className="connections-table-panel">
-            <PageHeader title="连接详情" icon={<List size={20} />} description={<ul><li><strong>排序筛选。</strong>通过列头按字段操作；字节、速率和时长按数值比较。</li><li><strong>数据范围。</strong>只筛选当前已加载的连接，不改变上方历史曲线。</li></ul>} />
+            <PageHeader title="连接详情" icon={<List size={20} />} description={<ul><li><strong>排序筛选：</strong>通过列头按字段操作；字节、速率和时长按数值比较。</li><li><strong>数据范围：</strong>只筛选当前已加载的连接，不改变上方历史曲线。</li></ul>} />
             <Table
               columnSizingKey={"connections-" + module}
               toolbar={detailsTable.toolbar}

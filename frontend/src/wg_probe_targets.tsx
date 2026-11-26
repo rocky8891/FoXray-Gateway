@@ -47,7 +47,7 @@ export function WireGuardProbeTargets({ items, policy, onChange, onRefresh }: {
     sortDirection:sort.key===value.key?(sort.direction===1?"ascending":"descending"):undefined,
     heading:<span className="table-heading-tools"><SortHeading label={value.label} direction={sort.key===value.key?sort.direction:undefined}
       onClick={()=>setSort({key:value.key,direction:sort.key===value.key?-sort.direction:1})}/>
-      <ListFilter label={value.label+"筛选"} column active={!!filters[value.key]}>{filterField(value.key)}<Button onClick={()=>setFilter(value.key,"")}>重置此列</Button></ListFilter></span>,
+      <ListFilter label={value.label+"筛选"} column active={!!filters[value.key]}>{filterField(value.key)}<Button onClick={()=>setFilter(value.key,"")}>重置</Button></ListFilter></span>,
   });
   const selection = useRowSelection(rows, row => row.name);
   function apply(changes: { name: string; auto: boolean; target?: string }[]) {
@@ -64,11 +64,11 @@ export function WireGuardProbeTargets({ items, policy, onChange, onRefresh }: {
   }
   return <section className="wg-probe-target-table">
     <div className="wg-probe-target-heading"><h3 className="settings-section-title">对端隧道 IP<SettingInfo label="对端隧道 IP" text={<ul>
-      <li><strong>自动识别。</strong>使用该接口首个候选主机地址；没有候选时，请手动填写。</li>
-      <li><strong>手动指定。</strong>填写对端隧道的单个 IPv4 或 IPv6 地址。清空地址会同时关闭自动识别。</li>
-      <li><strong>批量操作。</strong>只作用于已勾选的筛选结果；改为手动时保留每个接口各自的地址。</li>
-      <li><strong>保存生效。</strong>表格修改先进入待保存配置，点击本卡片「保存并应用」后生效；不会启停 VPN 接口。</li>
-    </ul>}/></h3><ListFilter label="探测目标筛选" active={Object.values(filters).some(Boolean)}>{fields.map(field=><div key={field.key}>{filterField(field.key)}</div>)}</ListFilter></div>
+      <li><strong>自动识别：</strong>使用该接口首个候选主机地址；没有候选时，请手动填写。</li>
+      <li><strong>手动指定：</strong>填写对端隧道的单个 IPv4 或 IPv6 地址。清空地址会同时关闭自动识别。</li>
+      <li><strong>批量操作：</strong>只作用于已勾选的筛选结果；改为手动时保留每个接口各自的地址。</li>
+      <li><strong>保存生效：</strong>表格修改先进入待保存配置，点击本卡片「保存并应用」后生效；不会启停 VPN 接口。</li>
+    </ul>}/></h3></div>
     <CompactFilters label="探测目标筛选"
       before={<><Button onClick={onRefresh}>刷新</Button>
         <ActionMenu label="探测目标批量操作" triggerLabel="批量操作" showLabel items={[

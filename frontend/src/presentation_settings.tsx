@@ -38,6 +38,7 @@ import {
   splitWireGuardCards,
   wireguardNameStyle,
   overviewPolicy,
+  overviewOrderPatch,
   defaultOverviewView,
   SERVICE_CARDS,
   EXIT_CARDS,
@@ -571,6 +572,7 @@ function OverviewLayoutSettings({
     services_host_order: ["cpu", "load", "memory", "root"],
     services_xray_order: SERVICE_METRICS,
     services_warp_order: SERVICE_METRICS,
+    services_wireguard_metric_orders: {},
     services_layout: "grid",
     overview_layout: "grid",
     nodes_layout: "grid",
@@ -815,6 +817,7 @@ function OverviewLayoutSettings({
                       "services_host_order",
                       "services_xray_order",
                       "services_warp_order",
+                      "services_wireguard_metric_orders",
                     ]
                   : []),
                 ...(view === "services"
@@ -933,7 +936,7 @@ function OverviewLayoutSettings({
                     <>
                       <Field
                         label="默认样式"
-                        info={<ul><li><strong>默认页面。</strong>可选择当前出口、服务总览或节点一览。</li><li><strong>生效时机。</strong>首次打开或重新进入一级主页时使用保存的默认项。</li><li><strong>临时切换。</strong>页面内切换视图不会覆盖已保存的默认项。</li></ul>}
+                        info={<ul><li><strong>默认页面：</strong>可选择当前出口、服务总览或节点一览。</li><li><strong>生效时机：</strong>首次打开或重新进入一级主页时使用保存的默认项。</li><li><strong>临时切换：</strong>页面内切换视图不会覆盖已保存的默认项。</li></ul>}
                       >
                         <select
                           aria-label="主页默认样式"
@@ -979,7 +982,7 @@ function OverviewLayoutSettings({
                   {view === "services" && (
                     <Field
                       label="主题"
-                      info={<ul><li><strong>预览与应用。</strong>选择后立即更新卡片排列、模块样式和预览。保存后应用。</li><li><strong>保留项目。</strong>已选卡片、自定义顺序、接口选择和外观配色。手动修改后自动识别为对应主题或自定义。</li><li><strong>随机主题。</strong>可抽取内置或自定义主题，也可混搭四张卡片的样式。</li></ul>}
+                      info={<ul><li><strong>预览与应用：</strong>选择后立即更新卡片排列、模块样式和预览。保存后应用。</li><li><strong>保留项目：</strong>已选卡片、自定义顺序、接口选择和外观配色。手动修改后自动识别为对应主题或自定义。</li><li><strong>随机主题：</strong>可抽取内置或自定义主题，也可混搭四张卡片的样式。</li></ul>}
                     >
                       <ServiceThemePicker
                         presentation={p}
@@ -994,7 +997,7 @@ function OverviewLayoutSettings({
                   {view === "services" && (
                     <Field
                       label="保存自定义主题"
-                      info={<ul><li><strong>保存内容。</strong>记录当前服务总览的布局、指标顺序、接口选择、字号和外观。</li><li><strong>保存方式。</strong>填写名称，再点击下方「保存并应用」。</li><li><strong>同名主题。</strong>使用相同名称时更新已有主题。</li></ul>}
+                      info={<ul><li><strong>保存内容：</strong>记录当前服务总览的布局、指标顺序、接口选择、字号和外观。</li><li><strong>保存方式：</strong>填写名称，再点击下方「保存并应用」。</li><li><strong>同名主题：</strong>使用相同名称时更新已有主题。</li></ul>}
                     >
                       <div className="custom-theme-save">
                         <input
@@ -1201,13 +1204,14 @@ function OverviewLayoutSettings({
           {view === "services" && (
             <OverviewSettingsCard
               title="WireGuard 卡片"
-              info={<ul><li><strong>自动选择。</strong>未指定接口时，按列表顺序显示所选数量的接口。</li><li><strong>指定接口。</strong>指定后使用已保存的名称和顺序；只影响主页展示，不启停接口。</li><li><strong>恢复自动。</strong>在「显示接口 1」选择「自动选择所选数量的接口」。</li></ul>}
+              info={<ul><li><strong>自动选择：</strong>未指定接口时，按列表顺序显示所选数量的接口。</li><li><strong>指定接口：</strong>指定后使用已保存的名称和顺序；只影响主页展示，不启停接口。</li><li><strong>恢复自动：</strong>在「显示接口 1」选择「自动选择所选数量的接口」。</li></ul>}
               actions={actions(
                 [
                   "services_wireguard_axis",
                   "services_wireguard_diameter",
                   "services_wireguard_count",
                   "services_wireguard_interfaces",
+                  "services_wireguard_metric_orders",
                   "services_wireguard_ring_color",
                   "services_wireguard_ring_opacity",
                   "services_wireguard_ring_shadow",
@@ -1218,7 +1222,7 @@ function OverviewLayoutSettings({
               )}
             >
               <div className="form-grid">
-                <Field label="显示接口数量" info={<ul><li><strong>显示数量。</strong>默认 2 个接口，可选择 1～4 个并指定名称。</li><li><strong>状态含义。</strong>主页已连接按本地接口运行状态判断，不等于每个 Peer 都可达。</li><li><strong>暂停监控。</strong>关闭模块监控后数值暂停，接口状态仍单独展示。</li></ul>}>
+                <Field label="显示接口数量" info={<ul><li><strong>显示数量：</strong>默认 2 个接口，可选择 1～4 个并指定名称。</li><li><strong>状态含义：</strong>主页已连接按本地接口运行状态判断，不等于每个 Peer 都可达。</li><li><strong>暂停监控：</strong>关闭模块监控后数值暂停，接口状态仍单独展示。</li></ul>}>
                   <select
                     aria-label="WireGuard显示接口数量"
                     value={Number(p.services_wireguard_count || 2)}
@@ -1260,7 +1264,7 @@ function OverviewLayoutSettings({
                     <Field
                       key={index}
                       label={`显示接口 ${index + 1}`}
-                      info={<ul><li><strong>接口列表。</strong>提供全部接口供选择。选择已分配的接口时，交换两个位置。</li><li><strong>排列顺序。</strong>接口 1～4 对应指标卡片从前到后的顺序。</li><li><strong>影响范围。</strong>只调整主页内容，不启停接口。</li></ul>}
+                      info={<ul><li><strong>接口列表：</strong>提供全部接口供选择。选择已分配的接口时，交换两个位置。</li><li><strong>排列顺序：</strong>接口 1～4 对应指标卡片从前到后的顺序。</li><li><strong>影响范围：</strong>只调整主页内容，不启停接口。</li></ul>}
                     >
                       <select
                         aria-label={`WireGuard主页接口${index + 1}`}
@@ -1321,7 +1325,7 @@ function OverviewLayoutSettings({
                       ? "须为0或40～1200的整数"
                       : ""
                   }
-                  info={<ul><li><strong>自动适配。</strong>填写 0 时按可用空间计算，左侧大卡片默认圆径不超过 280px。</li><li><strong>指定尺寸。</strong>支持 40～1200px；空间不足时自动缩小。</li><li><strong>尺寸含义。</strong>圆径只计算圆形本身，不包含名称。</li></ul>}
+                  info={<ul><li><strong>自动适配：</strong>填写 0 时按可用空间计算，左侧大卡片默认圆径不超过 280px。</li><li><strong>指定尺寸：</strong>支持 40～1200px；空间不足时自动缩小。</li><li><strong>尺寸含义：</strong>圆径只计算圆形本身，不包含名称。</li></ul>}
                 >
                   <CircleDiameterInput
                     value={Number(p.services_wireguard_diameter || 0)}
@@ -1515,6 +1519,7 @@ function OverviewLayoutSettings({
                     ...DEFAULT_SERVICE_THEME,
                     services_xray_order: SERVICE_METRICS,
                     services_warp_order: SERVICE_METRICS,
+                    services_wireguard_metric_orders: {},
                   }
                 : {}),
               [prefix + "layout"]:
@@ -1578,7 +1583,7 @@ function OverviewPreview({
   state: State;
   presentation: Dict;
   view: OverviewView;
-  onChange: (key: string, value: string[]) => void;
+  onChange: (key: string, value: unknown) => void;
 }) {
   const frame = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 1200, height: 680, scale: 0.6 });
@@ -1587,20 +1592,7 @@ function OverviewPreview({
     !readonly && view !== "nodes",
     policy.layout,
     (scope, from, to, ids) => {
-      const key = ["host", "xray", "warp"].includes(scope)
-        ? "services_" + scope + "_order"
-        : scope === "wireguard"
-          ? "services_wireguard_interfaces"
-          : scope === "nodes"
-            ? "nodes_order"
-            : (view === "services" ? "services_" : "overview_") + "cards";
-      const base = presentation[key] as string[] | undefined;
-      const order = [...new Set([...(base || []), ...ids])],
-        a = order.indexOf(from),
-        b = order.indexOf(to);
-      if (a < 0 || b < 0) return;
-      [order[a], order[b]] = [order[b], order[a]];
-      onChange(key, order);
+      for(const [key,value] of Object.entries(overviewOrderPatch(presentation,view,scope,from,to,ids)))onChange(key,value);
     },
   );
   useLayoutEffect(() => {

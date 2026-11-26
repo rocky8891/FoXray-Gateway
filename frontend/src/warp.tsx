@@ -318,7 +318,7 @@ export function WarpPage({ act }: { act: Act }) {
         <Panel className="warp-tunnel-panel">
           <PageHeader
             title="WARP 隧道管理"
-            description={<ul><li><strong>连接管理。</strong>连接或断开当前官方 WARP 隧道。</li><li><strong>检测项目。</strong>RTT 和丢包经隧道探测 1.1.1.1。真延迟使用设置中的 HTTP(S) 目标，速度使用下载地址。</li><li><strong>操作方式。</strong>左侧按钮执行检测，右侧调整项目。首次全选，之后记住上次选择，运行时可取消。</li></ul>}
+            description={<ul><li><strong>连接管理：</strong>连接或断开当前官方 WARP 隧道。</li><li><strong>检测项目：</strong>RTT 和丢包经隧道探测 1.1.1.1。真延迟使用设置中的 HTTP(S) 目标，速度使用下载地址。</li><li><strong>操作方式：</strong>左侧按钮执行检测，右侧调整项目。首次全选，之后记住上次选择，运行时可取消。</li></ul>}
           />
           <div className="service-control-frame">
             <div className="warp-status tunnel-state-tiles">

@@ -186,7 +186,7 @@ export function OverviewSurfaceSettings({
     <OverviewSettingsCard
       title="卡片外观"
       actions={actions}
-      info={<ul><li><strong>布局层。</strong>三种主页共用分层外观，每层可单独设置。</li><li><strong>边框。</strong>可独立关闭。背景、布局与服务器圆环进度继续显示。</li><li><strong>自定义配色。</strong>开启后生效。透明度只作用于背景，毛玻璃模糊背后的内容。</li></ul>}
+      info={<ul><li><strong>布局层：</strong>三种主页共用分层外观，每层可单独设置。</li><li><strong>边框：</strong>可独立关闭。背景、布局与服务器圆环进度继续显示。</li><li><strong>自定义配色：</strong>开启后生效。透明度只作用于背景，毛玻璃模糊背后的内容。</li></ul>}
     >
       <OverviewTextFields presentation={presentation} onChange={onTextChange} />
       {layers.map(([id, title]) => {
@@ -261,7 +261,7 @@ export function OverviewSurfaceSettings({
               <Field
                 label="透明度（%）"
                 validateNumber
-                info={<ul><li><strong>透明度。</strong>0% 为完全不透明，100% 为完全透明。</li><li><strong>影响范围。</strong>只改变背景，文字保持原有透明度。</li></ul>}
+                info={<ul><li><strong>透明度：</strong>0% 为完全不透明，100% 为完全透明。</li><li><strong>影响范围：</strong>只改变背景，文字保持原有透明度。</li></ul>}
               >
                 <NumberInput
                   aria-label={`${title}不透明度`}
@@ -350,7 +350,7 @@ function OverviewTextFields({
     <SettingsSection
       className="overview-text-card"
       title="指标文字"
-      info={<ul><li><strong>适用范围。</strong>三种主页共用字号设置，名称与数值分别配置。</li><li><strong>自适应。</strong>同一卡片使用一致字号；空间不足时统一缩小，尽量保持单行完整。</li></ul>}
+      info={<ul><li><strong>适用范围：</strong>三种主页共用字号设置，名称与数值分别配置。</li><li><strong>自适应：</strong>同一卡片使用一致字号；空间不足时统一缩小，尽量保持单行完整。</li></ul>}
     >
       <div className="form-grid">
         <Field label="指标名称字号（px）" validateNumber>

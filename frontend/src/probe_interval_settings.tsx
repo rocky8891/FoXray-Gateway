@@ -68,8 +68,8 @@ export function ProbeIntervalField({
               label={xray ? "真连接检测间隔（秒）" : "检测间隔（秒）"}
               info={
                 xray
-                  ? <ul><li><strong>取值范围。</strong>0～3600 秒。</li><li><strong>填写 0。</strong>暂停周期检测，以及依赖周期检测的自动选优。</li><li><strong>独立设置。</strong>不改变监控采集间隔。</li></ul>
-                  : <ul><li><strong>取值范围。</strong>10～3600 秒，沿用本服务的检测策略。</li><li><strong>检测开关。</strong>关闭检测时，修改间隔不会自动开启检测。</li></ul>
+                  ? <ul><li><strong>取值范围：</strong>0～3600 秒。</li><li><strong>填写 0：</strong>暂停周期检测，以及依赖周期检测的自动选优。</li><li><strong>独立设置：</strong>不改变监控采集间隔。</li></ul>
+                  : <ul><li><strong>取值范围：</strong>10～3600 秒，沿用本服务的检测策略。</li><li><strong>检测开关：</strong>关闭检测时，修改间隔不会自动开启检测。</li></ul>
               }
             >
               <NumberInput
