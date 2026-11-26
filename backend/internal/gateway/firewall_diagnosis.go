@@ -225,7 +225,7 @@ func (n *Network) FirewallDiagnosis(ctx context.Context, q url.Values) (M, error
 		if len(ips) == 0 {
 			return nil, errors.New("目标域名没有与源 IP 同地址族的记录")
 		}
-		resolved = ips[0].String()
+		resolved = ips[0].Unmap().String()
 	}
 	flowQuery := url.Values{}
 	for _, key := range []string{"source", "ingress", "protocol", "port"} {
