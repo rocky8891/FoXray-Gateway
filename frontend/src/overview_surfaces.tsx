@@ -186,7 +186,7 @@ export function OverviewSurfaceSettings({
     <OverviewSettingsCard
       title="卡片外观"
       actions={actions}
-      info="三种主页共用分层外观，每层独立设置。“显示边框”可独立关闭，不必开启自定义外观；关闭后保留背景、布局和服务器圆环的数值进度。其余配色在开启自定义后生效；透明度只作用于背景，毛玻璃模糊背后的内容。"
+      info={<ul><li><strong>布局层。</strong>三种主页共用分层外观，每层可单独设置。</li><li><strong>边框。</strong>可独立关闭。背景、布局与服务器圆环进度继续显示。</li><li><strong>自定义配色。</strong>开启后生效。透明度只作用于背景，毛玻璃模糊背后的内容。</li></ul>}
     >
       <OverviewTextFields presentation={presentation} onChange={onTextChange} />
       {layers.map(([id, title]) => {

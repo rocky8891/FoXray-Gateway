@@ -1856,3 +1856,34 @@ table :is(th, td):is([data-column="selected"], [data-column="select"], :has(> in
   max-width: 100%;
 }
 .modal .rules-table-editor .rule-target-link > svg { margin-top: 2px; }
+
+.setting-tooltip:has(ul, ol) {
+  width: min(410px, calc(100vw - 24px));
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+}
+.setting-tooltip :is(ul, ol) { margin: 0.5em 0; padding-inline-start: 1.55em; }
+.setting-tooltip li + li { margin-block-start: 0.3em; }
+.setting-tooltip li > :is(ul, ol) { margin-block: 0.3em 0; }
+.setting-tooltip > :first-child { margin-block-start: 0; }
+.setting-tooltip > :last-child { margin-block-end: 0; }
+.builtin-rules-results > .table-wrap > table.content-width-table {
+  width: 100% !important;
+  min-width: 19rem !important;
+  max-width: none;
+  table-layout: fixed !important;
+}
+.builtin-rules-results col[data-column="type"] { width: clamp(7rem, 16vw, 10rem); }
+.builtin-rules-results col[data-column="action"] { width: 4.5rem; }
+.builtin-rules-results :is(th, td)[data-column="action"] { text-align: right; }
+.builtin-rules-results[data-multipage] > .table-wrap {
+  height: min(22rem, 45dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.builtin-rules-results[data-multipage] thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.builtin-rules-results + .resource-pagination { margin-top: 8px; }

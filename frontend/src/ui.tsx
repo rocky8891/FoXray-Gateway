@@ -130,7 +130,7 @@ function liveSnapshot<T>(path: string): Promise<T> {
   liveSnapshots.set(path, entry);
   return entry.promise as Promise<T>;
 }
-export function useResource<T>(path: string, interval = 10000, enabled = true) {
+export function useResource<T>(path: string, interval = 10000, enabled = true, keepPreviousData = false) {
   const chartRefresh = useChartRefresh();
   const liveRefresh = useContext(LiveRefreshContext);
   if (
@@ -204,7 +204,7 @@ export function useResource<T>(path: string, interval = 10000, enabled = true) {
     if (!enabled) { setLoading(false); return; }
     const scope = path.replace(/([?&])(start|end)=[^&]*/g, "");
     if (previousScope.current !== scope) {
-      setData(null);
+      if (!keepPreviousData) setData(null);
       health.set(path, { at: 0, error: "", interval, paused: false });
     }
     previousScope.current = scope;
@@ -220,7 +220,7 @@ export function useResource<T>(path: string, interval = 10000, enabled = true) {
       pending.current?.abort();
       pending.current = null;
     };
-  }, [refresh, interval, enabled]);
+  }, [refresh, interval, enabled, keepPreviousData]);
   return {
     data,
     error,
@@ -596,10 +596,13 @@ export function SettingInfo({
         setOpen(false);
     };
     align();
+    const observer = new ResizeObserver(align);
+    if (tooltip.current) observer.observe(tooltip.current);
     addEventListener("resize", align);
     addEventListener("scroll", align, true);
     document.addEventListener("pointerdown", outside);
     return () => {
+      observer.disconnect();
       removeEventListener("resize", align);
       removeEventListener("scroll", align, true);
       document.removeEventListener("pointerdown", outside);
@@ -952,10 +955,30 @@ export function Table<T>({
     (sum, c) => sum + (edgeWidth(c) || (c.width && /^\d+px$/.test(c.width) ? Number.parseFloat(c.width) : 140)),
     0,
   );
-  const pagination = usePagination(rows, paginationResetKey ?? rows.map(rowKey).join("\u001f"), pageSizeLimit, autoPageSize);
+  const pageScope = paginationResetKey ?? rows.map(rowKey).join("\u001f");
+  const pagination = usePagination(rows, pageScope, pageSizeLimit, autoPageSize);
   const shown = paginate ? pagination.items : rows;
   const offset = paginate ? pagination.start : 0;
   const tableRef = useRef<HTMLTableElement>(null);
+  const [fullPage, setFullPage] = useState<{ scope: string; size: number; height: number }>();
+  useLayoutEffect(() => {
+    const table = tableRef.current;
+    const wrap = table?.parentElement;
+    if (!paginate || pagination.pageCount < 2 || shown.length !== pagination.pageSize || !table || !wrap) return;
+    const measure = () => {
+      const border = wrap.offsetHeight - wrap.clientHeight;
+      const height = table.offsetHeight + Math.max(0, border);
+      if (height > 0) setFullPage(previous =>
+        previous?.scope === pageScope && previous.size === pagination.pageSize && previous.height === height
+          ? previous : { scope: pageScope, size: pagination.pageSize, height });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(table);
+    return () => observer.disconnect();
+  }, [paginate, pageScope, pagination.page, pagination.pageCount, pagination.pageSize, shown.length]);
+  const reservedPageHeight = paginate && pagination.pageCount > 1 && shown.length < pagination.pageSize &&
+    fullPage?.scope === pageScope && fullPage.size === pagination.pageSize ? fullPage.height : undefined;
   const widthKey = columnSizingKey ?? columns.map(column => column.key + "=" + column.label).join("|");
   const modalTable = useContext(ModalTableContext);
   const sizing = useTableColumnSizing(tableRef, columns, widthKey, !modalTable);
@@ -990,14 +1013,18 @@ export function Table<T>({
   const widthControl = (
     <div className="adaptive-table-width-control">
           <Button onClick={sizing.reset}><svg viewBox="0 0 1024 1024" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M422.4 486.4H288l57.6-57.6c12.8-12.8 12.8-25.6 0-38.4-12.8-6.4-25.6-6.4-38.4 0L224 480V128h-64v768h64V544l83.2 89.6c12.8 6.4 25.6 6.4 38.4 0 12.8-12.8 12.8-25.6 0-38.4l-57.6-57.6h134.4c12.8 0 25.6-12.8 25.6-25.6s-12.8-25.6-25.6-25.6zM480 192h64v640h-64zM800 128v352l-83.2-89.6c-12.8-6.4-25.6-6.4-38.4 0-12.8 12.8-12.8 25.6 0 38.4l57.6 57.6H601.6c-12.8 0-25.6 12.8-25.6 25.6s12.8 25.6 25.6 25.6h134.4l-57.6 57.6c-12.8 12.8-12.8 25.6 0 38.4 6.4 12.8 25.6 12.8 32 0l83.2-89.6V896h64V128h-57.6z" /></svg>自动列宽</Button>
-          <SettingInfo label="自动列宽" text="默认按当前页内容自动计算列宽，空间不足时横向滚动，空间有余时按比例扩大自动列并补满区域（不超过最大列宽）。拖动表头分隔线可手动调整，双击恢复该列自动宽度；点击自动列宽恢复整表。最小宽度容纳完整表头，默认最大480px，手动宽度在当前浏览器中保存。" />
+          <SettingInfo label="自动列宽" text={<ul>
+            <li><strong>自动列宽。</strong>按当前页内容计算，空间不足时可横向滚动。默认最大 480 px。</li>
+            <li><strong>手动调整。</strong>拖动表头分隔线，宽度会保存在当前浏览器。</li>
+            <li><strong>恢复默认。</strong>双击分隔线恢复单列，点击「自动列宽」恢复整表。</li>
+          </ul>} />
         </div>
   );
   return rows.length || keepHeaders || sizing.enabled ? (
     <>
       {!modalTable && (widthSlot ? createPortal(widthControl, widthSlot) : !toolbar && <div className="adaptive-table-tools">{widthControl}</div>)}
       {!modalTable && toolbar && <div className="adaptive-table-tools"><div className="adaptive-table-actions">{toolbar}</div></div>}
-      <div className="table-wrap">
+      <div className="table-wrap" style={{ minHeight: reservedPageHeight }}>
         <table
           className={
             columns.some((c) => c.label === "节点" || c.label === "节点 / 订阅")

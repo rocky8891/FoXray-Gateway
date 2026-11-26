@@ -155,7 +155,7 @@ export function DisplaySettings({ act }: { act: Act }) {
         </Field>
         <Field
           label="流量曲线汇总间隔（秒）"
-          info="1～3600秒，默认30秒。按真实字节与采样时长计算区间均速，只改变Xray、WARP和WireGuard流量曲线；不改实时速率、采集频率、历史写入或累计流量。长时间范围可能进一步合并；流量监控可临时选择精细或自定义窗口。"
+          info={<ul><li><strong>取值范围。</strong>1～3600 秒，默认 30 秒。按真实字节量与采样时长计算区间均速。</li><li><strong>影响范围。</strong>用于 Xray、WARP 和 WireGuard 流量曲线。实时速率、采集、历史写入和累计流量保持各自设置。</li><li><strong>长时间范围。</strong>图表可能继续合并数据。可在流量监控中临时选择精细或自定义窗口。</li></ul>}
         >
           <NumberInput
             aria-label="流量曲线汇总间隔（秒）"

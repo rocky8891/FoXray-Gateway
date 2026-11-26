@@ -967,7 +967,7 @@ function OverviewLayoutSettings({
                   {view === "services" && (
                     <Field
                       label="主题"
-                      info="选择后立即更新卡片排列、各模块样式与总体预览，保存后应用。保留已选卡片、自定义顺序、接口选择及外观配色。手动修改后自动识别为对应主题或自定义。“随机”可选择内置或自定义主题，也可独立混搭四张卡片样式。"
+                      info={<ul><li><strong>预览与应用。</strong>选择后立即更新卡片排列、模块样式和预览。保存后应用。</li><li><strong>保留项目。</strong>已选卡片、自定义顺序、接口选择和外观配色。手动修改后自动识别为对应主题或自定义。</li><li><strong>随机主题。</strong>可抽取内置或自定义主题，也可混搭四张卡片的样式。</li></ul>}
                     >
                       <ServiceThemePicker
                         presentation={p}

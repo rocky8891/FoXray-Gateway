@@ -272,7 +272,7 @@ export function NetworkPage({
               {text(r.name)}
             </button>
             {!!r.remark && <small className="wg-interface-remark" title={String(r.remark)}>{String(r.remark)}</small>}
-            {r.protected && <small className="accent wg-protection-label">受保护<SettingInfo label="接口保护" text="保护来源：当前版本内置对 wg-home 接口的保护，修改或启停需要额外确认。这是保护状态，与用途备注分开；备注可在操作 → 编辑中修改。实际接口角色可在接口管理的操作 → 编辑 → 角色、路由与 LAN 转发中配置；改变角色不会取消接口保护。" /></small>}
+            {r.protected && <small className="accent wg-protection-label">受保护<SettingInfo label="接口保护" text={<ul><li><strong>保护状态。</strong>系统保护 wg-home 接口。修改或启停需要额外确认。</li><li><strong>用途备注。</strong>在「操作 → 编辑」修改。</li><li><strong>接口角色。</strong>在「操作 → 编辑 → 角色、路由与 LAN 转发」设置。修改角色不会取消接口保护。</li></ul>} /></small>}
           </>
         ),
       },

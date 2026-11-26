@@ -972,11 +972,13 @@ function BuiltinRuleRows({
   const offset = (page - 1) * pageSize;
   const r = useResource<Dict>(
     `/api/rulesets/builtin?profile=${encodeURIComponent(profile)}&query=${encodeURIComponent(query)}&offset=${offset}&limit=${pageSize}`,
-    60000,
+    60000, true, true,
   );
   const total = Number(r.data?.total || 0);
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const current = Math.min(page, pageCount);
+  const displayedSize = Number(r.data?.limit || pageSize);
+  const displayedOffset = Number(r.data?.offset || 0);
+  const pageCount = Math.max(1, Math.ceil(total / displayedSize));
+  const current = Math.min(Math.floor(displayedOffset / displayedSize) + 1, pageCount);
   return (
     <>
       <div className="toolbar rules-search-toolbar">
@@ -985,6 +987,7 @@ function BuiltinRuleRows({
           value={query} onChange={event => setQuery(event.target.value)} />
       </div>
       <ErrorLine error={r.error || String(r.data?.error || "")} />
+      <div className="builtin-rules-results" data-multipage={pageCount > 1 || undefined} aria-busy={r.loading}>
       <Table columnSizingKey="builtin-rules" paginate={false} keepHeaders
         rows={list(r.data?.items)} rowKey={row => String(row.type) + row.target}
         columns={[
@@ -993,8 +996,9 @@ function BuiltinRuleRows({
           { key: "action", label: "动作", render: row => row.action === "direct" ? "直连" : "代理" },
         ]}
       />
-      <Pagination value={{ automatic: false, autoPageSize: undefined, items: [], page: current, pageSize,
-        pageCount, start: (current - 1) * pageSize, end: Math.min(total, current * pageSize), count: total,
+      </div>
+      <Pagination value={{ automatic: false, autoPageSize: undefined, items: [], page: current, pageSize: displayedSize,
+        pageCount, start: displayedOffset, end: Math.min(total, displayedOffset + displayedSize), count: total,
         setPage, setPageSize }} />
     </>
   );
