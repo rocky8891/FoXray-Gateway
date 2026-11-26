@@ -242,7 +242,7 @@ const definitions: [RegExp, LucideIcon][] = [
   [/版本/, Info],
 ];
 export function labelIcon(label: string, size = 16) {
-  if (label === "帮助中心") return <HelpCenterIcon size={size}/>;
+  if (label === "帮助中心") return <HelpCenterIcon size={Math.max(size,18)}/>;
   if (label === "接口保护") return <InterfaceProtectionIcon size={size}/>;
   if (label === "域内规则") return <ZonePolicyIcon size={size}/>;
   if (/^(防火墙)?规则诊断$/.test(label)) return <FirewallDiagnosisIcon size={size}/>;

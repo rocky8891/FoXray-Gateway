@@ -4,9 +4,9 @@
 
 FoXray 将 Xray-core、Cloudflare WARP、WireGuard、服务器监控和 Linux 网络管理放在同一套 Go + React 控制台中。查看真实运行状态、管理节点与订阅、检测出口质量，并通过计划与确认流程执行网络变更。
 
-**当前发行版：v0.9.65** · Linux amd64 · GPL-3.0-only
+**当前发行版：v0.9.68** · Linux amd64 · GPL-3.0-only
 
-[下载](https://github.com/rocky8891/FoXray-Gateway/releases/tag/v0.9.65) · [部署](install_v0.9.65_README.md) · [使用](foxray_v0.9.65_README.md) · [发行说明](release-notes/v0.9.65.md) · [运维](docs/OPERATIONS_v0.9.65.md)
+[下载](https://github.com/rocky8891/FoXray-Gateway/releases/tag/v0.9.68) · [部署](install_v0.9.68_README.md) · [使用](foxray_v0.9.68_README.md) · [发行说明](release-notes/v0.9.68.md) · [运维](docs/OPERATIONS_v0.9.68.md)
 
 ## 产品定位
 
@@ -44,15 +44,15 @@ FoXray 将 Xray-core、Cloudflare WARP、WireGuard、服务器监控和 Linux �
 
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS.txt
-unzip FoXray-Gateway-v0.9.65-linux-amd64.zip -d foxray-0.9.65
-cd foxray-0.9.65
-chmod u+x foxray_v0.9.65
-./foxray_v0.9.65 --check-topology
-bash install_v0.9.65.sh --plan \
+unzip FoXray-Gateway-v0.9.68-linux-amd64.zip -d foxray-0.9.68
+cd foxray-0.9.68
+chmod u+x foxray_v0.9.68
+./foxray_v0.9.68 --check-topology
+bash install_v0.9.68.sh --plan \
   --with-xray --with-wireguard --without-warp --without-komari \
   --listen 0.0.0.0:18880
 # 核对系统与网络拓扑后开始安装。
-sudo bash install_v0.9.65.sh --non-interactive \
+sudo bash install_v0.9.68.sh --non-interactive \
   --with-xray --with-wireguard --without-warp --without-komari \
   --listen 0.0.0.0:18880
 ```
@@ -63,7 +63,7 @@ sudo bash install_v0.9.65.sh --non-interactive \
 ssh -N -L 18880:127.0.0.1:18880 admin@gateway.example
 ```
 
-通过 SSH 隧道时访问 `http://127.0.0.1:18880`。进入控制台后核对组件状态，导入节点，手动检测并确认出口。已有安装使用[管理程序更新工具](upgrade_v0.9.65_README.md)。
+通过 SSH 隧道时访问 `http://127.0.0.1:18880`。进入控制台后核对组件状态，导入节点，手动检测并确认出口。已有安装使用[管理程序更新工具](upgrade_v0.9.68_README.md)。
 
 ### 离线安装
 
@@ -79,25 +79,25 @@ sudo bash "foxray-${version}/install_v${version}.sh" --offline-dir "$PWD" \
   --non-interactive --with-xray --with-wireguard --without-warp --without-komari
 ```
 
-具备联网准备机时，可按[离线安装手册](prepare_offline_v0.9.65_README.md)生成与目标主机主版本一致的离线目录。
+具备联网准备机时，可按[离线安装手册](prepare_offline_v0.9.68_README.md)生成与目标主机主版本一致的离线目录。
 
 ## 文档
 
 | 文档 | 内容 |
 | --- | --- |
-| [产品说明](docs/PRODUCT_v0.9.65.md) | 场景、架构、组件关系与功能边界 |
-| [离线安装手册](prepare_offline_v0.9.65_README.md) | Rocky Linux 9 或 10 x86_64 依赖下载与一键安装 |
-| [在线安装与部署手册](install_v0.9.65_README.md) | 系统要求、安装参数、首次访问与卸载 |
-| [使用手册](foxray_v0.9.65_README.md) | 节点、订阅、检测、监控与网络操作 |
-| [配置参考](docs/CONFIGURATION_v0.9.65.md) | 程序参数、文件与设置范围 |
-| [控件规范](docs/UI_v0.9.65.md) | 按钮尺寸、字体、状态及跨页面使用规则 |
-| [更新与回退](upgrade_v0.9.65_README.md) | 校验、独立管理程序更新和回退 |
-| [管理登录与 HTTPS](docs/MANAGEMENT_ACCESS_v0.9.65.md) | 用户登录、证书配置和 Cloudflare DNS 续期 |
-| [配置备份与恢复](docs/CONFIG_BACKUP_v0.9.65.md) | 加密导出、重装和配置恢复 |
-| [运维与排障](docs/OPERATIONS_v0.9.65.md) | 健康检查、备份与问题定位 |
-| [构建与打包](build_release_v0.9.65_README.md) | 源码、构建、许可证清单与发行校验 |
+| [产品说明](docs/PRODUCT_v0.9.68.md) | 场景、架构、组件关系与功能边界 |
+| [离线安装手册](prepare_offline_v0.9.68_README.md) | Rocky Linux 9 或 10 x86_64 依赖下载与一键安装 |
+| [在线安装与部署手册](install_v0.9.68_README.md) | 系统要求、安装参数、首次访问与卸载 |
+| [使用手册](foxray_v0.9.68_README.md) | 节点、订阅、检测、监控与网络操作 |
+| [配置参考](docs/CONFIGURATION_v0.9.68.md) | 程序参数、文件与设置范围 |
+| [控件规范](docs/UI_v0.9.68.md) | 按钮尺寸、字体、状态及跨页面使用规则 |
+| [更新与回退](upgrade_v0.9.68_README.md) | 校验、独立管理程序更新和回退 |
+| [管理登录与 HTTPS](docs/MANAGEMENT_ACCESS_v0.9.68.md) | 用户登录、证书配置和 Cloudflare DNS 续期 |
+| [配置备份与恢复](docs/CONFIG_BACKUP_v0.9.68.md) | 加密导出、重装和配置恢复 |
+| [运维与排障](docs/OPERATIONS_v0.9.68.md) | 健康检查、备份与问题定位 |
+| [构建与打包](build_release_v0.9.68_README.md) | 源码、构建、许可证清单与发行校验 |
 | [安全](SECURITY.md) / [贡献](CONTRIBUTING.md) | 管理边界、问题报告和开发验证 |
-| [许可](docs/LICENSING_v0.9.65.md) / [致谢](ACKNOWLEDGEMENTS.md) | GPL 与第三方资源来源 |
+| [许可](docs/LICENSING_v0.9.68.md) / [致谢](ACKNOWLEDGEMENTS.md) | GPL 与第三方资源来源 |
 
 ## 源码构建
 
@@ -106,10 +106,10 @@ sudo bash "foxray-${version}/install_v${version}.sh" --offline-dir "$PWD" \
 ```sh
 go -C backend test ./...
 mkdir -p output
-CGO_ENABLED=0 go -C backend build -buildvcs=false -trimpath -ldflags='-s -w' -o ../output/foxray_v0.9.65 ./cmd/foxray
+CGO_ENABLED=0 go -C backend build -buildvcs=false -trimpath -ldflags='-s -w' -o ../output/foxray_v0.9.68 ./cmd/foxray
 npm --prefix frontend ci
 npm --prefix frontend run build
-python3 build_release_v0.9.65.py
+python3 build_release_v0.9.68.py
 ```
 
 Linux 内核集成验证在隔离命名空间执行，见 CI 配置。普通用户或 Windows 下被跳过的内核测试不代表已经验证相应网络能力。
