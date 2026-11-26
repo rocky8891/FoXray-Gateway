@@ -13,11 +13,44 @@ export function HomeTools({
 }) {
   const header = useContext(HomeHeaderContext);
   const edge = useRef<HTMLDivElement>(null);
+  const showHeaderButton = header.hidden && !header.collapseInNav;
+  const hadHeaderButton = useRef(false);
+  const [handoff, setHandoff] = useState(false);
   const [autoHide, setAutoHide] = useState(true);
   const [pointerOpen, setPointerOpen] = useState(false);
   const hideTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => () => window.clearTimeout(hideTimer.current), []);
+
+  useEffect(() => {
+    if (!dock || !header.closing || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    setHandoff(true);
+  }, [dock, header.closing]);
+
+  useEffect(() => {
+    if (!handoff || header.closing) return;
+    const timer = window.setTimeout(() => setHandoff(false), 1000);
+    return () => window.clearTimeout(timer);
+  }, [handoff, header.closing]);
+
+  useLayoutEffect(() => {
+    const opening = hadHeaderButton.current && !showHeaderButton && header.expanded;
+    hadHeaderButton.current = showHeaderButton;
+    const tools = edge.current?.querySelector(".overview-side-tools");
+    if (!dock || !opening || !tools || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const distance = Number.parseFloat(getComputedStyle(tools).getPropertyValue("--button-height-regular")) + 6;
+    if (!Number.isFinite(distance)) return;
+    const animations = Array.from(tools.children, (child, index) => {
+      const delay = Math.min(index, 3) * 55;
+      return child.animate([{ translate: `0 ${distance}px` }, { translate: "0 0" }], {
+        duration: 530 - delay,
+        delay,
+        easing: "cubic-bezier(.22,.8,.24,1)",
+        fill: "backwards",
+      });
+    });
+    return () => animations.forEach(animation => animation.cancel());
+  }, [dock, header.expanded, showHeaderButton]);
 
   useLayoutEffect(() => {
     const rail = edge.current;
@@ -46,7 +79,7 @@ export function HomeTools({
 
   const tools = (
     <aside className="overview-side-tools" data-overview-view={view} aria-label="主页快捷工具">
-      {header.hidden && !header.collapseInNav && (
+      {showHeaderButton && (
         <button
           type="button"
           className="button home-header-toggle"
@@ -69,6 +102,7 @@ export function HomeTools({
       className="home-tools-dock"
       data-auto-hide={autoHide || undefined}
       data-pointer-open={pointerOpen || undefined}
+      data-header-handoff={handoff || undefined}
       onPointerEnter={(event) => {
         if (event.pointerType === "touch") return;
         window.clearTimeout(hideTimer.current);

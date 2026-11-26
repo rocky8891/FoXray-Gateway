@@ -947,25 +947,33 @@ header .brand .brand-logo, header nav .nav-home-fox-icon {
 .overview-side-tools .home-header-toggle svg, header .brand .brand-logo { overflow: visible; }
 .overview-side-tools button.home-header-toggle svg { width: 27px !important; height: 29px !important; flex: none; }
 @media (prefers-reduced-motion: no-preference) {
-  .home-tools-dock .home-header-toggle > svg {
-    animation: home-sidebar-logo-arrive 590ms both;
-  }
-  .home-tools-dock .overview-side-tools > .home-header-toggle ~ :where(:not(.overview-edit-controls)),
-  .home-tools-dock .overview-side-tools > .home-header-toggle ~ .overview-edit-controls > .button {
-    animation: home-sidebar-tools-shift 530ms cubic-bezier(.48,0,.82,.52) both;
-  }
-  .home-tools-dock .overview-side-tools > .home-header-toggle + * + * {
-    animation-duration: 495ms;
-    animation-delay: 55ms;
-  }
-  .home-tools-dock .overview-side-tools > .home-header-toggle + * + * + * {
-    animation-duration: 460ms;
-    animation-delay: 110ms;
-  }
-  .home-tools-dock .overview-side-tools > .home-header-toggle + * + * + * + :not(.overview-edit-controls),
-  .home-tools-dock .overview-side-tools > .home-header-toggle ~ .overview-edit-controls > .button {
-    animation-duration: 425ms;
-    animation-delay: 165ms;
+  .home-tools-dock:where(
+    :not([data-auto-hide="true"]),
+    [data-header-handoff="true"],
+    [data-pointer-open="true"],
+    :hover,
+    :has(.home-tools-handle:focus),
+    :has(.overview-side-tools :focus-visible),
+    :has(.overview-side-tools [aria-expanded="true"]:not(.home-header-toggle))
+  ) {
+    & .home-header-toggle > svg { animation: home-sidebar-logo-arrive 590ms both; }
+    & .overview-side-tools > .home-header-toggle ~ :where(:not(.overview-edit-controls)),
+    & .overview-side-tools > .home-header-toggle ~ .overview-edit-controls > .button {
+      animation: home-sidebar-tools-shift 530ms cubic-bezier(.48,0,.82,.52) both;
+    }
+    & .overview-side-tools > .home-header-toggle + * + * {
+      animation-duration: 495ms;
+      animation-delay: 55ms;
+    }
+    & .overview-side-tools > .home-header-toggle + * + * + * {
+      animation-duration: 460ms;
+      animation-delay: 110ms;
+    }
+    & .overview-side-tools > .home-header-toggle + * + * + * + :not(.overview-edit-controls),
+    & .overview-side-tools > .home-header-toggle ~ .overview-edit-controls > .button {
+      animation-duration: 425ms;
+      animation-delay: 165ms;
+    }
   }
 }
 @keyframes home-sidebar-tools-shift {
@@ -1113,6 +1121,7 @@ header .brand .brand-logo, header nav .nav-home-fox-icon {
 }
 .home-tools-dock[data-auto-hide="true"]:is(
   [data-pointer-open="true"],
+  [data-header-handoff="true"],
   :hover,
   :has(.home-tools-handle:focus),
   :has(.overview-side-tools :focus-visible),

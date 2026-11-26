@@ -5,6 +5,7 @@ export const HomeHeaderContext = createContext({
   hidden: false,
   expanded: false,
   collapseInNav: false,
+  closing: false,
   toggle: (_button: HTMLElement, _keyboard: boolean) => {},
 });
 

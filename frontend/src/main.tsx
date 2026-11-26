@@ -530,7 +530,7 @@ function App() {
         ? `管理服务在线，有告警：${managerWarning}`
         : "管理服务正常";
   return (
-    <HomeHeaderContext.Provider value={{hidden: hideHomeHeader, expanded: headerExpanded, collapseInNav: collapseInNav || headerClosing, toggle: (button, keyboard) => {
+    <HomeHeaderContext.Provider value={{hidden: hideHomeHeader, expanded: headerExpanded, collapseInNav: collapseInNav || headerClosing, closing: headerClosing, toggle: (button, keyboard) => {
       moveHeaderFocus.current = page === "overview" && keyboard;
       const box = button.getBoundingClientRect();
       setHeaderOrigin(`${box.x + box.width / 2}px ${box.y + box.height / 2}px`);
