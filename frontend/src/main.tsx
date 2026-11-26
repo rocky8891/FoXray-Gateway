@@ -4,7 +4,7 @@ import { SettingsIcon } from "./requirement_icons";
 import { ThemedSelects } from "./themed_selects";
 import { useOverviewRandomTheme } from "./overview_random_theme";
 import { HomeTools } from "./home_tools";
-import { HomeHeaderContext, HomeHeaderToggleIcon } from "./home_header";
+import { HomeHeaderContext, HomeHeaderToggleIcon, reduceHomeMotion } from "./home_header";
 import { OverviewFooter } from "./overview_footer";
 import { labelIcon } from "./ui_icons";
 import type { OverviewView } from "./overview_policy";
@@ -206,7 +206,7 @@ function App() {
   useLayoutEffect(() => {
     if (!animateHeaderNavigation.current) return;
     animateHeaderNavigation.current = false;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (reduceHomeMotion()) return;
     const animation = document.querySelector("#root main")?.animate(
       [{ opacity: 0.5, translate: "0 4px" }, { opacity: 1, translate: "0 0" }],
       { duration: 230, easing: "cubic-bezier(.2,.8,.2,1)" },
@@ -223,7 +223,7 @@ function App() {
       setHeaderOrigin(`${rail.left + tools.width / 2 - frame.left}px ${rail.top - frame.bottom + tools.width / 2}px`);
     }
     moveHeaderFocus.current = restoreFocus;
-    setHeaderClosing(!window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    setHeaderClosing(!reduceHomeMotion());
     setHeaderExpanded(false);
   };
   const homeIdleSeconds = Number(presentation.home_header_idle_seconds ?? 30);
@@ -231,7 +231,7 @@ function App() {
     setHeaderClosing(false);
     setHeaderExpanded(false);
     if (!headerAutoHide || page !== "overview") return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (reduceHomeMotion()) {
       setHeaderExpanded(true);
       return;
     }

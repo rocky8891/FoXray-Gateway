@@ -1349,7 +1349,11 @@ footer {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *:not(:where(html[data-home-motion="on"] :is(
+    .home-header-shell[data-auto-hide="true"],
+    .home-header-shell[data-auto-hide="true"] > header,
+    .home-tools-dock > .overview-side-tools
+  ))) {
     transition: none !important;
   }
   .spin {

@@ -1,6 +1,28 @@
 import { createContext, type SVGProps } from "react";
 import emblem from "../public/foxray-icon.svg?raw";
 
+const homeMotionKey = "foxray.home.motion";
+
+export function homeMotionEnabled() {
+  return document.documentElement.dataset.homeMotion === "on";
+}
+
+export function setHomeMotionEnabled(enabled: boolean) {
+  if (enabled) {
+    localStorage.setItem(homeMotionKey, "on");
+    document.documentElement.dataset.homeMotion = "on";
+  } else {
+    localStorage.removeItem(homeMotionKey);
+    delete document.documentElement.dataset.homeMotion;
+  }
+}
+
+export function reduceHomeMotion() {
+  return !homeMotionEnabled() && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+if (localStorage.getItem(homeMotionKey) === "on") document.documentElement.dataset.homeMotion = "on";
+
 export const HomeHeaderContext = createContext({
   hidden: false,
   expanded: false,

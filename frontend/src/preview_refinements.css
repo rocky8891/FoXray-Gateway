@@ -890,8 +890,7 @@ header .brand .brand-logo, header nav .nav-home-fox-icon {
   100% { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .home-header-shell[data-auto-hide="true"] { transition: none !important; }
-  header .brand .brand-logo, header nav .nav-home-fox-icon { animation: none; }
+  :root:not(:where([data-home-motion="on"]:has(main > .overview-page))) header :is(.brand .brand-logo, nav .nav-home-fox-icon) { animation: none; }
 }
 .home-header-handle {
   position: fixed;
@@ -946,8 +945,7 @@ header .brand .brand-logo, header nav .nav-home-fox-icon {
 }
 .overview-side-tools .home-header-toggle svg, header .brand .brand-logo { overflow: visible; }
 .overview-side-tools button.home-header-toggle svg { width: 27px !important; height: 29px !important; flex: none; }
-@media (prefers-reduced-motion: no-preference) {
-  .home-tools-dock:where(
+.home-tools-dock:where(
     :not([data-auto-hide="true"]),
     [data-header-handoff="true"],
     [data-pointer-open="true"],
@@ -974,7 +972,6 @@ header .brand .brand-logo, header nav .nav-home-fox-icon {
       animation-duration: 425ms;
       animation-delay: 165ms;
     }
-  }
 }
 @keyframes home-sidebar-tools-shift {
   from { translate: 0 calc(-1 * (var(--button-height-regular) + 6px)); }
@@ -1182,9 +1179,8 @@ header .brand .brand-logo, header nav .nav-home-fox-icon {
   margin-left: 8px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .home-header-shell[data-auto-hide="true"] > header,
-  .home-tools-dock > .overview-side-tools {
-    transition: none !important;
+  :root:not([data-home-motion="on"]) .home-tools-dock :is(.home-header-toggle > svg, .home-header-toggle ~ *, .overview-edit-controls > .button) {
+    animation: none !important;
   }
 }
 @media (max-width: 600px) {

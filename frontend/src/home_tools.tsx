@@ -1,6 +1,6 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { HomeHeaderContext, HomeHeaderToggleIcon } from "./home_header";
+import { HomeHeaderContext, HomeHeaderToggleIcon, reduceHomeMotion } from "./home_header";
 
 export function HomeTools({
   dock = false,
@@ -23,7 +23,7 @@ export function HomeTools({
   useEffect(() => () => window.clearTimeout(hideTimer.current), []);
 
   useEffect(() => {
-    if (!dock || !header.closing || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!dock || !header.closing || reduceHomeMotion()) return;
     setHandoff(true);
   }, [dock, header.closing]);
 
@@ -37,7 +37,7 @@ export function HomeTools({
     const opening = hadHeaderButton.current && !showHeaderButton && header.expanded;
     hadHeaderButton.current = showHeaderButton;
     const tools = edge.current?.querySelector(".overview-side-tools");
-    if (!dock || !opening || !tools || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!dock || !opening || !tools || reduceHomeMotion()) return;
     const distance = Number.parseFloat(getComputedStyle(tools).getPropertyValue("--button-height-regular")) + 6;
     if (!Number.isFinite(distance)) return;
     const animations = Array.from(tools.children, (child, index) => {

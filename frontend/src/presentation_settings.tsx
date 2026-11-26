@@ -1,3 +1,4 @@
+import { homeMotionEnabled, setHomeMotionEnabled } from "./home_header";
 import { PageBackgroundSettings } from "./page_background";
 import { NodeVisibilityPicker } from "./node_visibility_picker";
 import { hasChanges } from "./settings_save";
@@ -138,6 +139,7 @@ export function PresentationSettings({
   );
 }
 export function PageWidthSettings({ act }: { act: Act }) {
+  const [motionOverride, setMotionOverride] = useState(homeMotionEnabled);
   const resource = useResource<Dict>("/api/monitoring/presentation", 15000),
     [draft, setDraft] = useState<Dict | null>(null);
   const saved = {
@@ -205,6 +207,16 @@ export function PageWidthSettings({ act }: { act: Act }) {
               value={value.home_header_idle_seconds}
               onChange={e => setDraft({ ...value, home_header_idle_seconds: Number(e.target.value) })} />
           </Field>}
+          <Field label="首页动效" info="默认跟随浏览器。选择始终播放后立即生效，仅应用于这个浏览器中的 FoXray 首页。">
+            <select aria-label="首页动效" value={motionOverride ? "on" : "auto"} onChange={event => {
+              const enabled = event.target.value === "on";
+              setHomeMotionEnabled(enabled);
+              setMotionOverride(enabled);
+            }}>
+              <option value="auto">跟随浏览器</option>
+              <option value="on">始终播放</option>
+            </select>
+          </Field>
         </div>
       </SettingsSection>
       <SaveCard
