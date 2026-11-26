@@ -269,6 +269,30 @@ func selfSignedManagement(name string) (string, error) {
 	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})) + string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: private})), nil
 }
 
+func (t *managementTLS) httpsCloudflareCredential(domain string) string {
+	return filepath.Join(t.base, "private", "acme", "cloudflare-https", strings.ToLower(domain)+".ini")
+}
+
+func (t *managementTLS) cloudflareCredential(domain string) (string, error) {
+	state := filepath.Join(t.base, "private", "acme")
+	independent := t.httpsCloudflareCredential(domain)
+	if regular(independent) {
+		return independent, nil
+	}
+	previous := filepath.Join(state, "cloudflare", strings.ToLower(domain)+".ini")
+	if t.ddns != nil {
+		if token := t.ddns.cloudflareToken(domain); token != "" {
+			if err := atomicFile(previous, []byte("dns_cloudflare_api_token = "+token+"\n"), 0600); err != nil {
+				return "", errors.New("无法写入 Cloudflare 证书凭据")
+			}
+		}
+	}
+	if regular(previous) {
+		return previous, nil
+	}
+	return filepath.Join(state, "cloudflare.ini"), nil
+}
+
 func (t *managementTLS) acmeCertificate(ctx context.Context, mode, name, email string) (string, error) {
 	if !certificateName.MatchString(name) || !strings.Contains(name, ".") || net.ParseIP(name) != nil || strings.Contains(name, "..") || !strings.Contains(email, "@") || len(email) > 254 {
 		return "", errors.New("请输入有效域名和电子邮箱")
@@ -284,23 +308,13 @@ func (t *managementTLS) acmeCertificate(ctx context.Context, mode, name, email s
 	certName := "foxray-" + strings.ToLower(name)
 	args := []string{"certonly", "--server", "https://acme-v02.api.letsencrypt.org/directory", "--config-dir", config, "--work-dir", filepath.Join(state, "work"), "--logs-dir", filepath.Join(state, "logs"), "--non-interactive", "--agree-tos", "--email", email, "--cert-name", certName, "--keep-until-expiring", "-d", name}
 	if mode == "cloudflare" {
-		credentials := filepath.Join(state, "cloudflare.ini")
-		if t.ddns != nil {
-			if token := t.ddns.cloudflareToken(name); token != "" {
-				credentials = filepath.Join(state, "cloudflare", strings.ToLower(name)+".ini")
-				if err := atomicFile(credentials, []byte("dns_cloudflare_api_token = "+token+"\n"), 0600); err != nil {
-					return "", errors.New("无法写入 Cloudflare 证书凭据")
-				}
-			} else {
-				saved := filepath.Join(state, "cloudflare", strings.ToLower(name)+".ini")
-				if regular(saved) {
-					credentials = saved
-				}
-			}
+		credentials, err := t.cloudflareCredential(name)
+		if err != nil {
+			return "", err
 		}
 		info, err := os.Lstat(credentials)
 		if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
-			return "", errors.New("请先在 DDNS 保存同域名的 Cloudflare 令牌，或配置 cloudflare.ini")
+			return "", errors.New("请在 HTTPS 填写 Cloudflare 令牌，或配置同域名的 DDNS 令牌")
 		}
 		args = append(args, "--dns-cloudflare", "--dns-cloudflare-credentials", credentials, "--dns-cloudflare-propagation-seconds", "30")
 	} else {
@@ -449,6 +463,7 @@ func (t *managementTLS) serve(w http.ResponseWriter, r *http.Request, readonly b
 			port = 18443
 		}
 		response := M{"enabled": t.server != nil, "mode": t.config.Mode, "domain": t.config.Name, "port": port, "redirect_port": t.config.Redirect, "description": t.config.Description, "busy": t.busy, "warning": t.warning}
+		response["cloudflare_token_saved"] = t.config.Mode == "cloudflare" && validDDNSDomain(t.config.Name) && regular(t.httpsCloudflareCredential(t.config.Name))
 		response["email"] = t.config.Email
 		response["auto_renew"] = t.config.autoRenew() && t.server != nil
 		response["renew_hours"] = t.config.renewalHours()
@@ -542,6 +557,43 @@ func (t *managementTLS) serve(w http.ResponseWriter, r *http.Request, readonly b
 		next = previous
 	}
 
+	token := strings.TrimSpace(str(input["cloudflare_token"]))
+	saved := false
+	if token != "" {
+		if next.Mode != "cloudflare" || !validDDNSDomain(next.Name) || !ddnsTokenPattern.MatchString(token) {
+			writeResponse(w, 400, M{"error": "请输入有效的 Cloudflare 域名和 API 令牌"})
+			return
+		}
+		if r.TLS == nil && !localBackupRequest(r) {
+			writeResponse(w, 400, M{"error": "请通过 HTTPS 或 SSH 隧道访问本机管理地址后输入令牌"})
+			return
+		}
+		path := t.httpsCloudflareCredential(next.Name)
+		if info, err := os.Lstat(path); err == nil && !info.Mode().IsRegular() {
+			writeResponse(w, 400, M{"error": "Cloudflare 凭据文件路径无效"})
+			return
+		}
+		previous, readErr := os.ReadFile(path)
+		if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+			writeResponse(w, 400, M{"error": "无法读取已有 Cloudflare 凭据"})
+			return
+		}
+		if err := atomicFile(path, []byte("dns_cloudflare_api_token = "+token+"\n"), 0600); err != nil {
+			writeResponse(w, 400, M{"error": "无法保存 Cloudflare 凭据"})
+			return
+		}
+		defer func() {
+			if saved {
+				return
+			}
+			if readErr == nil {
+				_ = atomicFile(path, previous, 0600)
+			} else {
+				_ = os.Remove(path)
+			}
+		}()
+	}
+
 	switch mode {
 	case "keep":
 	case "off":
@@ -563,6 +615,7 @@ func (t *managementTLS) serve(w http.ResponseWriter, r *http.Request, readonly b
 		err = t.applyLocked(next, true)
 		t.mu.Unlock()
 	}
+	saved = err == nil
 	if t.audit != nil {
 		message := "已保存 HTTPS 设置"
 		if mode == "off" {

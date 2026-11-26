@@ -227,7 +227,7 @@ func TestManagementKeepsCertificateWhenSavingRenewalInterval(t *testing.T) {
 	defer manager.close()
 	manager.config = managementTLSConfig{Mode: "cloudflare", Name: "certificate.example.test", Email: "fixture@example.test", Port: 18443, PEM: certPEM}
 	manager.server = &http.Server{}
-	request := httptest.NewRequest(http.MethodPost, "/api/management/https", strings.NewReader(`{"mode":"keep","port":"18443","renew_hours":"24"}`))
+	request := httptest.NewRequest(http.MethodPost, "https://127.0.0.1/api/management/https", strings.NewReader(`{"mode":"keep","port":"18443","renew_hours":"24","cloudflare_token":"synthetic_fixture"}`))
 	response := httptest.NewRecorder()
 	manager.serve(response, request, false)
 	if response.Code != http.StatusOK {
@@ -242,6 +242,13 @@ func TestManagementKeepsCertificateWhenSavingRenewalInterval(t *testing.T) {
 	}
 	response = httptest.NewRecorder()
 	manager.serve(response, httptest.NewRequest(http.MethodGet, "/api/management/https", nil), false)
+	path, err := manager.cloudflareCredential(saved.Name)
+	if err != nil || path != manager.httpsCloudflareCredential(saved.Name) {
+		t.Fatal("independent credential not selected")
+	}
+	if strings.Contains(response.Body.String(), "synthetic_fixture") {
+		t.Fatal("credential returned by HTTPS status")
+	}
 	var info M
 	if err = json.Unmarshal(response.Body.Bytes(), &info); err != nil {
 		t.Fatal(err)

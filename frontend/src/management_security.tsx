@@ -185,7 +185,7 @@ export function ManagementUserMenu() {
   </div>;
 }
 
-type HTTPSStatus = { enabled: boolean; mode: string; domain: string; expires?: string; port: number; redirect_port: number; description?: string; warning?: string; busy?: boolean; email?: string; issuer?: string; subject?: string; certificate_names?: string[]; auto_renew?: boolean; renew_hours?: number; last_renew_check?: string; next_renew_check?: string };
+type HTTPSStatus = { enabled: boolean; mode: string; domain: string; expires?: string; port: number; redirect_port: number; description?: string; warning?: string; busy?: boolean; email?: string; issuer?: string; subject?: string; certificate_names?: string[]; auto_renew?: boolean; renew_hours?: number; last_renew_check?: string; next_renew_check?: string; cloudflare_token_saved?: boolean };
 export function ManagementHTTPSSettings() {
   const ddns = useResource<{ items: DDNSItem[] }>("/api/management/ddns", 15000);
   const status = useResource<HTTPSStatus>("/api/management/https", 15000);
@@ -204,6 +204,7 @@ export function ManagementHTTPSSettings() {
     try {
       const body: Record<string, string> = {mode};
       for (const key of ["domain", "email", "description", "port", "redirect_port", "renew_hours"]) body[key] = String(fields.get(key) || "");
+      if (mode === "cloudflare") body.cloudflare_token = String(fields.get("cloudflare_token") || "");
       const certificate = fields.get("certificate");
       const keyFile = fields.get("key");
       const replacing = (certificate instanceof File && certificate.size > 0) || (keyFile instanceof File && keyFile.size > 0);
@@ -254,7 +255,10 @@ export function ManagementHTTPSSettings() {
         {acme && <datalist id="management-acme-domains">{ddns.data?.items.filter(item => mode !== "cloudflare" || item.provider === "cloudflare").map(item => <option key={item.domain} value={item.domain} />)}</datalist>}
         {acme && <>
           <Field label="描述（可选）"><input name="description" maxLength={120} defaultValue={status.data?.description || ""} /></Field>
-          <Field label="电子邮箱" hint={mode === "acme-http" ? "公网 80 端口须转发到网关，签发后自动续期" : "使用同域名的 Cloudflare DDNS 令牌，签发后自动检查续期"}><input type="email" name="email" key={`email-${current?.email}`} defaultValue={current?.email} required /></Field>
+          <Field label="电子邮箱" hint={mode === "acme-http" ? "公网 80 端口须转发到网关，签发后自动续期" : "签发后自动检查续期"}><input type="email" name="email" key={`email-${current?.email}`} defaultValue={current?.email} required /></Field>
+          {mode === "cloudflare" && <Field label="Cloudflare API 令牌" hint={current?.cloudflare_token_saved ? "已保存独立令牌，留空可继续使用" : "可独立填写。留空使用同域名的 Cloudflare DDNS 令牌或服务器凭据。"}>
+            <input type="password" name="cloudflare_token" autoComplete="new-password" maxLength={256} placeholder="输入 API 令牌" />
+          </Field>}
           <Field label="续期检查间隔（小时）"><input name="renew_hours" type="number" min={1} max={168} key={`renew-${current?.renew_hours}`} defaultValue={current?.renew_hours ?? 12} required /></Field>
         </>}
         {mode === "import" && <><Field label="PEM 证书及证书链"><input type="file" name="certificate" required={current?.mode !== "import"} /></Field><Field label="PEM 私钥"><input type="file" name="key" required={current?.mode !== "import"} /></Field></>}
