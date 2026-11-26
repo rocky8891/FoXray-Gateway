@@ -52,7 +52,7 @@ export function ConfigBackupSettings() {
     <Panel className="presentation-settings config-backup-settings">
       <PageHeader title="配置备份" icon={<Archive size={20} />} />
       <div className="settings-section">
-        <p>导出 FoXray 节点和订阅、Xray 配置、WireGuard 隧道、WARP、网络连接、防火墙及 Komari 配置。</p>
+        <p className="config-backup-export-description">导出 FoXray 节点和订阅、Xray 配置、WireGuard 隧道、WARP、网络连接、防火墙及 Komari 配置。</p>
         {status.data?.ready ? (
           <>
             <label className="check"><input type="checkbox" checked={encrypted} disabled={busy} onChange={event => setEncrypted(event.target.checked)} />使用密码加密</label>

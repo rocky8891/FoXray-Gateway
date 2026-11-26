@@ -257,3 +257,62 @@ func TestManagementKeepsCertificateWhenSavingRenewalInterval(t *testing.T) {
 		t.Fatal("HTTPS status omitted saved settings")
 	}
 }
+
+func TestManagementCloudflareTokenRevealRequiresHTTPSAndSession(t *testing.T) {
+	app, _ := fixture(t)
+	app.readonly = false
+	guard, err := NewManagementSecurity(app, "127.0.0.1:18880")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer guard.Close()
+	const domain = "certificate.example.test"
+	const fixtureValue = "synthetic_fixture_only"
+	guard.tls.config = managementTLSConfig{Mode: "cloudflare", Name: domain}
+	if err := atomicFile(guard.tls.httpsCloudflareCredential(domain), []byte("dns_cloudflare_api_token = "+fixtureValue+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	salt := []byte("fixture-salt-123")
+	guard.users = map[string]managementUser{"fixture": {Salt: salt, Digest: passwordBackupKey("synthetic password", salt)}}
+	request := func(scheme, endpoint string, body M, cookie *http.Cookie) *httptest.ResponseRecorder {
+		raw, _ := json.Marshal(body)
+		r := httptest.NewRequest(http.MethodPost, scheme+"://127.0.0.1"+endpoint, bytes.NewReader(raw))
+		r.RemoteAddr = "127.0.0.1:49200"
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Origin", scheme+"://127.0.0.1")
+		if cookie != nil {
+			r.AddCookie(cookie)
+		}
+		w := httptest.NewRecorder()
+		guard.ServeHTTP(w, r)
+		return w
+	}
+	const endpoint = "/api/management/https/cloudflare-token"
+	body := M{"domain": domain}
+	if got := request("https", endpoint, body, nil).Code; got != 401 {
+		t.Fatal(got)
+	}
+	login := func(scheme string) *http.Cookie {
+		w := request(scheme, "/api/management/login", M{"username": "fixture", "password": "synthetic password"}, nil)
+		if w.Code != 200 {
+			t.Fatal(w.Code)
+		}
+		return w.Result().Cookies()[0]
+	}
+	secure := login("https")
+	if got := request("http", endpoint, body, login("http")).Code; got != 403 {
+		t.Fatal(got)
+	}
+	if got := request("https", endpoint, M{"domain": "other.example.test"}, secure).Code; got != 404 {
+		t.Fatal(got)
+	}
+	w := request("https", endpoint, body, secure)
+	var payload M
+	if w.Code != 200 || w.Header().Get("Cache-Control") != "no-store" || json.Unmarshal(w.Body.Bytes(), &payload) != nil || payload["token"] != fixtureValue {
+		t.Fatal("authenticated reveal did not return the non-cacheable fixture")
+	}
+	guard.mode = "off"
+	if got := request("https", endpoint, body, nil).Code; got != 403 {
+		t.Fatal(got)
+	}
+}

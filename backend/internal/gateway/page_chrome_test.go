@@ -7,6 +7,12 @@ func TestHomeHeaderAutoHidePreference(t *testing.T) {
 	if a.presentationPolicy()["home_header_auto_hide"] != false {
 		t.Fatal("header must default visible")
 	}
+	if num(a.presentationPolicy()["home_header_idle_seconds"]) != 30 {
+		t.Fatal("idle duration must default to 30 seconds")
+	}
+	if err := a.savePresentation(M{"home_header_idle_seconds": 75}); err != nil || num(a.presentationPolicy()["home_header_idle_seconds"]) != 75 {
+		t.Fatal("idle duration was not saved")
+	}
 	beforeCalls := len(f.calls)
 	for _, on := range []bool{true, false} {
 		if err := a.savePresentation(M{"home_header_auto_hide": on}); err != nil {
@@ -17,6 +23,11 @@ func TestHomeHeaderAutoHidePreference(t *testing.T) {
 		}
 	}
 	before := fingerprint(a.settings)
+	for _, invalid := range []any{0, 0.5, 3601, "30"} {
+		if a.savePresentation(M{"home_header_idle_seconds": invalid}) == nil {
+			t.Fatal("invalid idle duration accepted")
+		}
+	}
 	if a.savePresentation(M{"home_header_auto_hide": "true"}) == nil {
 		t.Fatal("string accepted as boolean")
 	}

@@ -2,8 +2,8 @@ import { HomeHeaderToggleIcon } from "./home_header";
 import type { DDNSItem } from "./management_ddns";
 import { createPortal } from "react-dom";
 import { ActionMenu } from "./action_menu";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { LockKeyhole, LogOut, Shield, UserCircle, Users } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Eye, EyeOff, LockKeyhole, LogOut, Shield, UserCircle, Users } from "lucide-react";
 import { Button, ErrorLine, Field, Modal, PageHeader, Panel, useResource } from "./ui";
 
 type LoginMode = "account" | "password" | "off";
@@ -190,11 +190,68 @@ export function ManagementHTTPSSettings() {
   const ddns = useResource<{ items: DDNSItem[] }>("/api/management/ddns", 15000);
   const status = useResource<HTTPSStatus>("/api/management/https", 15000);
   const [draftMode, setMode] = useState<string>();
+  const [editedDomain, setEditedDomain] = useState<string>();
+  const [token, setToken] = useState("");
+  const [savedToken, setSavedToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [tokenLoading, setTokenLoading] = useState(false);
+  const tokenRequest = useRef<AbortController | null>(null);
   const current = status.data;
   const mode = draftMode ?? (current?.enabled ? current.mode : "self");
   const acme = mode === "cloudflare" || mode === "acme-http";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const savedForDomain = mode === "cloudflare" && !!current?.cloudflare_token_saved &&
+    (editedDomain ?? current.domain).trim().toLowerCase() === current.domain.toLowerCase();
+  const hideToken = () => {
+    tokenRequest.current?.abort();
+    tokenRequest.current = null;
+    setTokenLoading(false);
+    setShowToken(false);
+    setSavedToken("");
+  };
+  useEffect(() => {
+    const hideOnBlur = () => hideToken();
+    window.addEventListener("blur", hideOnBlur);
+    return () => {
+      window.removeEventListener("blur", hideOnBlur);
+      tokenRequest.current?.abort();
+    };
+  }, []);
+  useEffect(() => {
+    hideToken();
+  }, [savedForDomain, current?.domain, mode]);
+  useEffect(() => {
+    if (!showToken) return;
+    const timer = window.setTimeout(hideToken, 30000);
+    return () => window.clearTimeout(timer);
+  }, [showToken]);
+  async function toggleToken() {
+    if (showToken) { hideToken(); return; }
+    if (token || !savedForDomain) { setShowToken(true); return; }
+    const controller = new AbortController();
+    tokenRequest.current = controller;
+    setTokenLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/management/https/cloudflare-token", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: current?.domain }), cache: "no-store", signal: controller.signal,
+      });
+      if (!response.ok) throw new Error("请通过 HTTPS 登录后查看已保存的令牌");
+      const result = await response.json() as {token: string};
+      if (controller.signal.aborted) return;
+      setSavedToken(result.token);
+      setShowToken(true);
+    } catch (failure) {
+      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : "无法查看令牌");
+    } finally {
+      if (tokenRequest.current === controller) {
+        tokenRequest.current = null;
+        setTokenLoading(false);
+      }
+    }
+  }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
@@ -204,7 +261,7 @@ export function ManagementHTTPSSettings() {
     try {
       const body: Record<string, string> = {mode};
       for (const key of ["domain", "email", "description", "port", "redirect_port", "renew_hours"]) body[key] = String(fields.get(key) || "");
-      if (mode === "cloudflare") body.cloudflare_token = String(fields.get("cloudflare_token") || "");
+      if (mode === "cloudflare") body.cloudflare_token = token;
       const certificate = fields.get("certificate");
       const keyFile = fields.get("key");
       const replacing = (certificate instanceof File && certificate.size > 0) || (keyFile instanceof File && keyFile.size > 0);
@@ -225,7 +282,7 @@ export function ManagementHTTPSSettings() {
       }
       else if (result.http_port) { next.protocol = "http:"; next.port = String(result.http_port); }
       if (next.origin !== location.origin) { location.assign(next.toString()); return; }
-      form.reset(); setMode(undefined);
+      form.reset(); setMode(undefined); setEditedDomain(undefined); setToken(""); hideToken();
       await status.refresh();
     } catch (failure) { setError(failure instanceof Error ? failure.message : "HTTPS 配置失败"); }
     finally { setBusy(false); }
@@ -243,7 +300,7 @@ export function ManagementHTTPSSettings() {
     </dl>}
     <form onSubmit={save}>
       <div className="settings-section form-grid">
-        <Field label="证书来源"><select value={mode} onChange={event => setMode(event.target.value)} disabled={busy}>
+        <Field label="证书来源"><select value={mode} onChange={event => { setMode(event.target.value); setEditedDomain(undefined); setToken(""); }} disabled={busy}>
           <option value="self">自签名证书</option><option value="import">导入第三方证书</option>
           <option value="acme-http">Let's Encrypt · HTTP</option><option value="cloudflare">Let's Encrypt · Cloudflare DNS</option><option value="off">关闭 HTTPS</option>
         </select></Field>
@@ -251,13 +308,23 @@ export function ManagementHTTPSSettings() {
           <Field label="HTTPS 端口"><input name="port" type="number" min={1} max={65535} key={`port-${status.data?.port}`} defaultValue={status.data?.port || 18443} required /></Field>
           <Field label="HTTP 跳转端口" hint="留空关闭 HTTP。填写后该端口仅跳转到 HTTPS。"><input name="redirect_port" type="number" min={1} max={65535} key={`redirect-${status.data?.redirect_port}`} defaultValue={status.data?.redirect_port || ""} /></Field>
         </>}
-        {(mode === "self" || acme) && <Field label={mode === "self" ? "域名或 IP 地址" : "证书域名"}><input key={`${mode}-${current?.domain}`} name="domain" required defaultValue={current?.mode === mode && current.domain ? current.domain : mode === "self" ? location.hostname : ""} list={acme ? "management-acme-domains" : undefined} placeholder={acme ? "填写证书域名或选择已配置的 DDNS" : undefined} /></Field>}
+        {(mode === "self" || acme) && <Field label={mode === "self" ? "域名或 IP 地址" : "证书域名"}><input key={`${mode}-${current?.domain}`} name="domain" onChange={event => setEditedDomain(event.target.value)} required defaultValue={current?.mode === mode && current.domain ? current.domain : mode === "self" ? location.hostname : ""} list={acme ? "management-acme-domains" : undefined} placeholder={acme ? "填写证书域名或选择已配置的 DDNS" : undefined} /></Field>}
         {acme && <datalist id="management-acme-domains">{ddns.data?.items.filter(item => mode !== "cloudflare" || item.provider === "cloudflare").map(item => <option key={item.domain} value={item.domain} />)}</datalist>}
         {acme && <>
           <Field label="描述（可选）"><input name="description" maxLength={120} defaultValue={status.data?.description || ""} /></Field>
           <Field label="电子邮箱" hint={mode === "acme-http" ? "公网 80 端口须转发到网关，签发后自动续期" : "签发后自动检查续期"}><input type="email" name="email" key={`email-${current?.email}`} defaultValue={current?.email} required /></Field>
-          {mode === "cloudflare" && <Field label="Cloudflare API 令牌" hint={current?.cloudflare_token_saved ? "已保存独立令牌，留空可继续使用" : "可独立填写。留空使用同域名的 Cloudflare DDNS 令牌或服务器凭据。"}>
-            <input type="password" name="cloudflare_token" autoComplete="new-password" maxLength={256} placeholder="输入 API 令牌" />
+          {mode === "cloudflare" && <Field label="Cloudflare API 令牌" hint={savedForDomain ? "已保存独立令牌，留空可继续使用" : "可独立填写。留空使用同域名的 Cloudflare DDNS 令牌或服务器凭据。"}>
+            <div className="https-token-control">
+              {showToken && savedToken && !token ?
+                <input aria-label="已保存的 API 令牌" type="text" value={savedToken} readOnly autoComplete="off" /> :
+                <input aria-label="Cloudflare API 令牌" type={showToken ? "text" : "password"} name="cloudflare_token"
+                  value={token} onChange={event => setToken(event.target.value)} autoComplete="new-password" maxLength={256}
+                  placeholder={savedForDomain ? "••••••••••••" : "输入 API 令牌"} />}
+              {(savedForDomain || token) && <Button type="button" variant="ghost" disabled={tokenLoading}
+                title={showToken ? "隐藏令牌" : "显示令牌"} onClick={() => void toggleToken()}>
+                {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
+              </Button>}
+            </div>
           </Field>}
           <Field label="续期检查间隔（小时）"><input name="renew_hours" type="number" min={1} max={168} key={`renew-${current?.renew_hours}`} defaultValue={current?.renew_hours ?? 12} required /></Field>
         </>}

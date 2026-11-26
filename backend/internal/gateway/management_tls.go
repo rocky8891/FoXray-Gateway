@@ -273,6 +273,30 @@ func (t *managementTLS) httpsCloudflareCredential(domain string) string {
 	return filepath.Join(t.base, "private", "acme", "cloudflare-https", strings.ToLower(domain)+".ini")
 }
 
+func (t *managementTLS) savedCloudflareToken(domain string) (string, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	unavailable := errors.New("独立证书令牌不可用")
+	if t.config.Mode != "cloudflare" || !validDDNSDomain(domain) || !strings.EqualFold(domain, t.config.Name) {
+		return "", unavailable
+	}
+	path := t.httpsCloudflareCredential(domain)
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return "", unavailable
+	}
+	defer root.Close()
+	data, err := readBackupFile(root, filepath.Base(path), 4096)
+	if err != nil {
+		return "", unavailable
+	}
+	value, found := strings.CutPrefix(strings.TrimSpace(string(data)), "dns_cloudflare_api_token = ")
+	if !found || !ddnsTokenPattern.MatchString(value) {
+		return "", unavailable
+	}
+	return value, nil
+}
+
 func (t *managementTLS) cloudflareCredential(domain string) (string, error) {
 	state := filepath.Join(t.base, "private", "acme")
 	independent := t.httpsCloudflareCredential(domain)

@@ -1,7 +1,8 @@
 import { SettingInfo } from "./ui";
 import { Globe } from "lucide-react";
 import { NumberInput } from "./ui";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Pagination, usePagination } from "./resource_controls";
 import {
   Button,
   Field,
@@ -40,15 +41,19 @@ export function CustomRulesEditor({
       null,
     ),
     [deleting, setDeleting] = useState<number | null>(null),
-    [page, setPage] = useState(0),
     [targetsView, setTargetsView] = useState<{
       targets: string[];
-      page: number;
       index: number;
       edit?: boolean;
       text?: string;
     } | null>(null);
   const [targetError, setTargetError] = useState("");
+  const [query, setQuery] = useState("");
+  const [searchStatus, setSearchStatus] = useState("");
+  const [targetMatches, setTargetMatches] = useState<Record<string, string>>({});
+  const targetCache = useRef(new Map<string, string[]>());
+  const normalizedQuery = query.trim().toLowerCase();
+  const targetPage = usePagination(targetsView?.targets ?? [], String(targetsView?.index ?? ""), 100, 100);
   const [position, setPosition] = useState<{
     index: number;
     value: number;
@@ -73,8 +78,44 @@ export function CustomRulesEditor({
       setTargetError(errorMessage(error));
     }
   };
-  const offset =
-    Math.min(page, Math.max(0, Math.ceil(value.length / 20) - 1)) * 20;
+  useEffect(() => {
+    setTargetMatches({});
+    if (!normalizedQuery) { setSearchStatus(""); return; }
+    const refs = [...new Set(value.flatMap(row => row.targets_ref ? [String(row.targets_ref)] : []))];
+    const controller = new AbortController();
+    let cursor = 0;
+    let incomplete = false;
+    const matches: Record<string, string> = {};
+    setSearchStatus(refs.length ? "正在搜索规则目标…" : "");
+    const timer = window.setTimeout(async () => {
+      const worker = async () => {
+        while (!controller.signal.aborted && cursor < refs.length) {
+          const ref = refs[cursor++];
+          try {
+            let targets = targetCache.current.get(ref);
+            if (!targets) {
+              const data = await api<Dict>("/api/rulesets/targets?ref=" + encodeURIComponent(ref), undefined, controller.signal);
+              if (!Array.isArray(data.items)) throw new Error("无法读取规则目标");
+              targets = data.items as string[];
+              targetCache.current.set(ref, targets);
+            }
+            const match = targets.find(target => target.toLowerCase().includes(normalizedQuery));
+            if (match) matches[ref] = match;
+          } catch { incomplete = true; }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, refs.length) }, worker));
+      if (!controller.signal.aborted) {
+        setTargetMatches(matches);
+        setSearchStatus(incomplete ? "部分规则目标无法读取，可重新搜索" : "");
+      }
+    }, 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [normalizedQuery, value]);
+  const findTarget = (row: Dict) => (Array.isArray(row.targets) ? row.targets as string[] : [])
+    .find(target => target.toLowerCase().includes(normalizedQuery)) ?? targetMatches[String(row.targets_ref ?? "")];
+  const filteredRows = value.map((row, index) => ({ row, index })).filter(({row}) =>
+    !normalizedQuery || !!findTarget(row) || String(row.targets_preview ?? "").toLowerCase().includes(normalizedQuery));
   const move = (i: number, step: number) => {
     const rows = [...value];
     [rows[i], rows[i + step]] = [rows[i + step], rows[i]];
@@ -83,16 +124,20 @@ export function CustomRulesEditor({
   return (
     <div className="rules-table-editor">
       <ErrorLine error={targetError} />
-      <div className="actions">
+      <div className="toolbar rules-search-toolbar">
         <Button onClick={() => setEditing({ index: -1, row: freshRule() })}>
           新增规则
         </Button>
+        <input type="search" aria-label="搜索规则目标" placeholder="搜索域名或 IP" value={query} onChange={event => setQuery(event.target.value)} />
+        {searchStatus && <span role="status" className="small muted">{searchStatus}</span>}
       </div>
       <Table
-        rows={value.slice(offset, offset + 20)}
-        rowKey={(r) => String(value.indexOf(r))}
+        rows={filteredRows.map(({row}) => row)}
+        rowKey={(row) => String(value.indexOf(row))}
+        paginationResetKey={normalizedQuery}
+        keepHeaders
         columns={[
-          { key: "order", label: "序号", render: (_, i) => offset + i + 1 },
+          { key: "order", label: "序号", render: (_, i) => filteredRows[i].index + 1 },
           {
             key: "enabled",
             label: "启用",
@@ -103,7 +148,7 @@ export function CustomRulesEditor({
                 onChange={(e) =>
                   onChange(
                     value.map((v, n) =>
-                      n === offset + i
+                      n === filteredRows[i].index
                         ? { ...v, enabled: e.target.checked }
                         : v,
                     ),
@@ -141,8 +186,7 @@ export function CustomRulesEditor({
                   try {
                     setTargetsView({
                       targets: await loadTargets(r),
-                      page: 0,
-                      index: offset + i,
+                      index: filteredRows[i].index,
                     });
                     setTargetError("");
                   } catch (error) {
@@ -153,7 +197,7 @@ export function CustomRulesEditor({
                 <Globe size={14} />
                 <span>
                   {String(
-                    (Array.isArray(r.targets) && r.targets[0]) ||
+                    (normalizedQuery && findTarget(r)) || (Array.isArray(r.targets) && r.targets[0]) ||
                       r.targets_preview ||
                       "查看目标",
                   )}
@@ -181,56 +225,34 @@ export function CustomRulesEditor({
             label: "操作",
             render: (r, i) => (
               <div className="actions">
-                <Button onClick={() => void editRule(offset + i, r)}>
+                <Button onClick={() => void editRule(filteredRows[i].index, r)}>
                   编辑
                 </Button>
                 <Button
-                  disabled={offset + i === 0}
-                  onClick={() => move(offset + i, -1)}
+                  disabled={filteredRows[i].index === 0}
+                  onClick={() => move(filteredRows[i].index, -1)}
                 >
                   上移
                 </Button>
                 <Button
-                  disabled={offset + i === value.length - 1}
-                  onClick={() => move(offset + i, 1)}
+                  disabled={filteredRows[i].index === value.length - 1}
+                  onClick={() => move(filteredRows[i].index, 1)}
                 >
                   下移
                 </Button>
                 <Button
                   onClick={() =>
-                    setPosition({ index: offset + i, value: offset + i + 1 })
+                    setPosition({ index: filteredRows[i].index, value: filteredRows[i].index + 1 })
                   }
                 >
                   优先级
                 </Button>
-                <Button onClick={() => setDeleting(offset + i)}>删除</Button>
+                <Button onClick={() => setDeleting(filteredRows[i].index)}>删除</Button>
               </div>
             ),
           },
         ]}
       />
-      {value.length > 20 && (
-        <div className="actions right">
-          <span className="small muted">
-            共 {value.length} 条规则 · 每页20条
-          </span>
-          <Button
-            disabled={offset === 0}
-            onClick={() => setPage(Math.max(0, offset / 20 - 1))}
-          >
-            上一页
-          </Button>
-          <span>
-            {offset / 20 + 1} / {Math.ceil(value.length / 20)}
-          </span>
-          <Button
-            disabled={offset + 20 >= value.length}
-            onClick={() => setPage(offset / 20 + 1)}
-          >
-            下一页
-          </Button>
-        </div>
-      )}
       {position && (
         <Modal title="设置规则优先级" onClose={() => setPosition(null)}>
           <Field label={`规则位置（1～${value.length}，数字越小优先）`}>
@@ -243,7 +265,7 @@ export function CustomRulesEditor({
               }
             />
           </Field>
-          <Button
+          <div className="modal-actions"><Button
             variant="primary"
             disabled={
               !Number.isInteger(position.value) ||
@@ -259,7 +281,7 @@ export function CustomRulesEditor({
             }}
           >
             保存到草稿
-          </Button>
+          </Button></div>
         </Modal>
       )}
       {targetsView && (
@@ -279,7 +301,7 @@ export function CustomRulesEditor({
                   setTargetsView({ ...targetsView, text: e.target.value })
                 }
               />
-              <div className="actions">
+              <div className="modal-actions">
                 <Button
                   onClick={() =>
                     setTargetsView({
@@ -317,7 +339,6 @@ export function CustomRulesEditor({
                       targets,
                       edit: false,
                       text: undefined,
-                      page: 0,
                     });
                     setTargetError("");
                   }}
@@ -328,51 +349,16 @@ export function CustomRulesEditor({
             </>
           ) : (
             <>
-              <div className="actions">
-                <Button
-                  onClick={() =>
-                    setTargetsView({
-                      ...targetsView,
-                      edit: true,
-                      text: targetsView.targets.join("\n"),
-                    })
-                  }
-                >
-                  编辑IP &amp; 域名
+              <pre className="rule-target-full">{targetPage.items.join("\n")}</pre>
+              <Pagination value={targetPage} />
+              <div className="modal-actions">
+                <Button onClick={() => setTargetsView({ ...targetsView, edit: true, text: targetsView.targets.join("\n") })}>
+                  编辑 IP &amp; 域名
                 </Button>
               </div>
-              <pre className="rule-target-full">
-                {targetsView.targets
-                  .slice(targetsView.page * 100, (targetsView.page + 1) * 100)
-                  .join("\n")}
-              </pre>
             </>
           )}
           <ErrorLine error={targetError} />
-          <div className="actions right">
-            <Button
-              disabled={targetsView.page === 0}
-              onClick={() =>
-                setTargetsView({ ...targetsView, page: targetsView.page - 1 })
-              }
-            >
-              上一页
-            </Button>
-            <span>
-              {targetsView.page + 1} /{" "}
-              {Math.ceil(targetsView.targets.length / 100)}
-            </span>
-            <Button
-              disabled={
-                (targetsView.page + 1) * 100 >= targetsView.targets.length
-              }
-              onClick={() =>
-                setTargetsView({ ...targetsView, page: targetsView.page + 1 })
-              }
-            >
-              下一页
-            </Button>
-          </div>
         </Modal>
       )}
       {editing && (
@@ -451,7 +437,7 @@ export function CustomRulesEditor({
               },
             )}
           </div>
-          <div className="actions right">
+          <div className="modal-actions">
             <Button onClick={() => setEditing(null)}>取消</Button>
             <Button
               variant="primary"
@@ -607,10 +593,12 @@ export function RuleSetsEditor({
           新增规则集
         </Button>
         <Button onClick={() => setPresets(true)}>从内置模板添加</Button>
+        <span className="table-width-slot" data-table-width-slot="xray-rule-sets" />
       </div>
       <div className="rule-set-list">
         <Table
           rows={sets}
+          columnSizingKey="xray-rule-sets"
           rowKey={(r) => String(r.id)}
           columns={[
             { key: "order", label: "序号", render: (_, i) => i + 1 },
@@ -871,7 +859,7 @@ export function RuleSetsEditor({
             />
             自动更新规则
           </label>
-          <div className="actions right">
+          <div className="modal-actions">
             <Button onClick={() => setEdit(null)}>取消</Button>
             <Button
               variant="primary"
@@ -928,7 +916,8 @@ function stableJSON(value: unknown): string {
 function BuiltinRuleTable({ profile }: { profile: string }) {
   const [open, setOpen] = useState(false),
     [query, setQuery] = useState(""),
-    [offset, setOffset] = useState(0);
+    [page, setPage] = useState(1),
+    [pageSize, setPageSize] = useState(50);
   return (
     <details
       className="builtin-rules"
@@ -952,10 +941,12 @@ function BuiltinRuleTable({ profile }: { profile: string }) {
           query={query}
           setQuery={(v) => {
             setQuery(v);
-            setOffset(0);
+            setPage(1);
           }}
-          offset={offset}
-          setOffset={setOffset}
+          page={page}
+          pageSize={pageSize}
+          setPage={setPage}
+          setPageSize={size => { setPageSize(size ?? 50); setPage(1); }}
         />
       )}
     </details>
@@ -965,65 +956,46 @@ function BuiltinRuleRows({
   profile,
   query,
   setQuery,
-  offset,
-  setOffset,
+  page,
+  pageSize,
+  setPage,
+  setPageSize,
 }: {
   profile: string;
   query: string;
   setQuery: (v: string) => void;
-  offset: number;
-  setOffset: (v: number) => void;
+  page: number;
+  pageSize: number;
+  setPage: (v: number) => void;
+  setPageSize: (v: number | null) => void;
 }) {
+  const offset = (page - 1) * pageSize;
   const r = useResource<Dict>(
-    "/api/rulesets/builtin?profile=" +
-      encodeURIComponent(profile) +
-      "&query=" +
-      encodeURIComponent(query) +
-      "&offset=" +
-      offset,
+    `/api/rulesets/builtin?profile=${encodeURIComponent(profile)}&query=${encodeURIComponent(query)}&offset=${offset}&limit=${pageSize}`,
     60000,
   );
   const total = Number(r.data?.total || 0);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const current = Math.min(page, pageCount);
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar rules-search-toolbar">
         <span className="table-width-slot" data-table-width-slot="builtin-rules" />
-        <input
-          aria-label="搜索基础规则"
-          placeholder="搜索基础规则目标"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <Button
-          disabled={offset === 0}
-          onClick={() => setOffset(Math.max(0, offset - 50))}
-        >
-          上一页
-        </Button>
-        <Button
-          disabled={offset + 50 >= total}
-          onClick={() => setOffset(offset + 50)}
-        >
-          下一页
-        </Button>
-        <span className="small muted">
-          {total ? offset + 1 : 0}–{Math.min(total, offset + 50)} / {total}
-        </span>
+        <input type="search" aria-label="搜索基础规则" placeholder="搜索基础规则目标"
+          value={query} onChange={event => setQuery(event.target.value)} />
       </div>
       <ErrorLine error={r.error || String(r.data?.error || "")} />
-      <Table columnSizingKey="builtin-rules"
-        rows={list(r.data?.items)}
-        rowKey={(r) => String(r.type) + r.target}
+      <Table columnSizingKey="builtin-rules" paginate={false} keepHeaders
+        rows={list(r.data?.items)} rowKey={row => String(row.type) + row.target}
         columns={[
-          { key: "type", label: "匹配类型", render: (r) => String(r.type) },
-          { key: "target", label: "目标", render: (r) => String(r.target) },
-          {
-            key: "action",
-            label: "动作",
-            render: (r) => (r.action === "direct" ? "直连" : "代理"),
-          },
+          { key: "type", label: "匹配类型", render: row => String(row.type) },
+          { key: "target", label: "目标", render: row => <span className="rules-builtin-target" title={String(row.target)}>{String(row.target)}</span> },
+          { key: "action", label: "动作", render: row => row.action === "direct" ? "直连" : "代理" },
         ]}
       />
+      <Pagination value={{ automatic: false, autoPageSize: undefined, items: [], page: current, pageSize,
+        pageCount, start: (current - 1) * pageSize, end: Math.min(total, current * pageSize), count: total,
+        setPage, setPageSize }} />
     </>
   );
 }

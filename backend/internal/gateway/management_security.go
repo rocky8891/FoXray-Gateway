@@ -252,6 +252,30 @@ func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		g.ddns.serve(w, r, g.app.readonly)
 		return
 	}
+	if route == "/api/management/https/cloudflare-token" {
+		w.Header().Set("Cache-Control", "no-store")
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", "POST")
+			writeResponse(w, 405, M{"error": "请求方法无效"})
+			return
+		}
+		if r.TLS == nil || mode == "off" || g.app.readonly {
+			writeResponse(w, 403, M{"error": "请通过 HTTPS 登录后查看令牌"})
+			return
+		}
+		input, err := managementInput(w, r, 2048)
+		if err != nil {
+			writeResponse(w, 400, M{"error": "域名参数无效"})
+			return
+		}
+		token, err := g.tls.savedCloudflareToken(str(input["domain"]))
+		if err != nil {
+			writeResponse(w, 404, M{"error": "当前证书域名没有可查看的独立令牌"})
+			return
+		}
+		writeResponse(w, 200, M{"token": token})
+		return
+	}
 	if route == "/api/management/https" {
 		g.tls.serve(w, r, g.app.readonly)
 		return

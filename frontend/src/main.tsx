@@ -213,7 +213,34 @@ function App() {
     );
     return () => animation?.cancel();
   }, [page]);
-  useEffect(() => { if (!headerAutoHide) setHeaderExpanded(false); }, [headerAutoHide]);
+  const homeIdleSeconds = Number(presentation.home_header_idle_seconds ?? 30);
+  useLayoutEffect(() => {
+    setHeaderClosing(false);
+    setHeaderExpanded(headerAutoHide && page === "overview");
+  }, [headerAutoHide, page]);
+  useEffect(() => {
+    if (!headerAutoHide || page !== "overview" || !headerExpanded) return;
+    let timer: number;
+    const reset = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (document.querySelector("dialog[open]")) {
+          reset();
+          return;
+        }
+        moveHeaderFocus.current = !!header.current?.contains(document.activeElement);
+        setHeaderClosing(!window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+        setHeaderExpanded(false);
+      }, homeIdleSeconds * 1000);
+    };
+    const activity = ["pointermove", "pointerdown", "keydown", "touchstart", "wheel", "scroll"];
+    activity.forEach(event => window.addEventListener(event, reset, { capture: true, passive: true }));
+    reset();
+    return () => {
+      window.clearTimeout(timer);
+      activity.forEach(event => window.removeEventListener(event, reset, true));
+    };
+  }, [headerAutoHide, page, headerExpanded, homeIdleSeconds]);
   const updates = useResource<Dict>("/api/updates", 60000);
   const [updateData, setUpdateData] = useState<Dict>({});
   useEffect(() => {

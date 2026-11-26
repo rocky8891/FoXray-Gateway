@@ -144,6 +144,7 @@ export function PageWidthSettings({ act }: { act: Act }) {
       content_width_percent: Number(resource.data?.content_width_percent ?? 99),
       module_width_percent: Number(resource.data?.module_width_percent ?? 95),
       home_header_auto_hide: resource.data?.home_header_auto_hide === true,
+      home_header_idle_seconds: Number(resource.data?.home_header_idle_seconds ?? 30),
     },
     value = { ...saved, ...draft };
   return (
@@ -183,7 +184,7 @@ export function PageWidthSettings({ act }: { act: Act }) {
           </Field>
           <Field
             label="隐藏首页标题栏"
-            info="开启后默认收起首页标题栏；点击侧边工具栏的 FoXray 图标展开或收起，悬停不会展开。其他页面的标题栏保持显示，首页入口改用 FoXray 图标。"
+            info="首页无操作达到设定时间后自动收起。点击 FoXray 图标可展开或收起。"
           >
             <select
               aria-label="隐藏首页标题栏"
@@ -199,6 +200,11 @@ export function PageWidthSettings({ act }: { act: Act }) {
               <option value="on">开启</option>
             </select>
           </Field>
+          {value.home_header_auto_hide && <Field label="无操作后隐藏（秒）">
+            <NumberInput aria-label="无操作后隐藏（秒）" min={1} max={3600}
+              value={value.home_header_idle_seconds}
+              onChange={e => setDraft({ ...value, home_header_idle_seconds: Number(e.target.value) })} />
+          </Field>}
         </div>
       </SettingsSection>
       <SaveCard
@@ -206,12 +212,13 @@ export function PageWidthSettings({ act }: { act: Act }) {
         dirty={hasChanges(draft, saved)}
         disabled={
           !resource.data ||
+          !Number.isInteger(value.home_header_idle_seconds) || value.home_header_idle_seconds < 1 || value.home_header_idle_seconds > 3600 ||
           [value.content_width_percent, value.module_width_percent].some(width =>
             !Number.isInteger(width) || width < 80 || width > 100
           )
         }
         defaults={() =>
-          setDraft({ content_width_percent: 99, module_width_percent: 95, home_header_auto_hide: false })
+          setDraft({ content_width_percent: 99, module_width_percent: 95, home_header_auto_hide: false, home_header_idle_seconds: 30 })
         }
         discard={() => setDraft(null)}
         save={async () => {
