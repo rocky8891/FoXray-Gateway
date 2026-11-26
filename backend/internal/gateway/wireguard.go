@@ -254,6 +254,19 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 		if !exists {
 			return errors.New("没有可用的 wg-quick 配置")
 		}
+		if op == "start" || op == "restart" || op == "enable" {
+			checkMask := func(state M) error {
+				switch str(state["unit_file_state"]) {
+				case "masked", "masked-runtime":
+					return fmt.Errorf("WireGuard %s 无法执行 %s：wg-quick@%s.service 已被 systemd 屏蔽（%s）", name, op, name, state["unit_file_state"])
+				}
+				return nil
+			}
+			if err := checkMask(state); err != nil {
+				return err
+			}
+			plan.precondition = func() error { return checkMask(a.service("wg-quick@" + name)) }
+		}
 		restore := "stop"
 		if active {
 			restore = "start"
@@ -576,4 +589,36 @@ func (n *Network) planWireGuard(plan *NetworkPlan, d M) error {
 	plan.Summary = "WireGuard 配置 " + op + " · " + name
 	plan.Warnings = append(plan.Warnings, "保存配置不会自动启动接口；需要单独启动并确认路由")
 	return nil
+}
+
+// Accept only systemctl diagnostics that identify the exact requested unit.
+// Output from wg-quick or user configured hooks can contain secrets.
+func (a *App) wireGuardServiceStepError(command, unit string, err error) error {
+	var failure *commandFailure
+	if errors.As(err, &failure) {
+		for _, line := range textLines(failure.stderr) {
+			line = strings.TrimSpace(line)
+			if line == "Failed to enable unit: Unit file "+unit+".service is masked." || line == "Failed to enable unit: Unit "+unit+".service is masked." {
+				return fmt.Errorf("%s：%s", command, line)
+			}
+			for _, action := range []string{"start", "stop", "restart", "enable", "disable"} {
+				for _, name := range []string{unit, unit + ".service"} {
+					prefix := "Failed to " + action + " " + name + ": "
+					reason, ok := strings.CutPrefix(line, prefix)
+					if ok && (reason == "Unit "+name+" is masked." || reason == "Unit file "+name+" is masked." || reason == "Unit "+name+" not found." || reason == "Access denied") {
+						return fmt.Errorf("%s：%s", command, prefix+reason)
+					}
+				}
+			}
+		}
+	}
+	if output, statusErr := a.command(4, "", "systemctl", "show", unit, "-p", "LoadState", "-p", "Result", "-p", "ExecMainStatus"); statusErr == nil {
+		status := parseKV(output)
+		load, result := str(status["LoadState"]), str(status["Result"])
+		code, codeErr := strconv.Atoi(str(status["ExecMainStatus"]))
+		if (load == "masked" || load == "not-found") || (codeErr == nil && code != 0) {
+			return fmt.Errorf("%s：%w（LoadState=%s，Result=%s，退出码=%d）", command, err, load, result, code)
+		}
+	}
+	return fmt.Errorf("%s：%w。查看该单元的 systemd 日志以定位详情", command, err)
 }

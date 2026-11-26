@@ -79,6 +79,9 @@ func (n *Network) ApplyProgress(ctx context.Context, identity string, progress f
 	if p == nil || p.Status != "preview" {
 		return errors.New("变更预览不存在或已使用")
 	}
+	if progress != nil {
+		progress("操作 · " + p.Summary)
+	}
 	if now()-p.Created > 600 {
 		return errors.New("请重新生成变更预览")
 	}
@@ -117,8 +120,13 @@ func (n *Network) ApplyProgress(ctx context.Context, identity string, progress f
 			n.rollback(p, uiActionFromContext(ctx))
 			return errors.New("已取消并回退本次变更")
 		}
+		description := s.Args[0]
+		wgService := len(s.Args) == 3 && s.Args[0] == "systemctl" && strings.HasPrefix(s.Args[2], "wg-quick@")
+		if wgService {
+			description = printableCommand(s.Args)
+		}
 		if progress != nil {
-			progress(fmt.Sprintf("应用步骤 %d / %d · %s", index+1, len(p.steps), s.Args[0]))
+			progress(fmt.Sprintf("应用步骤 %d / %d · %s", index+1, len(p.steps), description))
 		}
 		child, cancel := context.WithTimeout(ctx, 25*time.Second)
 		_, e := n.app.runner.Run(child, s.Args, s.Input)
@@ -128,7 +136,10 @@ func (n *Network) ApplyProgress(ctx context.Context, identity string, progress f
 				_ = n.writeSpec(p, done+1)
 			}
 			n.rollback(p, uiActionFromContext(ctx))
-			return e
+			if wgService {
+				return n.app.wireGuardServiceStepError(description, s.Args[2], e)
+			}
+			return fmt.Errorf("%s · 步骤 %d/%d（%s）：%w", p.Summary, index+1, len(p.steps), description, e)
 		}
 		done++
 		if e := n.writeSpec(p, done); e != nil {

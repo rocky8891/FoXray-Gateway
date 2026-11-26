@@ -154,17 +154,6 @@ export function NetworkBatchDialog({
           我确认本次允许操作所选受保护接口
         </label>
       )}
-      <CopyButton
-        text={entries
-          .map((e) =>
-            [
-              e.name,
-              e.error || (e.applied ? "已提交" : "预览就绪"),
-              ...(e.plan?.preview || []),
-            ].join("\n"),
-          )
-          .join("\n\n")}
-      />
       {entries.map((entry, i) => (
         <section key={i} className="batch-plan-entry">
           <strong>{entry.name}</strong>
@@ -183,6 +172,17 @@ export function NetworkBatchDialog({
         提交后请在 120 秒内确认网络正常；未确认的变更自动回退。
       </p>
       <div className="modal-actions">
+        <CopyButton
+          text={entries
+            .map((e) =>
+              [
+                e.name,
+                e.error || (e.applied ? "已提交" : "预览就绪"),
+                ...(e.plan?.preview || []),
+              ].join("\n"),
+            )
+            .join("\n\n")}
+        />
         <Button disabled={busy} onClick={onClose}>
           {finished ? "完成" : "取消"}
         </Button>

@@ -543,6 +543,12 @@ export function SettingInfo({
   label: string;
   text: ReactNode;
 }) {
+  const sentences = typeof text === "string" && text.length >= 75
+    ? text.match(/[^。]+(?:。|$)/g)?.map(sentence => sentence.trim()).filter(Boolean)
+    : undefined;
+  const content = sentences && sentences.length >= 3
+    ? <ul>{sentences.map((sentence, index) => <li key={index}>{sentence}</li>)}</ul>
+    : text;
   const trigger = useRef<HTMLSpanElement>(null),
     tooltip = useRef<HTMLDivElement>(null),
     hide = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -652,7 +658,7 @@ export function SettingInfo({
             onMouseEnter={cancelHide}
             onMouseLeave={scheduleHide}
           >
-            {text}
+            {content}
           </div>,
           trigger.current?.closest("dialog[open]") || document.body,
         )}

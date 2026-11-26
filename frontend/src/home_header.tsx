@@ -1,4 +1,4 @@
-import { createContext, type SVGProps } from "react";
+import { createContext, useId, type SVGProps } from "react";
 import emblem from "../public/foxray-icon.svg?raw";
 
 const homeMotionKey = "foxray.home.motion";
@@ -35,5 +35,8 @@ export const HomeHeaderContext = createContext({
 const emblemMarkup = emblem.slice(emblem.indexOf("<g"), emblem.lastIndexOf("</svg>"));
 
 export function HomeHeaderToggleIcon(props: SVGProps<SVGSVGElement>) {
-  return <svg viewBox="105 83 292 349" aria-hidden="true" {...props} dangerouslySetInnerHTML={{ __html: emblemMarkup }} />;
+  const prefix = `foxray-${useId().replace(/[^a-zA-Z0-9_-]/g, "-")}-`;
+  const markup = emblemMarkup.replace(/id="([\w-]+)"|url\(#([\w-]+)\)/g,
+    (_, id, ref) => id ? `id="${prefix}${id}"` : `url(#${prefix}${ref})`);
+  return <svg viewBox="105 83 292 349" aria-hidden="true" {...props} dangerouslySetInnerHTML={{ __html: markup }} />;
 }

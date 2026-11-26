@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const Version = "0.9.62"
+const Version = "0.9.63"
 
 type M = map[string]any
 
@@ -197,6 +197,13 @@ type Runner interface {
 }
 type SystemRunner struct{}
 
+type commandFailure struct {
+	name   string
+	stderr string
+}
+
+func (e *commandFailure) Error() string { return e.name + " 执行失败" }
+
 func (SystemRunner) Run(ctx context.Context, args []string, input string) (string, error) {
 	if len(args) == 0 {
 		return "", errors.New("空命令")
@@ -211,7 +218,12 @@ func (SystemRunner) Run(ctx context.Context, args []string, input string) (strin
 		if ctx.Err() != nil {
 			return "", errors.New("操作超时或已取消")
 		}
-		return string(out), fmt.Errorf("%s 执行失败", filepath.Base(args[0]))
+		failure := &commandFailure{name: filepath.Base(args[0])}
+		var exit *exec.ExitError
+		if errors.As(e, &exit) {
+			failure.stderr = string(exit.Stderr)
+		}
+		return string(out), failure
 	}
 	return string(out), nil
 }

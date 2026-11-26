@@ -662,7 +662,10 @@ func (a *App) postAPI(r *http.Request, d M) (any, error) {
 	case "/api/network/apply":
 		j, e := a.submitUI(uiAction, "应用网络变更", "network.apply", func(ctx context.Context, j *Job) error {
 			a.stage(j, "校验变更并创建独立回退任务")
-			e := a.network.ApplyProgress(ctx, str(d["id"]), func(message string) { a.stage(j, message) })
+			e := a.network.ApplyProgress(ctx, str(d["id"]), func(message string) {
+				a.stage(j, message)
+				a.jobDetail(j, message)
+			})
 			if e == nil {
 				a.stage(j, "变更已应用，请在期限内确认网络正常")
 			}
