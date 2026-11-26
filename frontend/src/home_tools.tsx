@@ -16,6 +16,7 @@ export function HomeTools({
   const showHeaderButton = header.hidden && !header.collapseInNav;
   const previousView = useRef(view);
   const previousHeaderButton = useRef(showHeaderButton);
+  const wasClosing = useRef(header.closing);
   const toolsRef = useRef<HTMLElement>(null);
   const animations = useRef<Animation[]>([]);
   const [handoff, setHandoff] = useState(false);
@@ -27,16 +28,21 @@ export function HomeTools({
 
   useEffect(() => () => window.clearTimeout(hideTimer.current), []);
 
-  useEffect(() => {
-    if (!dock || !header.closing || reduceHomeMotion()) return;
-    setHandoff(true);
-  }, [dock, header.closing]);
+  useLayoutEffect(() => {
+    const finishedClosing = wasClosing.current && !header.closing;
+    wasClosing.current = header.closing;
+    if (!dock || !showHeaderButton) {
+      setHandoff(false);
+      return;
+    }
+    if (finishedClosing && !reduceHomeMotion()) setHandoff(true);
+  }, [dock, header.closing, showHeaderButton]);
 
   useEffect(() => {
-    if (!handoff || header.closing) return;
+    if (!handoff) return;
     const timer = window.setTimeout(() => setHandoff(false), 1000);
     return () => window.clearTimeout(timer);
-  }, [handoff, header.closing]);
+  }, [handoff]);
 
   const animateTools = () => {
     const tools = toolsRef.current;
