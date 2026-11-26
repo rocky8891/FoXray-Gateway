@@ -5,7 +5,7 @@ import ts from "typescript-ast";
 const root=path.resolve(import.meta.dirname,"../src");
 const entries=[];const unresolved=[];
 const category=name=>/wireguard|wg_|network/.test(name)?"WireGuard 与网络":/firewall|snat|dnat|cross_zone/.test(name)?"防火墙":/warp/.test(name)?"WARP":/management|security|backup|version/.test(name)?"部署与管理":/monitor|traffic|metric|overview|host|history|connection/.test(name)?"监控与首页":"功能说明";
-for(const file of fs.readdirSync(root).filter(name=>name.endsWith(".tsx")&&!name.startsWith("help_")&&!name.includes("-check")).sort()){
+for(const file of fs.readdirSync(root).filter(name=>name.endsWith(".tsx")&&(!name.startsWith("help_")||name==="help_center.tsx")&&!name.includes("-check")).sort()){
  const source=ts.createSourceFile(file,fs.readFileSync(path.join(root,file),"utf8"),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
  const variables=new Map();
  function index(node){if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.initializer)variables.set(node.name.text,node.initializer);ts.forEachChild(node,index)}index(source);

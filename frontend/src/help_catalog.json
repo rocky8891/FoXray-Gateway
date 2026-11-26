@@ -344,6 +344,14 @@
     "kind": "页面说明"
   },
   {
+    "id": "info-19c87b05fbc4e762",
+    "title": "帮助中心",
+    "category": "功能说明",
+    "body": "部署、功能使用与页面说明 · 支持关键词和模糊搜索\n项目 GitHub：\nhttps://github.com/rocky8891/FoXray-Gateway",
+    "origin": "help_center",
+    "kind": "页面说明"
+  },
+  {
     "id": "info-c613381424fafac6",
     "title": "历史写入间隔（秒）",
     "category": "监控与首页",
