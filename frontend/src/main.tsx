@@ -213,10 +213,37 @@ function App() {
     );
     return () => animation?.cancel();
   }, [page]);
+  const closeOverviewHeader = (restoreFocus: boolean) => {
+    const dock = document.querySelector<HTMLElement>(".home-tools-dock > .overview-side-tools");
+    const shell = header.current?.parentElement;
+    if (dock && shell) {
+      const rail = dock.parentElement!.getBoundingClientRect();
+      const tools = dock.getBoundingClientRect();
+      const frame = shell.getBoundingClientRect();
+      setHeaderOrigin(`${rail.left + tools.width / 2 - frame.left}px ${rail.top - frame.bottom + tools.width / 2}px`);
+    }
+    moveHeaderFocus.current = restoreFocus;
+    setHeaderClosing(!window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    setHeaderExpanded(false);
+  };
   const homeIdleSeconds = Number(presentation.home_header_idle_seconds ?? 30);
   useLayoutEffect(() => {
     setHeaderClosing(false);
-    setHeaderExpanded(headerAutoHide && page === "overview");
+    setHeaderExpanded(false);
+    if (!headerAutoHide || page !== "overview") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setHeaderExpanded(true);
+      return;
+    }
+    // Let the browser paint the collapsed state before starting the transition.
+    let openFrame = 0;
+    const prepareFrame = window.requestAnimationFrame(() => {
+      openFrame = window.requestAnimationFrame(() => setHeaderExpanded(true));
+    });
+    return () => {
+      window.cancelAnimationFrame(prepareFrame);
+      window.cancelAnimationFrame(openFrame);
+    };
   }, [headerAutoHide, page]);
   useEffect(() => {
     if (!headerAutoHide || page !== "overview" || !headerExpanded) return;
@@ -228,9 +255,7 @@ function App() {
           reset();
           return;
         }
-        moveHeaderFocus.current = !!header.current?.contains(document.activeElement);
-        setHeaderClosing(!window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-        setHeaderExpanded(false);
+        closeOverviewHeader(!!header.current?.contains(document.activeElement));
       }, homeIdleSeconds * 1000);
     };
     const activity = ["pointermove", "pointerdown", "keydown", "touchstart", "wheel", "scroll"];
@@ -593,9 +618,7 @@ function App() {
                   title={collapse ? "收起首页标题栏" : id === "overview" ? label : undefined}
                   onClick={event => {
                     if (collapse) {
-                      moveHeaderFocus.current = event.detail === 0;
-                      setHeaderClosing(!window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-                      setHeaderExpanded(false);
+                      closeOverviewHeader(event.detail === 0);
                     } else {
                       navigate(id);
                     }

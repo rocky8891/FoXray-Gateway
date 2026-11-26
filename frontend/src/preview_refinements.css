@@ -825,7 +825,7 @@ body .overview-footer > .data-freshness {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: transform .58s cubic-bezier(.4,0,.22,1), opacity .24s ease .34s, visibility 0s .58s;
+  transition: transform .58s cubic-bezier(.4,0,.22,1), opacity .42s cubic-bezier(.4,0,.22,1) .16s, visibility 0s .58s;
 }
 .home-header-shell[data-auto-hide="true"][data-expanded="true"] > header {
   transform: scale(1);
