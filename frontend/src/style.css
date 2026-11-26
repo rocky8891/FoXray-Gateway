@@ -7158,3 +7158,7 @@ header .brand{align-items:center}header .brand .brand-logo{width:44px;height:44p
   background-color: var(--table-header-base, #151c28) !important;
 }
 :root[data-theme="light"] { --table-header-base: #f2f6fa; }
+
+/* Keep template actions and output separated from the following confirmation. */
+.wg-client-templates { display: grid; gap: var(--space-4, 1rem); margin-block-end: var(--space-4, 1rem); }
+.wg-client-templates > h3, .wg-client-templates > .actions, .wg-client-templates > .client-template { margin-block: 0; }

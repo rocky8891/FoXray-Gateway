@@ -111,6 +111,8 @@ export function NetworkPage({
     setProtectionRows(null);
     setFailure("");
     setQuery("");
+    setColumnFilters({});
+    setFilterState("all");
   }, [kind]);
   const begin = (op: string, item: Dict) => {
     originalWireGuardForm.current = kind === "wireguard" && op === "replace" ? item : null;
@@ -134,6 +136,35 @@ export function NetworkPage({
       setFailure(errorMessage(e));
     }
   };
+  const [columnFilters, setColumnFilters] = useState<Record<string,string>>({});
+  const setColumnFilter = (key:string,value:string) => setColumnFilters(previous=>({...previous,[key]:value}));
+  const roleLabel = (row:Dict) => record(row.network).role === "server" ? "服务端" : record(row.network).role === "client" ? "客户端" : "未设置角色";
+  const interfaceAddresses = (row:Dict):string[] => {
+    const current=list(row.addresses).flatMap(address=>list(address.addr_info).map(ip=>String(ip.local||"")+"/"+String(ip.prefixlen??"")));
+    return current.length?current:Array.isArray(row.configured_addresses)?row.configured_addresses.map(String):[];
+  };
+  const peerStatus = (peer:Dict) => String(record(peer.health).status || (peer.disabled ? "已停用" : Number(peer.handshake) ? "握手成功" : "未握手"));
+  const filterText = (row:Dict,key:string):string => {
+    const peers=list(row.peers);
+    switch(key){
+      case "name":return [row.name,row.remark].filter(Boolean).join(" ");
+      case "addresses":return interfaceAddresses(row).join(" ");
+      case "port":return String(row.listen_port??"");
+      case "endpoint":return peers.map(peer=>peer.endpoint&&peer.endpoint!=="(none)"?String(peer.endpoint):"未配置／等待对端").join(" ");
+      case "peer_addresses":return peers.map(peer=>Array.isArray(peer.allowed_ips)?peer.allowed_ips.join(" "):String(peer.allowed_ips||"")).join(" ");
+      case "peers":return peers.map(peer=>[record(peer.health).tunnel,peerStatus(peer)].filter(Boolean).join(" ")).join(" ");
+      default:return "";
+    }
+  };
+  const matchesColumnFilters = (row:Dict) => Object.entries(columnFilters).every(([key,value])=>{
+    if(!value||kind!=="wireguard")return true;
+    if(key==="role")return (String(record(row.network).role||"unset"))===value;
+    if(key==="protection")return Boolean(row.protected)===(value==="on");
+    if(key==="autostart")return Boolean(record(row.service).autostart)===(value==="on");
+    if(key==="peerPresence")return (list(row.peers).length>0)===(value==="present");
+    return filterText(row,key).toLowerCase().includes(value.trim().toLowerCase());
+  });
+  const hasColumnFilters=kind==="wireguard"&&Object.values(columnFilters).some(Boolean);
   const [filterState, setFilterState] = useState("all"),
     [sort, setSort] = useState({ key: "name", direction: 1 }),
     [bulk, setBulk] = useState<{ operation: string; rows: Dict[] } | null>(
@@ -151,7 +182,7 @@ export function NetworkPage({
     .filter(
       (row) =>
         JSON.stringify(row).toLowerCase().includes(query.toLowerCase()) &&
-        (filterState === "all" || !!row.active === (filterState === "active")),
+        (filterState === "all" || !!row.active === (filterState === "active")) && matchesColumnFilters(row),
     )
     .sort(
       (a, b) =>
@@ -252,8 +283,8 @@ export function NetworkPage({
         onChange={(e) => setFilterState(e.target.value)}
       >
         <option value="all">全部状态</option>
-        <option value="active">已启用</option>
-        <option value="inactive">已停用</option>
+        <option value="active">已启动</option>
+        <option value="inactive">已停止</option>
       </select>
     </Field>
   );
@@ -290,7 +321,7 @@ export function NetworkPage({
             <strong>{text(record(r.service).name || `wg-quick@${r.name}`)}</strong>
             <small>{r.configured ? "wg-quick 配置已就绪" : "未配置 wg-quick"}</small>
             <small className={r.active ? "accent" : "muted"}>
-              {r.active ? "接口已启动" : "接口已停止"}
+              {roleLabel(r)}·{r.active ? "已启动" : "已停止"}
             </small>
           </>
         ),
@@ -308,8 +339,7 @@ export function NetworkPage({
         ),
       },
       { key: "addresses", label: "接口 IP", fitContent: true, render: (r) => {
-        const current = Array.isArray(r.addresses) ? r.addresses.flatMap(a => Array.isArray(record(a).addr_info) ? (record(a).addr_info as Dict[]).map(ip => String(ip.local || "") + "/" + String(ip.prefixlen ?? "")) : []) : [];
-        const addresses = current.length ? current : Array.isArray(r.configured_addresses) ? r.configured_addresses.map(String) : [];
+        const addresses = interfaceAddresses(r);
         return addresses.length ? addresses.map(ip=><div key={ip}>{ip}</div>) : "—";
       } },
       { key: "port", label: "监听端口", fitContent: true, render: (r) => text(r.listen_port) },
@@ -326,7 +356,7 @@ export function NetworkPage({
             <small>{peers.length} 个 Peer{healthy > 0 && ` · ${healthy} 正常`}{disconnected > 0 && ` · ${disconnected} 不可达`}</small>
             {peers.map((peer, index) => {
               const health = record(peer.health);
-              const status = String(health.status || (peer.disabled ? "已停用" : Number(peer.handshake) ? "握手成功" : "未握手"));
+              const status = peerStatus(peer);
               const label = [`Peer ${index + 1}`, health.tunnel, status].filter(Boolean).join(" · ");
               return <div className="wg-peer-status-entry" key={String(peer.public_key || index)}>
                 <button type="button" className="wg-peer-status-line"
@@ -528,16 +558,18 @@ export function NetworkPage({
                   }
                 />
 
-                {c.key === "state" && (
-                  <ListFilter
-                    label="接口状态筛选"
-                    column
-                    active={filterState !== "all"}
-                  >
-                    {interfaceStateControl}
-                    <Button onClick={() => setFilterState("all")}>重置</Button>
-                  </ListFilter>
-                )}
+                {(c.key === "state" || (kind === "wireguard" && ["name","autostart","addresses","port","endpoint","peer_addresses","peers"].includes(c.key))) && (()=>{
+                  const keys=c.key==="name"?["name","protection"]:c.key==="state"?["role"]:c.key==="peers"?["peers","peerPresence"]:[c.key];
+                  const selectFilter=(key:string,label:string,choices:[string,string][]) => <Field key={key} label={label}><select aria-label={label} value={columnFilters[key]||""} onChange={event=>setColumnFilter(key,event.target.value)}><option value="">全部</option>{choices.map(([value,text])=><option key={value} value={value}>{text}</option>)}</select></Field>;
+                  return <ListFilter label={c.key==="state"?"接口状态筛选":c.label+"筛选"} column active={(c.key==="state"&&filterState!=="all")||keys.some(key=>!!columnFilters[key])}>
+                    {c.key==="state"&&interfaceStateControl}
+                    {kind==="wireguard"&&c.key==="state"&&selectFilter("role","接口角色",[["server","服务端"],["client","客户端"],["unset","未设置角色"]])}
+                    {c.key==="autostart"?selectFilter("autostart","开机自启",[["on","已开启"],["off","已关闭"]]):c.key!=="state"&&<Field label={c.label}><input aria-label={c.label+"筛选内容"} placeholder={c.key==="peers"?"输入对端地址或状态文字":"输入关键词"} value={columnFilters[c.key]||""} onChange={event=>setColumnFilter(c.key,event.target.value)}/></Field>}
+                    {c.key==="name"&&selectFilter("protection","接口保护",[["on","受保护"],["off","未保护"]])}
+                    {c.key==="peers"&&selectFilter("peerPresence","Peer 配置",[["present","有 Peer"],["empty","无 Peer"]])}
+                    <Button onClick={()=>{if(c.key==="state")setFilterState("all");setColumnFilters(previous=>{const next={...previous};keys.forEach(key=>delete next[key]);return next;});}}>重置</Button>
+                  </ListFilter>;
+                })()}
               </span>
             ),
           },
@@ -667,11 +699,12 @@ export function NetworkPage({
             </AdaptiveSearch>
           </div>
           <ResetFilters
-            active={query !== "" || filterState !== "all"}
+            active={query !== "" || filterState !== "all" || hasColumnFilters}
             selectedCount={selection.chosen.length}
             summary={[
               query && `搜索：${query}`,
-              filterState !== "all" && `状态：${filterState}`,
+              filterState !== "all" && `状态：${filterState === "active" ? "已启动" : "已停止"}`,
+              hasColumnFilters && "已应用列筛选",
               `${rows.length} 项`,
             ]
               .filter(Boolean)
@@ -680,6 +713,7 @@ export function NetworkPage({
               selection.setSelected(new Set());
               setQuery("");
               setFilterState("all");
+              setColumnFilters({});
             }}
           />
           <ExportButton
@@ -1330,7 +1364,7 @@ function WGClientTemplates({ name, peers }: { name: string; peers: Dict[] }) {
   const [template, setTemplate] = useState(""),
     [error, setError] = useState("");
   return (
-    <section className="peer-editor">
+    <section className="peer-editor wg-client-templates">
       <h3>
         客户端配置模板
         <SettingInfo

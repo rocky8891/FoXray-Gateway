@@ -401,6 +401,7 @@ func (n *Network) wireguard() []M {
 			var err error
 			if profile, err = readWG(name); err == nil {
 				row["remark"] = profile.Remark
+				row["network"] = profile.Network
 				row["listen_port"] = profile.ListenPort
 				row["configured_addresses"] = profile.Addresses
 				row["peers"] = profile.Peers
