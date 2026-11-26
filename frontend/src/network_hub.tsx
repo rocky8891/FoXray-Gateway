@@ -423,6 +423,17 @@ function Interfaces({ act }: { act: Act }) {
               <SelectionActions
                 bulk={[
                   {
+                    label: "纳管",
+                    disabled: true,
+                    title: "接口由系统、VPN 模块或 FoXray 创建时确立归属",
+                  },
+                  {
+                    label: "删除",
+                    disabled: !selection.chosen.length || selection.chosen.length > 50 || selection.chosen.some(row => !row.can_delete),
+                    title: "仅删除 FoXray 创建且已停用、无地址及引用的虚拟接口",
+                    onClick: () => setBulk({ operation: "delete", rows: selection.chosen }),
+                  },
+                  {
                     label: "启用",
                     disabled:
                       !selection.chosen.length ||

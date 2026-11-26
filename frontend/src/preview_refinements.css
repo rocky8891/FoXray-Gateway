@@ -1745,20 +1745,19 @@ main[data-module-page] > :is(.module-page, .module-service-settings) > .panel:nt
   text-overflow: ellipsis;
 }
 .service-connection-identity > :not(.service-connection-endpoint) { flex: none; }
-.firewall-main-panel .table-wrap table :is(th, td)[data-column="selected"] {
+table :is(th, td):is([data-column="selected"], [data-column="select"], :has(> input[type="checkbox"]:only-child)) {
   padding-inline: 10px !important;
   text-align: center !important;
   vertical-align: middle !important;
 }
-.firewall-main-panel .table-wrap th[data-column="selected"] .adaptive-column-heading {
+table th:is([data-column="selected"], [data-column="select"]) :is(.adaptive-column-heading, .first-cell-content) {
   display: flex;
   justify-content: center;
   width: 100%;
 }
-.firewall-main-panel .table-wrap [data-column="selected"] input[type="checkbox"] {
-  display: inline-block;
-  vertical-align: middle;
-  margin: 0;
+table :is(th, td):is([data-column="selected"], [data-column="select"], :has(> input[type="checkbox"]:only-child)) input[type="checkbox"] {
+  display: block;
+  margin: 0 auto;
 }
 
 .page-background-options {

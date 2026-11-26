@@ -11,11 +11,11 @@ func (n *Network) batchPreview(data M) (*NetworkPlan, error) {
 	if kind != "firewall" && kind != "routes" && kind != "rules" && kind != "interfaces" {
 		return nil, errors.New("当前模块不支持批量操作")
 	}
-	if kind == "interfaces" && operation != "start" && operation != "stop" {
-		return nil, errors.New("接口批量操作仅支持启用和停用")
+	if kind == "interfaces" && operation != "start" && operation != "stop" && operation != "delete" {
+		return nil, errors.New("接口批量操作支持启用、停用和删除")
 	}
-	if (kind == "routes" || kind == "rules") && operation != "enable" && operation != "disable" {
-		return nil, errors.New("路由批量操作仅支持启用和停用")
+	if (kind == "routes" || kind == "rules") && operation != "enable" && operation != "disable" && operation != "adopt" && operation != "delete" {
+		return nil, errors.New("路由批量操作支持启用、停用、纳管和删除")
 	}
 	items := arr(data["items"])
 	if len(items) < 1 || len(items) > 50 {
@@ -29,6 +29,7 @@ func (n *Network) batchPreview(data M) (*NetworkPlan, error) {
 	n.mu.Unlock()
 	p := &NetworkPlan{ID: id(), Kind: kind, Created: now(), Status: "preview", Warnings: []string{}, Preview: []string{}, revision: revision}
 	changes := []any{}
+	var preconditions []func() error
 	seen := map[string]bool{}
 	for _, value := range items {
 		item := obj(value)
@@ -43,6 +44,21 @@ func (n *Network) batchPreview(data M) (*NetworkPlan, error) {
 		identity := str(item["id"])
 		if kind == "interfaces" {
 			identity = str(item["name"])
+		}
+		if operation == "adopt" && (kind == "routes" || kind == "rules") {
+			if kind == "routes" {
+				route, err := normalizeRoute(item)
+				if err != nil {
+					return nil, err
+				}
+				identity = familyFor(route) + "|" + strings.Join(routeSpec(route), " ")
+			} else {
+				rule, err := normalizePolicy(item)
+				if err != nil {
+					return nil, err
+				}
+				identity = familyFor(rule) + "|" + intstr(rule["priority"])
+			}
 		}
 		selectionKey := identity
 		if kind == "firewall" && operation == "adopt" {
@@ -73,12 +89,25 @@ func (n *Network) batchPreview(data M) (*NetworkPlan, error) {
 		n.mu.Lock()
 		delete(n.plans, child.ID)
 		n.mu.Unlock()
+		if child.precondition != nil {
+			preconditions = append(preconditions, child.precondition)
+		}
 		p.steps = append(p.steps, child.steps...)
 		p.undo = append(p.undo, child.undo...)
 		p.Preview = append(p.Preview, child.Preview...)
 		p.Warnings = append(p.Warnings, child.Warnings...)
 		if child.persist != nil {
 			changes = append(changes, child.persist)
+		}
+	}
+	if len(preconditions) > 0 {
+		p.precondition = func() error {
+			for _, check := range preconditions {
+				if err := check(); err != nil {
+					return err
+				}
+			}
+			return nil
 		}
 	}
 	names := map[string]string{"adopt": "纳入管理", "enable": "启用", "disable": "停用", "delete": "删除", "start": "启用", "stop": "停用"}

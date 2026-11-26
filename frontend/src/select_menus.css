@@ -134,15 +134,16 @@ header .management-user-menu .more-actions-trigger > svg { width: 20px; height: 
 main[data-module-page] {
   --settings-column-gap: var(--group-gap);
   --settings-section-inset: 16px;
+  --settings-form-columns: repeat(4, minmax(0, 1fr));
 }
-main[data-module-page] :is(.module-service-settings .settings-section, .presentation-settings > .settings-section, .presentation-settings > form > .settings-section, .component-service-panel .service-control-frame, .component-service-panel .version-panel) {
+main[data-module-page] :is(.module-service-settings .settings-section, .presentation-settings > .settings-section, .presentation-settings > form > .settings-section, .compact-settings-card > .form-grid, .data-policy-card > .settings-section, .component-service-panel .service-control-frame, .component-service-panel .version-panel) {
   padding-inline: var(--settings-section-inset);
 }
-main[data-module-page] :is(.form-grid, .wg-probe-targets, .component-service-panel .service-values, .component-service-panel .version-facts, .xray-runtime-summary) {
+main[data-module-page] :is(.form-grid, .data-policy-fields, .wg-probe-targets, .component-service-panel .service-values, .component-service-panel .version-facts, .xray-runtime-summary) {
   column-gap: var(--settings-column-gap);
 }
-main[data-module-page] .form-grid > .field { min-width: 0; }
-main[data-module-page] .form-grid > .field > :is(input:not([type=checkbox]):not([type=radio]), select, textarea) {
+main[data-module-page] :is(.form-grid, .data-policy-fields) > .field { min-width: 0; }
+main[data-module-page] :is(.form-grid, .data-policy-fields) > .field > :is(input:not([type=checkbox]):not([type=radio]), select, textarea) {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -162,4 +163,21 @@ main[data-module-page] :is(.xray-proxy-panel [aria-label="分流与接管"], .wa
 }
 @media (max-width: 599px) {
   main[data-module-page] :is(.xray-proxy-panel [aria-label="分流与接管"], .warp-detection-settings .detection-section > .form-grid, .wg-probe-targets) { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Cards with fewer fields use the same column tracks as the adjoining forms. */
+main[data-module-page] :is(.data-policy-fields, .compact-settings-card > .form-grid, .monitor-master-settings .form-grid) {
+  grid-template-columns: var(--settings-form-columns);
+}
+main[data-module-page] .module-settings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: var(--settings-column-gap);
+}
+@media (max-width: 1199px) {
+  main[data-module-page] { --settings-form-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 599px) {
+  main[data-module-page] { --settings-form-columns: minmax(0, 1fr); }
+  main[data-module-page] .module-settings-grid { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
 }

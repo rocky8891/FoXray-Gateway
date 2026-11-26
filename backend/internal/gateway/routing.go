@@ -166,6 +166,9 @@ func (n *Network) planRoute(p *NetworkPlan, d M) error {
 		for _, v := range rows {
 			r := obj(v)
 			if firstNonempty(str(r["dst"]), "default") == str(item["dst"]) && str(r["dev"]) == dev && str(r["gateway"]) == str(item["gateway"]) && num(r["metric"]) == num(item["metric"]) {
+				if protocol := str(r["protocol"]); protocol != "static" && protocol != "boot" {
+					return errors.New("仅支持纳管外部静态路由")
+				}
 				r["family"], r["table"] = item["family"], item["table"]
 				normalized, e := normalizeRoute(r)
 				if e != nil {

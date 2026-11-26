@@ -35,15 +35,12 @@ export function NetworkBatchDialog({
           const plan = await api<Plan>("/api/network/plan", {
             kind,
             operation:
-              kind === "interfaces"
-                ? operation
-                : operation === "start"
-                  ? "enable"
-                  : "disable",
+              kind !== "interfaces" && operation === "start" ? "enable"
+                : kind !== "interfaces" && operation === "stop" ? "disable" : operation,
             items: rows.map((row) =>
               kind === "interfaces"
                 ? { name: row.ifname || row.name }
-                : { id: row.id },
+                : operation === "adopt" ? row : { id: row.id },
             ),
             allow_protected: allowed,
           });
@@ -125,6 +122,7 @@ export function NetworkBatchDialog({
           enable: "开启自启",
           disable: "关闭自启",
           delete: "删除",
+          adopt: "纳管",
         }[operation] || operation)
       }
       onClose={onClose}

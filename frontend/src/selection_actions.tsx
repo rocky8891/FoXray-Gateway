@@ -51,7 +51,7 @@ export function SelectionActions({
     available = bulk || commands;
   const enable = available.find((a) => /^(启用|启动)$/.test(a.label)),
     disable = available.find((a) => /^(停用|停止)$/.test(a.label));
-  const other = (count === 1 ? commands : available).filter(
+  const other = (bulk ?? (count === 1 ? commands : available)).filter(
     (a) => !/^(启用|停用|启动|停止)$/.test(a.label),
   );
   return (
@@ -78,9 +78,9 @@ export function SelectionActions({
             ? other
             : [
                 {
-                  label: "编辑",
+                  label: "无可用批量操作",
                   disabled: true,
-                  title: count > 1 ? "请从行操作中逐项编辑" : "请先选择对象",
+                  title: count ? "请使用行操作" : "请先选择对象",
                 },
               ]
         }

@@ -269,6 +269,11 @@ export function RoutingPage({
       : <span>{routeTableLabel(r.table)}</span>
     ) : <span className="ellipsis" title={text(fieldValue(r,key))}>{text(fieldValue(r,key))}</span>,
   });
+  const canAdopt = (row: Dict) => !row.managed && (route
+    ? ["static", "boot"].includes(String(row.protocol)) && !String(row.dev || "").startsWith("wg-") &&
+      !["vone0", "CloudflareWARP", "vpm-tun"].includes(String(row.dev))
+    : Number(row.priority) > 0 && Number(row.priority) < 32766 && !(Number(row.priority) >= 16060 && Number(row.priority) <= 16100));
+  const validBatch = selection.chosen.length > 0 && selection.chosen.length <= 50;
   const columns: Column<Dict>[] = [
     selection.column,
     { key: "serial", label: "序号", render: (_, i) => i + 1 },
@@ -356,18 +361,7 @@ export function RoutingPage({
             删除
           </Button>
           <Button
-            disabled={
-              !!r.managed ||
-              !(route
-                ? ["static", "boot"].includes(String(r.protocol)) &&
-                  !String(r.dev || "").startsWith("wg-") &&
-                  !["vone0", "CloudflareWARP", "vpm-tun"].includes(
-                    String(r.dev),
-                  )
-                : Number(r.priority) > 0 &&
-                  Number(r.priority) < 32766 &&
-                  !(Number(r.priority) >= 16060 && Number(r.priority) <= 16100))
-            }
+            disabled={!canAdopt(r)}
             title="仅纳管独立静态条目；系统、VPN 和保留标记不可接管"
             onClick={() => begin("adopt", r)}
           >
@@ -440,6 +434,18 @@ export function RoutingPage({
 
               <SelectionActions
                 bulk={[
+                  {
+                    label: "纳管",
+                    disabled: !validBatch || !selection.chosen.every(canAdopt),
+                    title: "请选择可纳管的外部静态条目",
+                    onClick: () => setBulk({ operation: "adopt", rows: selection.chosen }),
+                  },
+                  {
+                    label: "删除",
+                    disabled: !validBatch || selection.chosen.some(row => !row.managed),
+                    title: "仅删除 FoXray 管理的条目",
+                    onClick: () => setBulk({ operation: "delete", rows: selection.chosen }),
+                  },
                   {
                     label: "启用",
                     disabled:
