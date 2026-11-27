@@ -103,6 +103,28 @@ func readBackupFile(root *os.Root, name string, remaining int64) ([]byte, error)
 	return data, nil
 }
 
+// The WARP namespace resolver can be an alias installed by FoXray.
+func readWarpResolverBackup(root *os.Root, name string, remaining int64) ([]byte, error) {
+	const managed = "etc/foxray/warp-netns-resolv.conf"
+	info, err := root.Lstat(name)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		return readBackupFile(root, name, remaining)
+	}
+	link, err := root.Readlink(name)
+	if err != nil {
+		return nil, fmt.Errorf("无法读取 WARP DNS 链接: %v", err)
+	}
+	link = filepath.ToSlash(link)
+	if link != "/"+managed && link != "../../foxray/warp-netns-resolv.conf" {
+		return nil, errors.New("WARP DNS 链接未指向受管文件")
+	}
+	data, err := readBackupFile(root, managed, remaining)
+	if err != nil {
+		return nil, fmt.Errorf("无法读取受管 WARP DNS 文件: %v", err)
+	}
+	return data, nil
+}
+
 func backupSQLite(filename string, remaining int64) ([]byte, error) {
 	// VACUUM INTO snapshots a live SQLite database including committed WAL entries.
 	dir, err := os.MkdirTemp("", "foxray-backup-db-")
@@ -148,6 +170,10 @@ func buildConfigArchive(base, systemRoot string, serviceState func([]string) any
 		if !backupAllowed(full) || len(names) >= 2048 {
 			return errors.New("配置备份路径或数量无效")
 		}
+		displayName := name
+		if scope == "system" {
+			displayName = "/" + name
+		}
 		var raw []byte
 		var e error
 		if scope == "system" && strings.HasSuffix(name, ".db") && systemRoot == "/" {
@@ -156,10 +182,12 @@ func buildConfigArchive(base, systemRoot string, serviceState func([]string) any
 			if e == nil {
 				resolved, resolveErr := filepath.EvalSymlinks("/" + name)
 				if resolveErr != nil || resolved != "/"+name || !info.Mode().IsRegular() || info.Size() > remaining {
-					return fmt.Errorf("无法备份数据库 %s", name)
+					return fmt.Errorf("无法备份数据库 %s", displayName)
 				}
 				raw, e = backupSQLite(resolved, remaining)
 			}
+		} else if scope == "system" && name == "etc/netns/foxray-warp/resolv.conf" {
+			raw, e = readWarpResolverBackup(root, name, remaining)
 		} else {
 			raw, e = readBackupFile(root, name, remaining)
 		}
@@ -167,7 +195,7 @@ func buildConfigArchive(base, systemRoot string, serviceState func([]string) any
 			return nil
 		}
 		if e != nil {
-			return fmt.Errorf("无法备份 %s，请检查文件状态或容量后重试", name)
+			return fmt.Errorf("无法备份 %s，请检查文件状态或容量后重试", displayName)
 		}
 		remaining -= int64(len(raw))
 		w, e := out.Create(full)

@@ -1,10 +1,10 @@
-# FoXray Gateway v0.9.65 配置备份与恢复
+# FoXray Gateway v0.9.75 配置备份与恢复
 
-适用于 `foxray_v0.9.65` 及该版本的在线安装包。
+适用于 `foxray_v0.9.75` 及该版本的在线安装包。
 
 ## 首次设置和导出
 
-登录 FoXray 后，进入「设置 → FoXray → 配置备份」。勾选「使用密码加密」会导出 `.foxbackup`，取消勾选会导出 `.zip`。ZIP 里的服务配置和密钥可直接读取。备份总配置量上限为 64 MiB。
+登录 FoXray 后，进入「设置 → 全局设置 → 配置备份」。勾选「使用密码加密」会导出 `.foxbackup`，取消勾选会导出 `.zip`。ZIP 里的服务配置和密钥可直接读取。备份总配置量上限为 64 MiB。
 
 HTTP 和 HTTPS 页面都可操作。HTTP 页面会提示传输风险。服务器目录留空时，文件由浏览器下载。填写已存在的服务器绝对目录时，应用会以 `0600` 创建一个新备份文件，并显示路径，可经 SSH 或 SFTP 下载。
 
@@ -23,7 +23,7 @@ HTTP 和 HTTPS 页面都可操作。HTTP 页面会提示传输风险。服务器
 
    ```bash
    umask 077
-   ./foxray_v0.9.65 --stage-config-backup ./foxray-config.foxbackup \
+   ./foxray_v0.9.75 --stage-config-backup ./foxray-config.foxbackup \
      --backup-dest ./foxray-restore
    ```
 

@@ -73,6 +73,13 @@ export function DataPolicyCard({
     Boolean(draft?.independent ?? resource.data?.independent);
   const set = (key: string, value: unknown) =>
     setDraft({ ...policy, independent, ...{ [key]: value } });
+  const policyDirty = history !== savedHistory || hasChanges(draft, {
+    interval: 10,
+    retention_days: 30,
+    max_storage_mb: 256,
+    ...record(resource.data?.policy),
+    independent: module === "all" || Boolean(resource.data?.independent),
+  });
   const Icon =
     module === "all"
       ? Database
@@ -174,18 +181,7 @@ export function DataPolicyCard({
       </SettingsSection>
       <ErrorLine error={validationError || resource.error} />
       <SaveCard
-        dirty={
-          extraDirty ||
-          hasChanges(draft, {
-            interval: 10,
-            retention_days: 30,
-            max_storage_mb: 256,
-            ...record(resource.data?.policy),
-            independent:
-              module === "all" || Boolean(resource.data?.independent),
-          }) ||
-          history !== savedHistory
-        }
+        dirty={extraDirty || policyDirty}
         disabled={!resource.data || !ready}
         title={title}
         defaults={() => {
@@ -207,23 +203,23 @@ export function DataPolicyCard({
           const error = validHistory ? validate?.() || "" : `历史写入间隔须为 ${historyMin}～3600 秒的整数`;
           setValidationError(error);
           if (error) return false;
-          const ok = await act(
-            "/api/monitoring/data-policy?module=" + module + "&kind=" + kind,
-            {
-              interval: Number(policy.interval),
-              retention_days: Number(policy.retention_days),
-              max_storage_mb: Number(policy.max_storage_mb),
-              ...(module === "all" ? {} : { independent }),
-              ...(history !== savedHistory ? { storage_interval: history === "" ? null : Number(history) } : {}),
-            },
-          );
-          if (ok) {
-            if (extraSave && !(await extraSave())) return false;
+          if (policyDirty) {
+            const ok = await act(
+              "/api/monitoring/data-policy?module=" + module + "&kind=" + kind,
+              {
+                interval: Number(policy.interval),
+                retention_days: Number(policy.retention_days),
+                max_storage_mb: Number(policy.max_storage_mb),
+                ...(module === "all" ? {} : { independent }),
+                ...(history !== savedHistory ? { storage_interval: history === "" ? null : Number(history) } : {}),
+              },
+            );
+            if (!ok) return false;
             await resource.refresh();
             setDraft(null);
             setHistoryDraft(undefined);
           }
-          return ok;
+          return extraSave ? extraSave() : true;
         }}
       />
     </Panel>

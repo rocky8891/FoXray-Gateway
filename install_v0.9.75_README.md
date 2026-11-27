@@ -1,8 +1,8 @@
-# FoXray Gateway v0.9.65 部署手册
+# FoXray Gateway v0.9.75 部署手册
 
-适用完整脚本：`install_v0.9.65.sh`；对应二进制 `foxray_v0.9.65` 与前端 v0.9.65。打包脚本与手册为 `build_release_v0.9.65.py` / `build_release_v0.9.65_README.md`。
+适用完整脚本：`install_v0.9.75.sh`；对应二进制 `foxray_v0.9.75` 与前端 v0.9.75。打包脚本与手册为 `build_release_v0.9.75.py` / `build_release_v0.9.75_README.md`。
 
-在不能访问官方源的 Rocky Linux 9 或 10 x86_64 目标机上，使用[离线安装手册](prepare_offline_v0.9.65_README.md)。
+在不能访问官方源的 Rocky Linux 9 或 10 x86_64 目标机上，使用[离线安装手册](prepare_offline_v0.9.75_README.md)。
 
 ## 部署要求
 
@@ -16,10 +16,10 @@
 
 ## 拓扑预检与覆盖
 
-校验和解压发行包后执行（ZIP 解压未保留可执行位时，先运行 `chmod u+x foxray_v0.9.65`）：
+校验和解压发行包后执行（ZIP 解压未保留可执行位时，先运行 `chmod u+x foxray_v0.9.75`）：
 
 ```sh
-./foxray_v0.9.65 --check-topology
+./foxray_v0.9.75 --check-topology
 ip -4 route show default
 ss -ltn 'sport = :18880'
 ```
@@ -38,10 +38,10 @@ ss -ltn 'sport = :18880'
 
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS.txt
-unzip FoXray-Gateway-v0.9.65-linux-amd64.zip -d foxray-0.9.65
-cd foxray-0.9.65
-bash install_v0.9.65.sh --plan
-sudo bash install_v0.9.65.sh --non-interactive --with-xray --without-wireguard --without-warp --without-komari
+unzip FoXray-Gateway-v0.9.75-linux-amd64.zip -d foxray-0.9.75
+cd foxray-0.9.75
+bash install_v0.9.75.sh --plan
+sudo bash install_v0.9.75.sh --non-interactive --with-xray --without-wireguard --without-warp --without-komari
 ```
 
 `--plan`只显示计划、不写入系统；正式安装会创建目录、安装依赖并初始化/接管所选组件。
@@ -63,7 +63,7 @@ sudo bash install_v0.9.65.sh --non-interactive --with-xray --without-wireguard -
 四组件安装前确认管理端口可用，Xray 和 WARPSCOUT 下载可达，WireGuard 内核模块可用，WARP 仓库及依赖就绪。由部署者阅读并接受 WARP 条款后执行：
 
 ```sh
-sudo bash install_v0.9.65.sh --non-interactive --with-xray --with-wireguard --with-warp --accept-warp-tos --without-komari --listen 0.0.0.0:18880
+sudo bash install_v0.9.75.sh --non-interactive --with-xray --with-wireguard --with-warp --accept-warp-tos --without-komari --listen 0.0.0.0:18880
 ```
 
 ## 访问控制台
@@ -89,10 +89,10 @@ journalctl -u foxray.service -n 60 --no-pager
 
 四组件分别验证 FoXray 保存一般设置、Xray 节点实际出站、WARP 隔离出口、WireGuard 测试对端握手和双向流量。每一步核对管理连接和主路由。
 
-健康接口应返回`ok:true`与`version:0.9.65`。已有部署可能沿用不同监听地址，替换命令中的地址。核对节点、组件服务、现有DNS、主路由、策略路由和受保护接口，再执行检测或切换。
+健康接口应返回`ok:true`与`version:0.9.75`。已有部署可能沿用不同监听地址，替换命令中的地址。核对节点、组件服务、现有DNS、主路由、策略路由和受保护接口，再执行检测或切换。
 
 ## 升级及卸载
 
-已有安装使用[管理程序更新工具](upgrade_v0.9.65_README.md)，不重装转发组件。后续版本可在版本管理卡片查看更新说明后确认更新。
+已有安装使用[管理程序更新工具](upgrade_v0.9.75_README.md)，不重装转发组件。后续版本可在版本管理卡片查看更新说明后确认更新。
 
 停止管理服务不等于撤销透明接管或停止VPN。没有“一条删除目录即可安全还原网络”的卸载承诺。先通过独立管理通道恢复接管前路由/DNS/防火墙、确认业务路径，再按需停用所选组件；备份运行数据后才删除程序文件。外部组件和非FoXray规则不能无条件删除。

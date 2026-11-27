@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FoXray Gateway 0.9.65 — Go / React, optional Xray / WARP / WireGuard; Komari is never installed.
+# FoXray Gateway 0.9.75 — Go / React, optional Xray / WARP / WireGuard; Komari is never installed.
 set -Eeuo pipefail
 umask 077
 source_dir="$(cd -- "$(dirname -- "$0")" && pwd)"
@@ -18,7 +18,7 @@ while [[ $# -gt 0 ]]; do
     --listen) shift; listen="${1:?missing listen address}";;
     --offline-dir) shift; offline_dir="${1:?missing offline directory}";;
     --plan) plan=1; interactive=0;;
-    --help|-h) echo 'bash install_v0.9.65.sh [--with-xray|--without-xray] [--with-wireguard|--without-wireguard] [--with-warp|--without-warp] [--with-komari|--without-komari] [--komari-url HTTP_URL] [--accept-warp-tos] [--listen IPv4:port] [--non-interactive] [--offline-dir DIRECTORY] [--plan]'; exit 0;;
+    --help|-h) echo 'bash install_v0.9.75.sh [--with-xray|--without-xray] [--with-wireguard|--without-wireguard] [--with-warp|--without-warp] [--with-komari|--without-komari] [--komari-url HTTP_URL] [--accept-warp-tos] [--listen IPv4:port] [--non-interactive] [--offline-dir DIRECTORY] [--plan]'; exit 0;;
     *) echo "未知参数：$1" >&2;exit 2;;
   esac
   shift
@@ -48,7 +48,7 @@ resolve_choice(){
   if [[ -f "$target/components.json" ]] && command -v jq >/dev/null;then jq -r --arg key "$key" --arg fallback "$fallback" 'if has($key) then .[$key] == true else $fallback == "true" end' "$target/components.json";else printf '%s' "$fallback";fi
 }
 if [[ $plan -eq 1 ]];then
-  printf 'FoXray Gateway 0.9.65\n目录：%s\n监听：%s\nXray：%s\nWireGuard：%s\nWARP：%s\nKomari（仅连接）：%s\n证书依赖：Certbot 和 dns-cloudflare\n未指定的已有组件沿用 manifest；新装默认 Xray 启用，其余不选。此命令不写文件或更改服务。\n' "$target" "$listen" "$xray" "$wireguard" "$warp" "$komari"
+  printf 'FoXray Gateway 0.9.75\n目录：%s\n监听：%s\nXray：%s\nWireGuard：%s\nWARP：%s\nKomari（仅连接）：%s\n证书依赖：Certbot 和 dns-cloudflare\n未指定的已有组件沿用 manifest；新装默认 Xray 启用，其余不选。此命令不写文件或更改服务。\n' "$target" "$listen" "$xray" "$wireguard" "$warp" "$komari"
   [[ -z $offline_dir ]] || printf '离线目录：%s\n' "$offline_dir"
   exit 0
 fi
@@ -71,12 +71,12 @@ if [[ -n $offline_dir ]]; then
   offline_dir="$(cd -- "$offline_dir" && pwd -P)"
   . /etc/os-release
   rocky_major=${VERSION_ID%%.*}
-  [[ $ID == rocky && ( $rocky_major == 9 || $rocky_major == 10 ) && $(uname -m) == x86_64 ]] || fail 'v0.9.65 离线包支持 Rocky Linux 9 或 10 x86_64。'
-  [[ -f $source_dir/foxray_v0.9.65 && -f $source_dir/web/index.html ]] || fail '离线安装需要预编译的 FoXray 运行包。'
-  systemctl is-active --quiet foxray.service && fail '正式运行中的实例请使用 upgrade_v0.9.65.py。'
+  [[ $ID == rocky && ( $rocky_major == 9 || $rocky_major == 10 ) && $(uname -m) == x86_64 ]] || fail 'v0.9.75 离线包支持 Rocky Linux 9 或 10 x86_64。'
+  [[ -f $source_dir/foxray_v0.9.75 && -f $source_dir/web/index.html ]] || fail '离线安装需要预编译的 FoXray 运行包。'
+  systemctl is-active --quiet foxray.service && fail '正式运行中的实例请使用 upgrade_v0.9.75.py。'
   [[ -f $offline_dir/OFFLINE-SHA256SUMS && -f $offline_dir/repodata/repomd.xml ]] || fail '离线目录不完整。'
   (cd "$offline_dir" && sha256sum --strict --quiet -c OFFLINE-SHA256SUMS) || fail '离线目录校验失败。'
-  grep -Fxq "rocky:$rocky_major:x86_64:0.9.65" "$offline_dir/PLATFORM" || fail '离线包平台或版本不匹配。'
+  grep -Fxq "rocky:$rocky_major:x86_64:0.9.75" "$offline_dir/PLATFORM" || fail '离线包平台或版本不匹配。'
   command -v jq >/dev/null || [[ ! -f $target/components.json ]] || fail '读取已有组件设置需要 jq，请先安装或明确处理已有部署。'
 fi
 if [[ -z $offline_dir ]]; then
@@ -108,7 +108,7 @@ if [[ $warp == true && $accept_terms -ne 1 ]] && ! command -v warp-cli >/dev/nul
   fail '新装 WARP 需要 --accept-warp-tos 明确接受官方条款。'
 fi
 if [[ -n $offline_dir ]]; then
-  install -m 0755 "$source_dir/foxray_v0.9.65" "$work/topology-check"
+  install -m 0755 "$source_dir/foxray_v0.9.75" "$work/topology-check"
   "$work/topology-check" --check-topology
   rpm_names=(jq ca-certificates nftables iproute iputils util-linux unzip tar certbot python3-certbot-dns-cloudflare)
   command -v curl >/dev/null || rpm_names+=(curl)
@@ -163,16 +163,16 @@ fi
 certbot_plugins=$(certbot plugins 2>/dev/null) || fail 'Certbot 无法运行。'
 if [[ $certbot_plugins != *"* dns-cloudflare"* ]]; then fail 'Certbot 缺少 dns-cloudflare 插件。'; fi
 
-binary="$source_dir/foxray_v0.9.65";web="$source_dir/web"
+binary="$source_dir/foxray_v0.9.75";web="$source_dir/web"
 if [[ ! -f "$binary" ]];then
-  if [[ -f "$source_dir/output/foxray_v0.9.65" && -d "$source_dir/frontend/dist" ]];then binary="$source_dir/output/foxray_v0.9.65";web="$source_dir/frontend/dist"
+  if [[ -f "$source_dir/output/foxray_v0.9.75" && -d "$source_dir/frontend/dist" ]];then binary="$source_dir/output/foxray_v0.9.75";web="$source_dir/frontend/dist"
   else
     command -v go >/dev/null && command -v npm >/dev/null || { echo '源码部署需要 Go 1.27+ 与 Node.js；也可使用已编译发行包。' >&2;exit 1; }
     go -C "$source_dir/backend" test ./...
-    CGO_ENABLED=0 go -C "$source_dir/backend" build -trimpath -ldflags='-s -w' -o "$work/foxray_v0.9.65" ./cmd/foxray
+    CGO_ENABLED=0 go -C "$source_dir/backend" build -trimpath -ldflags='-s -w' -o "$work/foxray_v0.9.75" ./cmd/foxray
     npm --prefix "$source_dir/frontend" ci
     npm --prefix "$source_dir/frontend" run build
-    binary="$work/foxray_v0.9.65";web="$source_dir/frontend/dist"
+    binary="$work/foxray_v0.9.75";web="$source_dir/frontend/dist"
   fi
 fi
 [[ -f "$web/index.html" ]] || { echo '缺少 React 构建产物' >&2;exit 1; }
@@ -183,9 +183,9 @@ install -d -m 0700 "$target/private"
 backup="$target/private/deploy-backup-$(date +%Y%m%d-%H%M%S)"
 install -d -m 0700 "$backup"
 for file in config.json engine.json components.json;do [[ ! -f "$target/$file" ]] || cp -p -- "$target/$file" "$backup/$file";done
-[[ ! -f "$target/foxray_v0.9.65" ]] || cp -p -- "$target/foxray_v0.9.65" "$backup/foxray_v0.9.65"
-install -m 0755 "$binary" "$target/foxray_v0.9.65.next"
-if command -v restorecon >/dev/null; then restorecon "$target/foxray_v0.9.65.next"; fi
+[[ ! -f "$target/foxray_v0.9.75" ]] || cp -p -- "$target/foxray_v0.9.75" "$backup/foxray_v0.9.75"
+install -m 0755 "$binary" "$target/foxray_v0.9.75.next"
+if command -v restorecon >/dev/null; then restorecon "$target/foxray_v0.9.75.next"; fi
 install_component(){
   local component="$1" repo="$2" asset="$3" member="$4" destination="$5" tag="${6:-latest}"
   [[ ! -x "$destination" ]] || { echo "$component：保留已安装版本";return; }
@@ -219,7 +219,7 @@ case "$(uname -m)" in
   *) echo '自动部署只支持 amd64／arm64' >&2;exit 1;;
 esac
 if [[ -n $komari_url ]];then
-  "$target/foxray_v0.9.65.next" --normalize-komari-url "$komari_url" > "$work/komari-url.json"
+  "$target/foxray_v0.9.75.next" --normalize-komari-url "$komari_url" > "$work/komari-url.json"
   komari_url="$(jq -r .url "$work/komari-url.json")"
 fi
 if [[ -n $offline_dir && $xray == true ]]; then
@@ -228,12 +228,12 @@ fi
 if [[ -n $offline_dir && $warp == true ]]; then
   install_component warpscout vernette/warpscout "warpscout_0.16.1_linux_$arch.tar.gz" warpscout "$target/probe-tools/warpscout" v0.16.1
 fi
-if [[ $xray == true ]];then "$target/foxray_v0.9.65.next" --base "$target" --ensure-module xray;fi
-if [[ $wireguard == true ]];then "$target/foxray_v0.9.65.next" --base "$target" --ensure-module wireguard;fi
+if [[ $xray == true ]];then "$target/foxray_v0.9.75.next" --base "$target" --ensure-module xray;fi
+if [[ $wireguard == true ]];then "$target/foxray_v0.9.75.next" --base "$target" --ensure-module wireguard;fi
 if [[ $warp == true ]];then
   module_args=(--base "$target" --ensure-module warp)
   [[ $accept_terms -ne 1 ]] || module_args+=(--accept-warp-tos)
-  "$target/foxray_v0.9.65.next" "${module_args[@]}"
+  "$target/foxray_v0.9.75.next" "${module_args[@]}"
   install_component warpscout vernette/warpscout "warpscout_0.16.1_linux_$arch.tar.gz" warpscout "$target/probe-tools/warpscout" v0.16.1
   id foxray-scout >/dev/null 2>&1 || useradd --system --no-create-home --shell /sbin/nologin foxray-scout
   install -d -m 0700 -o foxray-scout -g foxray-scout /var/lib/foxray-scout
@@ -243,7 +243,7 @@ if [[ $komari == true ]];then
   komari_host="${listen%:*}"
   [[ $komari_host != 0.0.0.0 ]] || komari_host=127.0.0.1
   komari_url="${komari_url:-http://$komari_host:25774/}"
-  "$target/foxray_v0.9.65.next" --check-komari-url "$komari_url" > "$work/komari-check.json"
+  "$target/foxray_v0.9.75.next" --check-komari-url "$komari_url" > "$work/komari-check.json"
   jq -e '.recognized and .reachable' "$work/komari-check.json" >/dev/null || { echo '未识别可用的 Komari，未安装或覆盖任何 Komari 服务。' >&2;exit 1; }
   komari_url="$(jq -r '.url' "$work/komari-check.json")"
 fi
@@ -255,13 +255,13 @@ chmod 0600 "$target/components.json.next";mv -- "$target/components.json.next" "
 init_args=(--base "$target" --initialize)
 [[ $warp != true ]] || init_args+=(--with-warp)
 [[ $komari != true ]] || init_args+=(--with-komari)
-"$target/foxray_v0.9.65.next" "${init_args[@]}"
+"$target/foxray_v0.9.75.next" "${init_args[@]}"
 was_active=0
 if systemctl is-active --quiet foxray.service;then
   was_active=1
   curl -fsS "http://$listen/api/state" -o "$work/state.json"
   jq -n --slurpfile state "$work/state.json" --arg pid "$(systemctl show foxray-engine -p MainPID --value)" --argjson time "$(date +%s)" '{active:$state[0].state.active,applied:$state[0].state.applied,last_switch:$state[0].state.last_switch,time:$time,engine_pid:$pid}' > "$target/private/go-adoption.json"
-  "$target/foxray_v0.9.65.next" --base "$target" --check-migration > "$work/migration.json"
+  "$target/foxray_v0.9.75.next" --base "$target" --check-migration > "$work/migration.json"
   jq -e '.compatible and .core_validation' "$work/migration.json" >/dev/null || { echo '当前核心配置兼容检查未通过，原管理服务保持运行。' >&2;exit 1; }
 fi
 install -d -m 0755 /etc/systemd/system/foxray.service.d
@@ -309,14 +309,14 @@ UNIT
 fi
 systemctl daemon-reload
 [[ $was_active -ne 1 ]] || systemctl stop foxray.service
-mv -f -- "$target/foxray_v0.9.65.next" "$target/foxray_v0.9.65"
-ln -sfn foxray_v0.9.65 "$target/foxray"
+mv -f -- "$target/foxray_v0.9.75.next" "$target/foxray_v0.9.75"
+ln -sfn foxray_v0.9.75 "$target/foxray"
 # An earlier failed install may have left an empty directory here.
 if [[ -d $target/web && ! -L $target/web ]]; then rmdir -- "$target/web" 2>/dev/null || true; fi
 if [[ ! -e $target/web && ! -L $target/web ]]; then
-  install -d -m 0755 "$target/releases/v0.9.65/web"
-  cp -a -- "$web/." "$target/releases/v0.9.65/web/"
-  ln -s releases/v0.9.65/web "$target/web"
+  install -d -m 0755 "$target/releases/v0.9.75/web"
+  cp -a -- "$web/." "$target/releases/v0.9.75/web/"
+  ln -s releases/v0.9.75/web "$target/web"
 else
   cp -a -- "$web/." "$target/web/"
 fi
@@ -325,7 +325,7 @@ if command -v restorecon >/dev/null; then restorecon -R "$target"; fi
 systemctl enable foxray.service >/dev/null
 [[ $xray != true ]] || systemctl enable foxray-engine.service >/dev/null
 systemctl start foxray.service
-echo "FoXray Gateway 0.9.65 已启动，监听：$listen"
+echo "FoXray Gateway 0.9.75 已启动，监听：$listen"
 if [[ ${listen%:*} == 0.0.0.0 ]];then
   echo "请通过服务器 IPv4 地址访问：http://<服务器IP>:${listen##*:}"
 else

@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -96,5 +98,57 @@ func TestBackupRequiresLoopback(t *testing.T) {
 		if localBackupRequest(r) != tc.allowed {
 			t.Fatal(tc)
 		}
+	}
+}
+
+func TestConfigurationBackupWarpResolverAlias(t *testing.T) {
+	app, system := t.TempDir(), t.TempDir()
+	const alias = "etc/netns/foxray-warp/resolv.conf"
+	const managed = "etc/foxray/warp-netns-resolv.conf"
+	aliasPath := filepath.Join(system, filepath.FromSlash(alias))
+	managedPath := filepath.Join(system, filepath.FromSlash(managed))
+	for _, file := range []string{aliasPath, managedPath} {
+		if err := os.MkdirAll(filepath.Dir(file), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	content := []byte("nameserver 192.0.2.53\n")
+	if err := os.WriteFile(managedPath, content, 0600); err != nil {
+		t.Fatal(err)
+	}
+	target := "/" + managed
+	if runtime.GOOS == "windows" {
+		target = filepath.FromSlash("../../foxray/warp-netns-resolv.conf")
+	}
+	if err := os.Symlink(target, aliasPath); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	archive, err := buildConfigArchive(app, system, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staging := filepath.Join(t.TempDir(), "staged")
+	if err := extractConfigBackup(archive, staging); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{alias, managed} {
+		filename := filepath.Join(staging, "system", filepath.FromSlash(name))
+		got, err := os.ReadFile(filename)
+		if err != nil || !bytes.Equal(got, content) {
+			t.Fatalf("unexpected staged DNS file %s: %v", name, err)
+		}
+		info, err := os.Lstat(filename)
+		if err != nil || !info.Mode().IsRegular() {
+			t.Fatalf("expected a regular file at %s", name)
+		}
+	}
+	if err := os.Remove(aliasPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/etc/resolv.conf", aliasPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := buildConfigArchive(app, system, nil); err == nil || !strings.Contains(err.Error(), "/"+alias) {
+		t.Fatalf("expected an error containing the full system path, got %v", err)
 	}
 }

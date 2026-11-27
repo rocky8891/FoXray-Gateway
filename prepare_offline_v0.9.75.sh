@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Prepare the FoXray Gateway v0.9.65 offline directory on a connected Rocky Linux 9 or 10 host.
+# Prepare the FoXray Gateway v0.9.75 offline directory on a connected Rocky Linux 9 or 10 host.
 set -Eeuo pipefail
 umask 077
 if [[ $# -ne 3 || ${1:-} == --help ]]; then
-  printf '用法：bash prepare_offline_v0.9.65.sh 运行包.zip SHA256SUMS.txt 新目录\n'
+  printf '用法：bash prepare_offline_v0.9.75.sh 运行包.zip SHA256SUMS.txt 新目录\n'
   [[ ${1:-} == --help ]]
   exit
 fi
@@ -12,7 +12,7 @@ rocky_major=${VERSION_ID%%.*}
 [[ $ID == rocky && ( $rocky_major == 9 || $rocky_major == 10 ) && $(uname -m) == x86_64 ]] || { echo '准备机需要 Rocky Linux 9 或 10 x86_64。' >&2; exit 1; }
 for tool in curl dnf createrepo_c jq unzip sha256sum; do command -v "$tool" >/dev/null || { echo "缺少 $tool" >&2; exit 1; }; done
 release=$(realpath -e "$1")
-release_name=FoXray-Gateway-v0.9.65-linux-amd64.zip
+release_name=FoXray-Gateway-v0.9.75-linux-amd64.zip
 expected=$(awk -v name="$release_name" '$2 == name {print $1}' "$2")
 [[ $expected =~ ^[a-f0-9]{64}$ ]] || { echo '缺少可信 FoXray 发行包摘要。' >&2; exit 1; }
 printf '%s  %s\n' "$expected" "$release" | sha256sum --strict -c -
@@ -33,8 +33,8 @@ get_asset() {
   printf '%s %s %s %s\n' "$repo" "$tag" "$filename" "$digest" >> "$staging/UPSTREAM-ASSETS.txt"
 }
 cp -- "$release" "$staging/$release_name"
-mkdir "$staging/foxray-0.9.65"
-unzip -q "$release" -d "$staging/foxray-0.9.65"
+mkdir "$staging/foxray-0.9.75"
+unzip -q "$release" -d "$staging/foxray-0.9.75"
 get_asset XTLS/Xray-core latest Xray-linux-64.zip
 get_asset vernette/warpscout tags/v0.16.1 warpscout_0.16.1_linux_amd64.tar.gz
 curl_fetch https://pkg.cloudflareclient.com/pubkey.gpg -o "$staging/cloudflare-warp.gpg"
@@ -48,7 +48,7 @@ dnf_cmd=(dnf)
   download --resolve --alldeps --arch=x86_64,noarch --destdir="$staging" \
   curl jq ca-certificates nftables iproute iputils util-linux unzip tar wireguard-tools cloudflare-warp certbot python3-certbot-dns-cloudflare
 createrepo_c --quiet "$staging"
-printf 'rocky:%s:x86_64:0.9.65\n' "$rocky_major" > "$staging/PLATFORM"
+printf 'rocky:%s:x86_64:0.9.75\n' "$rocky_major" > "$staging/PLATFORM"
 (cd "$staging" && find . -type f ! -name OFFLINE-SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > OFFLINE-SHA256SUMS)
 mv -T --no-clobber -- "$staging" "$destination"
 [[ ! -e $staging ]] || { echo '输出目录已存在，保留准备结果。' >&2; exit 1; }

@@ -22,8 +22,61 @@ function TrafficSettings({
   act: Act;
   module?: string;
 }) {
+  const display = useResource<Dict>("/api/monitoring/display", 15000);
+  const [windowDraft, setWindowDraft] = useState<string>();
+  const savedWindow = String(display.data?.traffic_chart_window_seconds ?? 30);
+  const chartWindow = windowDraft ?? savedWindow;
   return (
-    <DataPolicyCard module={module} kind="traffic" title="流量" act={act} />
+    <DataPolicyCard
+      module={module}
+      kind="traffic"
+      title="流量"
+      act={act}
+      fields={
+        <>
+          <TrafficWindowField value={chartWindow} onChange={setWindowDraft} disabled={!display.data} />
+          <ErrorLine error={display.error} />
+        </>
+      }
+      extraDirty={chartWindow !== savedWindow}
+      extraDefaults={() => { if (display.data) setWindowDraft("30"); }}
+      extraDiscard={() => setWindowDraft(undefined)}
+      validate={() => {
+        const seconds = Number(chartWindow);
+        return /^\d+$/.test(chartWindow) && seconds >= 1 && seconds <= 3600
+          ? ""
+          : "流量曲线汇总间隔须为 1～3600 秒的整数";
+      }}
+      extraSave={async () => {
+        if (chartWindow === savedWindow) return true;
+        if (!(await act("/api/monitoring/display", { traffic_chart_window_seconds: Number(chartWindow) }))) return false;
+        await display.refresh();
+        setWindowDraft(undefined);
+        return true;
+      }}
+    />
+  );
+}
+
+function TrafficWindowField({ value, onChange, disabled }: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Field
+      label="流量曲线汇总间隔（秒）"
+      info={<ul><li><strong>共享设置</strong>。全局设置、主页监控设置及各服务的流量设置使用同一个值，应用于跟随全局的 Xray、WARP 和 WireGuard 流量曲线。</li><li><strong>取值范围</strong>。1～3600 秒，默认 30 秒。后台采集、历史写入和页面刷新各自设置。</li><li><strong>图表覆盖</strong>。可在图表中临时选择其他窗口，长时间范围可能进一步合并数据。</li></ul>}
+    >
+      <NumberInput
+        aria-label="流量曲线汇总间隔（秒）"
+        min={1}
+        max={3600}
+        value={value}
+        disabled={disabled}
+        onChange={e => onChange(e.target.value)}
+      />
+    </Field>
   );
 }
 
@@ -55,7 +108,8 @@ export function DisplaySettings({ act }: { act: Act }) {
     live_refresh_seconds: 5,
     live_sampling_seconds: 0,
     traffic_chart_window_seconds: 30,
-    ...(draft || r.data),
+    ...r.data,
+    ...draft,
   };
   return (
     <Panel className="compact-settings-card">
@@ -74,7 +128,7 @@ export function DisplaySettings({ act }: { act: Act }) {
             max={3600}
             value={Number(p.status_refresh_seconds)}
             onChange={(e) =>
-              setDraft({ ...p, status_refresh_seconds: Number(e.target.value) })
+              setDraft(old => ({ ...old, status_refresh_seconds: Number(e.target.value) }))
             }
           />
         </Field>
@@ -88,7 +142,7 @@ export function DisplaySettings({ act }: { act: Act }) {
             max={3600}
             value={Number(p.live_refresh_seconds)}
             onChange={(e) =>
-              setDraft({ ...p, live_refresh_seconds: Number(e.target.value) })
+              setDraft(old => ({ ...old, live_refresh_seconds: Number(e.target.value) }))
             }
           />
         </Field>
@@ -102,49 +156,33 @@ export function DisplaySettings({ act }: { act: Act }) {
             max={3600}
             value={Number(p.chart_refresh_seconds)}
             onChange={(e) =>
-              setDraft({ ...p, chart_refresh_seconds: Number(e.target.value) })
+              setDraft(old => ({ ...old, chart_refresh_seconds: Number(e.target.value) }))
             }
           />
         </Field>
-        <Field
-          label="流量曲线汇总间隔（秒）"
-          info={<ul><li><strong>取值范围：</strong>1～3600 秒，默认 30 秒。按真实字节量与采样时长计算区间均速。</li><li><strong>影响范围：</strong>用于 Xray、WARP 和 WireGuard 流量曲线。实时速率、采集、历史写入和累计流量保持各自设置。</li><li><strong>长时间范围：</strong>图表可能继续合并数据。可在流量监控中临时选择精细或自定义窗口。</li></ul>}
-        >
-          <NumberInput
-            aria-label="流量曲线汇总间隔（秒）"
-            min={1}
-            max={3600}
-            value={Number(p.traffic_chart_window_seconds)}
-            onChange={(e) =>
-              setDraft({
-                ...p,
-                traffic_chart_window_seconds: Number(e.target.value),
-              })
-            }
-          />
-        </Field>
+        <TrafficWindowField
+          value={String(p.traffic_chart_window_seconds)}
+          onChange={value => setDraft(old => ({ ...old, traffic_chart_window_seconds: Number(value) }))}
+        />
       </div>
       <ErrorLine error={r.error} />
       <SaveCard
         dirty={hasChanges(draft, r.data)}
+        disabled={!r.data}
         title="显示与刷新"
         defaults={() =>
           setDraft({
             status_refresh_seconds: 5,
             chart_refresh_seconds: 15,
             live_refresh_seconds: 5,
-            live_sampling_seconds: 0,
             traffic_chart_window_seconds: 30,
           })
         }
         discard={() => setDraft(null)}
         save={async () => {
-          const ok = await act("/api/monitoring/display", {
-            status_refresh_seconds: p.status_refresh_seconds,
-            live_refresh_seconds: p.live_refresh_seconds,
-            chart_refresh_seconds: p.chart_refresh_seconds,
-            traffic_chart_window_seconds: p.traffic_chart_window_seconds,
-          });
+          const changes = Object.fromEntries(Object.entries(draft || {}).filter(([key, value]) => value !== r.data?.[key]));
+          if (!Object.keys(changes).length) return true;
+          const ok = await act("/api/monitoring/display", changes);
           if (ok) {
             await r.refresh();
             setDraft(null);
