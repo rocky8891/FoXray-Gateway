@@ -27,6 +27,12 @@ export function servicePreset(cards: unknown): cards is string[] {
     cards.every((v) => typeof v === "string" && v.startsWith("service-"))
   );
 }
+export const EQUAL_CARD_LAYOUTS = ["equal-rows", "equal-columns"];
+
+export function availableOverviewLayout(layout: string, cardCount: number): string {
+  return EQUAL_CARD_LAYOUTS.includes(layout) && cardCount !== 2 ? "grid" : layout;
+}
+
 export function overviewPolicy(
   value: unknown,
   view: OverviewView,
@@ -38,7 +44,7 @@ export function overviewPolicy(
       cards: Array.isArray(p.nodes_order) ? (p.nodes_order as string[]) : [],
       layout: "grid",
     };
-  return view === "services"
+  const policy = view === "services"
     ? {
         cards:
           (p.services_cards as string[] | undefined) ||
@@ -58,6 +64,7 @@ export function overviewPolicy(
             : EXIT_CARDS,
         layout: String(p.overview_layout || "grid"),
       };
+  return { ...policy, layout: availableOverviewLayout(policy.layout, policy.cards.length) };
 }
 
 export const SERVICE_STYLE_FIELDS: Record<string, string> = {
@@ -68,10 +75,11 @@ export const SERVICE_STYLE_FIELDS: Record<string, string> = {
 };
 export const SERVICE_METRICS = ["upload", "download", "latency", "connections"];
 export function splitWireGuardCards(value: unknown): boolean {
-  const { cards } = overviewPolicy(value, "services");
+  const { cards, layout } = overviewPolicy(value, "services");
+  const singleInterface = Number(record(value).services_wireguard_count) === 1;
   return cards.includes("service-wireguard") &&
-    (Number(record(value).services_wireguard_count) === 1 ||
-      SERVICE_CARDS.some(card => !cards.includes(card)));
+    (singleInterface || (!EQUAL_CARD_LAYOUTS.includes(layout) &&
+      SERVICE_CARDS.some(card => !cards.includes(card))));
 }
 
 export function serviceStyle(value: unknown, module: string): string {

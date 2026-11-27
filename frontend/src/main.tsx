@@ -182,7 +182,7 @@ function App() {
   const showNavFox = headerAutoHide;
   const presentation = record(state?.manager_settings.presentation);
   const widthSetting = page === "overview" ? "content_width_percent" : "module_width_percent";
-  const contentWidth = Math.min(100, Math.max(80, Number(presentation[widthSetting] ?? (page === "overview" ? 99 : 95))));
+  const contentWidth = Math.min(100, Math.max(80, Number(presentation[widthSetting] ?? 95)));
   const collapseInNav = hideHomeHeader && headerExpanded && page === "overview";
   useLayoutEffect(() => {
     if (!headerClosing) return;

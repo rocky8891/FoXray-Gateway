@@ -6,7 +6,7 @@ func TestPageWidthBoundsAndScopedSave(t *testing.T) {
 	a, f := fixture(t)
 	before, calls := fingerprint(a.settings), len(f.calls)
 	defaults := a.presentationPolicy()
-	if num(defaults["content_width_percent"]) != 99 || num(defaults["module_width_percent"]) != 95 || before != fingerprint(a.settings) {
+	if num(defaults["content_width_percent"]) != 95 || num(defaults["module_width_percent"]) != 95 || before != fingerprint(a.settings) {
 		t.Fatal("width default must be read-only")
 	}
 	if err := a.savePresentation(M{"nodes_layout": "single", "services_style": "radial"}); err != nil {

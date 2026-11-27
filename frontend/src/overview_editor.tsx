@@ -275,7 +275,9 @@ export function useOverviewDrag(
                 !card?.classList.contains("service-style-radial")
               ? "single"
               : "ring-row"
-          : layout;
+          : layout === "equal-columns" && matchMedia("(max-width:999px)").matches
+            ? "equal-rows"
+            : layout;
       const index = cardNeighbor(
         siblings.findIndex((t) => t.element === a.element),
         direction,

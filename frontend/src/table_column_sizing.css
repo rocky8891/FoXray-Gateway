@@ -32,8 +32,8 @@
 
 .table-wrap table.adaptive-columns th:is(:first-child,:last-child) { padding-right:10px!important; }
 .table-wrap table.adaptive-columns :is(th,td):first-child:not([colspan]) { text-align:left; }
-.table-wrap table.adaptive-columns :is(th,td):last-child:not(:first-child):not([colspan]) { text-align:right; }
-.table-wrap table.adaptive-columns td:last-child:not(:first-child) .row-action-menu { justify-content:flex-end; }
+.table-wrap table.adaptive-columns :is(th,td):last-child:not(:first-child):not([colspan]) { text-align:center; }
+.table-wrap table.adaptive-columns td:last-child:not(:first-child) .row-action-menu { justify-content:center; }
 
 /* Let the message column take any space left over after fitting the other columns. */
 .table-wrap table.balanced-columns.adaptive-columns:has(th.diagnostic-log-actions) {
@@ -47,7 +47,7 @@
   right: 0;
   z-index: 1;
   background: var(--card);
-  text-align: right !important;
+  text-align: center !important;
 }
 .table-wrap table.adaptive-columns thead .diagnostic-log-actions { z-index: 2; }
 [data-table-width-slot^="logs-"] { display: inline-flex; align-items: center; }
@@ -102,6 +102,47 @@
 .log-detail-heading > .page-heading h2 { font-size: 18px !important; line-height: 26px; overflow-wrap: anywhere; margin: 0; }
 .log-detail-heading > .page-heading > .actions { flex: none; margin: 0; }
 .log-detail-heading > .page-heading h2 > svg { width: 18px; height: 18px; }
+
+/* The shared table owns column geometry on pages, in dialogs and on narrow screens. */
+:is(#root,body) .table-wrap > table.content-width-table[data-fixed-layout] :is(th,td) {
+  vertical-align: middle !important;
+}
+:is(#root,body) .table-wrap > table.content-width-table[data-fixed-layout] :is(th,td)[data-fixed-column] {
+  box-sizing: border-box;
+  width: var(--fixed-column-width) !important;
+  min-width: var(--fixed-column-width) !important;
+  max-width: var(--fixed-column-width) !important;
+}
+:is(#root,body) .table-wrap > table.content-width-table[data-fixed-layout] th[data-fixed-column] {
+  padding-inline: 8px !important;
+}
+:is(#root,body) .table-wrap > table.content-width-table[data-fixed-layout] th[data-fixed-column] .adaptive-column-heading {
+  min-width: 0;
+  max-width: 100%;
+}
+:is(#root,body) .table-wrap > table.content-width-table[data-fixed-layout] td[data-fixed-column] .adaptive-cell-content {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Tail headings, values and action groups share the same horizontal center. */
+:is(#root,body) .table-wrap > table.content-width-table[data-fixed-layout] :is(th,td)[data-column]:last-child {
+  text-align: center !important;
+  padding-inline: 8px !important;
+}
+:is(#root,body) .table-wrap > table.content-width-table[data-fixed-layout] :is(th,td)[data-column]:last-child :is(.adaptive-column-heading,.adaptive-cell-content) {
+  text-align: center !important;
+}
+:is(#root,body) .table-wrap > table.content-width-table[data-fixed-layout] :is(th,td)[data-column]:last-child :is(.row-action-menu,.row-actions,.actions,.sort-heading) {
+  justify-content: center !important;
+  align-items: center;
+}
+@media(max-width:720px) {
+  :is(#root,body) .table-wrap > table.content-width-table[data-fixed-layout] { display: table !important; }
+  :is(#root,body) .table-wrap > table.content-width-table[data-fixed-layout] thead { display: table-header-group !important; overflow: visible; }
+  :is(#root,body) .table-wrap > table.content-width-table[data-fixed-layout] tr { display: table-row !important; }
+  :is(#root,body) .table-wrap > table.content-width-table[data-fixed-layout] :is(th,td) { display: table-cell !important; }
+}
 .wg-probe-target-table { min-width: 0; margin-top: 16px; }
 .wg-probe-target-table .settings-section-title { margin-bottom: 8px; }
 @media (max-width: 479px) { .log-detail-heading > .page-heading { flex-wrap: wrap; } }

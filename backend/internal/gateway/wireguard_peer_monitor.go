@@ -758,6 +758,22 @@ func lockWGPeerInterface(name string) (func(), error) {
 	return lockPlan(filepath.Join(dir, name+".json.lock"))
 }
 
+func (n *Network) testWGInterfaceProbe(ctx context.Context, name, targetIP string) (M, error) {
+	target, err := netip.ParseAddr(strings.TrimSpace(targetIP))
+	if err != nil {
+		return nil, errors.New("请指定有效的探测目标 IP")
+	}
+	profile, err := readWG(name)
+	if err != nil {
+		return nil, err
+	}
+	key := wgProbePeerOwner(profile, target)
+	if key == "" {
+		return nil, errors.New("探测目标必须由此接口下唯一的已启用 Peer 负责")
+	}
+	return n.testWGPeerProbe(ctx, name, key, target.String())
+}
+
 func (n *Network) testWGPeerProbe(ctx context.Context, name, key, targetIP string) (M, error) {
 	if !wgKey(key) {
 		return nil, errors.New("Peer 公钥无效")

@@ -17,7 +17,7 @@ import { TrueLatencyIcon } from "./requirement_icons";
 import { useOverviewDrag } from "./overview_editor";
 import { ConnectionIcon, GatewayIcon, ThemePaletteIcon } from "./monitor_icons";
 import { IconSelect } from "./icon_select";
-import { overviewPolicy, overviewOrderPatch, wireguardMetricOrder, splitWireGuardCards, type OverviewView } from "./overview_policy";
+import { availableOverviewLayout, overviewPolicy, overviewOrderPatch, wireguardMetricOrder, splitWireGuardCards, type OverviewView } from "./overview_policy";
 import { ServiceOverviewCards } from "./monitor_overview";
 import { rangeHours } from "./presentation_settings";
 import { SettingInfo } from "./ui";
@@ -1105,6 +1105,7 @@ export function Home({
         monitors.latency !== false) ||
       (id === "connections" && current && monitors.connections !== false),
   );
+  const renderedLayout = availableOverviewLayout(layout, visibleCards.length + wgExtraCards);
   if (!shown.includes("https")) chartMonitors.latency = false;
   if (!shown.includes("connections")) chartMonitors.connections = false;
   const summary = record(record(state.connection_monitor)[module]);
@@ -1170,7 +1171,7 @@ export function Home({
   );
   const editRoot = useOverviewDrag(
     editing && page !== "nodes" && !savingLayout,
-    page === "nodes" ? (layout === "single" ? "single" : "grid") : layout,
+    page === "nodes" ? (layout === "single" ? "single" : "grid") : renderedLayout,
     move,
   );
   const [viewportCapacity,setViewportCapacity] = useState(6);
@@ -1365,7 +1366,7 @@ export function Home({
             <p className="hint">检测间隔为 0：周期检测与自动选优已关闭。</p>
           )}
           <div
-            className={`dashboard-exit-grid overview-layout-${layout}`}
+            className={`dashboard-exit-grid overview-layout-${renderedLayout}`}
             data-overview-anchor={visibleCards[0]}
             data-card-count={visibleCards.length + wgExtraCards}
             style={

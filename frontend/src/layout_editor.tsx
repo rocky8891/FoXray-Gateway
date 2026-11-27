@@ -8,7 +8,9 @@ export function cardNeighbor(
   layout: string,
 ) {
   const slots = Array.from({ length: count }, (_, i) =>
-    layout === "diamond"
+    layout === "equal-rows" ? { r: i, c: 0 }
+    : layout === "equal-columns" ? { r: 0, c: i }
+    : layout === "diamond"
       ? [
           { r: 1, c: 0 },
           { r: 0, c: 1 },

@@ -38,6 +38,7 @@ import {
   splitWireGuardCards,
   wireguardNameStyle,
   overviewPolicy,
+  availableOverviewLayout,
   overviewOrderPatch,
   defaultOverviewView,
   SERVICE_CARDS,
@@ -144,7 +145,7 @@ export function PageWidthSettings({ act }: { act: Act }) {
   const resource = useResource<Dict>("/api/monitoring/presentation", 15000),
     [draft, setDraft] = useState<Dict | null>(null);
   const saved = {
-      content_width_percent: Number(resource.data?.content_width_percent ?? 99),
+      content_width_percent: Number(resource.data?.content_width_percent ?? 95),
       module_width_percent: Number(resource.data?.module_width_percent ?? 95),
       home_header_auto_hide: resource.data?.home_header_auto_hide === true,
       home_header_idle_seconds: Number(resource.data?.home_header_idle_seconds ?? 5),
@@ -231,7 +232,7 @@ export function PageWidthSettings({ act }: { act: Act }) {
           )
         }
         defaults={() =>
-          setDraft({ content_width_percent: 99, module_width_percent: 95, home_header_auto_hide: false, home_header_idle_seconds: 5 })
+          setDraft({ content_width_percent: 95, module_width_percent: 95, home_header_auto_hide: false, home_header_idle_seconds: 5 })
         }
         discard={() => setDraft(null)}
         save={async () => {
@@ -564,8 +565,17 @@ function OverviewLayoutSettings({
     Number(p.nodes_limit || 0) > 4096
       ? "节点显示数量须为0～4096的整数"
       : "");
-  const setCards = (next: string[]) =>
-    set(prefix + (view === "nodes" ? "order" : "cards"), next);
+  const setCards = (next: string[]) => {
+    if (view === "nodes") {
+      set("nodes_order", next);
+      return;
+    }
+    setDraft({
+      ...draft,
+      [prefix + "cards"]: next,
+      [prefix + "layout"]: availableOverviewLayout(scoped.layout, next.length),
+    });
+  };
   const defaultFields: Dict = {
     default_overview_view: "services",
     service_custom_themes: [],
@@ -723,7 +733,7 @@ function OverviewLayoutSettings({
             ref={(el) => el?.showPopover()}
             role="region"
             aria-label="快捷布局预览"
-            style={{ width: `${Number(p.content_width_percent || 99)}%` }}
+            style={{ width: `${Number(p.content_width_percent || 95)}%` }}
           >
             <div className="overview-peek-hint">
               布局预览 · 松开 Ctrl + Shift 返回设置
@@ -957,7 +967,7 @@ function OverviewLayoutSettings({
                   )}
                   <Field
                     label="卡片排列"
-                    info="田字宫格；第一张占上方，其余在下方；或第一张占左侧，其余在右侧。小屏自动单列。"
+                    info="仅勾选两张卡片时可选择上下均分或左右均分。时间和数据状态属于页脚。小屏自动单列。"
                   >
                     <select
                       aria-label="主页卡片排列"
@@ -977,6 +987,10 @@ function OverviewLayoutSettings({
                       <option value="grid">田字宫格</option>
                       <option value="top">上整下分</option>
                       <option value="sidebar">左整右分</option>
+                      {cards.length === 2 && <>
+                        <option value="equal-rows">上下均分</option>
+                        <option value="equal-columns">左右均分</option>
+                      </>}
                     </select>
                   </Field>
                   {view === "services" && (
@@ -989,6 +1003,10 @@ function OverviewLayoutSettings({
                         onChange={(values) => {
                           const next = { ...themedAppearance(values) };
                           delete next.__appearance_resolved;
+                          next.services_cards = cards;
+                          if (typeof next.services_layout === "string") {
+                            next.services_layout = availableOverviewLayout(next.services_layout, cards.length);
+                          }
                           setDraft({ ...draft, ...next });
                         }}
                       />
@@ -1611,7 +1629,7 @@ function OverviewPreview({
       const width =
         (readonly ? frame.current.clientWidth : box?.width) ||
         (document.body.clientWidth *
-          Number(presentation.content_width_percent || 99)) /
+          Number(presentation.content_width_percent || 95)) /
           100;
       const nodes =
         root.current?.querySelector<HTMLElement>(

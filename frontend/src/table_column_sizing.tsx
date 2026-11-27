@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "re
 import type { Column } from "./ui";
 import "./table_column_sizing.css";
 import { fitColumnWidths } from "./table_width_fit";
+import { fixedTableColumnWidth } from "./table_column_policy";
 
 type Size = { min: number; max: number; auto: number };
 type Widths = Record<string, number>;
@@ -29,7 +30,8 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
   const [available, setAvailable] = useState(0);
   const drag = useRef<{ key: string; x: number; width: number; pointer: number } | null>(null);
   const manual = adjustable && saved.key === key ? saved.widths : {};
-  const fixedEdge = (column: Column<T>) => column === columns[0] || column === columns.at(-1);
+  const fixedWidth = (column: Column<T>) => fixedTableColumnWidth(column, columns.indexOf(column), columns.length);
+  const fixedEdge = (column: Column<T>) => fixedWidth(column) != null;
   useEffect(() => { if (enabled && adjustable) setSaved({ key, widths: load(key) }); drag.current = null; }, [key, enabled, adjustable]);
   useEffect(() => {
     if (!enabled || !adjustable || saved.key !== key) return;
@@ -72,7 +74,7 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
         const column = columns[index];
         const heading = th.querySelector<HTMLElement>(".adaptive-column-heading");
         if (!column || !heading) return [];
-        const bodies = bodyRows.flatMap(row => {
+        const bodies = fixedEdge(column) ? [] : bodyRows.flatMap(row => {
           const cell = row.cells[index];
           const body = cell?.dataset.column === column.key && cell.querySelector<HTMLElement>(".adaptive-cell-content");
           return body ? [body] : [];
@@ -81,7 +83,7 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
       });
       const style = getComputedStyle(current);
       const signature = JSON.stringify([key, fontRevision, available, style.font, style.letterSpacing,
-        groups.map(({ column, heading, bodies }) => [column.key, column.maxWidth, column.fitContent,
+        groups.map(({ column, heading, bodies }) => [column.key, fixedWidth(column), column.maxWidth, column.fitContent,
           heading.innerHTML, bodies.map(body => [body.parentElement?.className, body.innerHTML])]),
       ]);
       if (measured.current?.table === current && measured.current.signature === signature) return;
@@ -105,6 +107,12 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
         for (const { column, items } of samples) {
           const widths = items.map(item => item.clone.getBoundingClientRect().width + item.padding);
           const min = Math.ceil(widths[0] + (!adjustable || fixedEdge(column) ? 0 : 14));
+          const fixed = fixedWidth(column);
+          if (fixed != null) {
+            const width = Math.max(min, fixed);
+            next[column.key] = { min: width, max: width, auto: width };
+            continue;
+          }
           const content = Math.ceil(Math.max(min, ...widths.slice(1)));
           const max = Math.max(min, column.maxWidth || 480, fixedEdge(column) || column.fitContent ? content : 0);
           const size = { min, max, auto: 0 };
@@ -119,10 +127,18 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
     });
     return () => cancelAnimationFrame(frame);
   });
-  const size = (column: Column<T>): Size => sizes[column.key] || { min: 64, max: column.maxWidth || 480, auto: 140 };
+  const size = (column: Column<T>): Size => {
+    const fixed = fixedWidth(column);
+    if (fixed != null) {
+      const width = Math.max(fixed, sizes[column.key]?.min || 0);
+      return { min: width, max: width, auto: width };
+    }
+    return sizes[column.key] || { min: 64, max: column.maxWidth || 480, auto: 140 };
+  };
   const fitted = fitColumnWidths(columns.map(c => ({key:c.key,...size(c),manual:fixedEdge(c) ? undefined : manual[c.key],fitContent:fixedEdge(c) || c.fitContent})), available);
   const width = (column: Column<T>) => fitted[column.key];
   const setWidth = (column: Column<T>, value?: number) => setSaved(old => {
+    if (fixedEdge(column)) return old;
     const widths = { ...(old.key === key ? old.widths : {}) };
     if (value == null) delete widths[column.key]; else widths[column.key] = clamp(value, size(column));
     return { key, widths };
@@ -146,5 +162,5 @@ export function useTableColumnSizing<T>(table: RefObject<HTMLTableElement | null
         else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); setWidth(column); }
       }} />;
   };
-  return { enabled, width, handle, reset: () => setSaved({ key, widths: {} }), manual: Object.keys(manual).some(k => columns.some(c => c.key === k && !fixedEdge(c))), total: columns.reduce((sum, c) => sum + width(c), 0) };
+  return { enabled, width, fixed: fixedEdge, handle, reset: () => setSaved({ key, widths: {} }), manual: Object.keys(manual).some(k => columns.some(c => c.key === k && !fixedEdge(c))), total: columns.reduce((sum, c) => sum + width(c), 0) };
 }

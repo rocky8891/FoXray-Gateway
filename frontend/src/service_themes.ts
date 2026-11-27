@@ -1,6 +1,7 @@
 import { appearancePatch } from "./theme_appearance";
 import { record, type Dict } from "./api";
 import {
+  availableOverviewLayout,
   DEFAULT_SERVICE_THEME,
   overviewPolicy,
   serviceStyle,
@@ -169,7 +170,13 @@ export function randomServiceTheme(
 ): { source: "builtin" | "custom" | "mixed"; label: string; values: Dict } {
   const p = record(input);
   const cards = overviewPolicy(p, "services").cards;
-  const visibleValues = (values: Dict): Dict => ({ ...values, services_cards: [...cards] });
+  const visibleValues = (values: Dict): Dict => ({
+    ...values,
+    services_cards: [...cards],
+    ...(typeof values.services_layout === "string"
+      ? { services_layout: availableOverviewLayout(values.services_layout, cards.length) }
+      : {}),
+  });
   const pick = <T>(items: T[]): T => items[Math.floor(random() * items.length)];
   const current = currentServiceTheme(p),
     selectedCustom = customServiceTheme(p);

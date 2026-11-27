@@ -5,7 +5,7 @@ import { ActionMenu } from "./action_menu";
 import { CompactFilters, ListFilter, ResetFilters, SortHeading } from "./list_controls";
 import { ExportButton, useRowSelection } from "./resource_controls";
 import { Button, Field, Modal, SettingInfo, Table, type Column } from "./ui";
-import { record, type Dict } from "./api";
+import { api, errorMessage, record, type Dict } from "./api";
 
 type TargetRow = { name: string; remark: string; active: boolean; candidates: string[]; auto: boolean; target: string };
 function targetRow(item: Dict, policy: Dict): TargetRow {
@@ -23,6 +23,35 @@ export function WireGuardProbeTargets({ items, policy, onChange, onRefresh }: {
   const [sort, setSort] = useState({key: "name", direction: 1});
   const [editing, setEditing] = useState<{name: string; auto: boolean; target: string} | null>(null);
   const all = items.map(item => targetRow(item, policy));
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const editedRow = all.find(row => row.name === editing?.name);
+  const testTarget = (editing?.auto ? editedRow?.candidates[0] : editing?.target)?.trim() || "";
+
+  function changeEditing(next: typeof editing) {
+    setTestResult(null);
+    setEditing(next);
+  }
+
+  async function testProbe() {
+    if (!editing || !editedRow?.active || !testTarget || testing) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await api<Dict>("/api/network/wireguard/test-interface-probe", { name: editing.name, target: testTarget });
+      const ok = result.ok === true;
+      const latency = Number(result.latency);
+      const message = ok
+        ? Number.isFinite(latency) && latency >= 0 ? `目标可达 · ${latency.toFixed(1)} ms` : "目标可达"
+        : "未收到 ICMP 回复";
+      setTestResult({ ok, message });
+    } catch (err) {
+      setTestResult({ ok: false, message: errorMessage(err) });
+    } finally {
+      setTesting(false);
+    }
+  }
+
   const fields = [
     {key:"name",label:"接口",value:(r:TargetRow)=>[r.name,r.remark].filter(Boolean).join(" ")},
     {key:"status",label:"状态",value:(r:TargetRow)=>r.active?"运行中":"已停止"},
@@ -91,20 +120,25 @@ export function WireGuardProbeTargets({ items, policy, onChange, onRefresh }: {
         {key:"target",label:"对端隧道 IP",render:r=>r.target||<span className="muted">{r.auto?"无候选地址，请手动指定":"未配置"}</span>},
         {key:"candidates",label:"候选地址",render:r=>r.candidates.join("、")||"—"},
       ] as Column<TargetRow>[]).map(column),
-        {key:"actions",label:"操作",render:r=><><Button size="compact" onClick={()=>setEditing({name:r.name,auto:r.auto,target:r.target})}>编辑</Button>
+        {key:"actions",label:"操作",render:r=><><Button size="compact" onClick={()=>changeEditing({name:r.name,auto:r.auto,target:r.target})}>编辑</Button>
           <Button size="compact" onClick={()=>apply([{name:r.name,auto:!r.auto,target:r.auto?r.target:undefined}])}>{r.auto?"改为手动":"自动识别"}</Button>
           <Button size="compact" onClick={()=>apply([{name:r.name,auto:false,target:""}])}>清空地址</Button></>},
       ]}/>
-    {editing && <Modal title={"编辑探测目标 · "+editing.name} onClose={()=>setEditing(null)}>
-      <Field label="识别方式"><select aria-label="探测目标识别方式" value={editing.auto?"auto":"manual"} onChange={e=>setEditing({...editing,auto:e.target.value==="auto"})}><option value="auto">自动识别</option><option value="manual">手动指定</option></select></Field>
+    {editing && <Modal title={"编辑探测目标 · "+editing.name} onClose={()=>{ if (!testing) changeEditing(null); }}>
+      <Field label="识别方式"><select aria-label="探测目标识别方式" disabled={testing} value={editing.auto?"auto":"manual"} onChange={e=>changeEditing({...editing,auto:e.target.value==="auto"})}><option value="auto">自动识别</option><option value="manual">手动指定</option></select></Field>
       <Field label="对端隧道 IP" hint={editing.auto?"使用首个明确的候选主机地址":"单个 IPv4 或 IPv6 地址"}>
-        <input aria-label="对端隧道 IP" disabled={editing.auto} value={editing.auto?all.find(r=>r.name===editing.name)?.candidates[0]||"":editing.target}
-          onChange={e=>setEditing({...editing,target:e.target.value})}/>
+        <input aria-label="对端隧道 IP" disabled={editing.auto || testing} value={editing.auto ? testTarget : editing.target}
+          onChange={e=>changeEditing({...editing,target:e.target.value})}/>
         {!editing.auto && !!all.find(r=>r.name===editing.name)?.candidates.length && <div className="actions wg-probe-candidate-actions">
-          {all.find(r=>r.name===editing.name)?.candidates.map(ip=><Button key={ip} size="compact" onClick={()=>setEditing({...editing,target:ip})}>{ip}</Button>)}
+          {all.find(r=>r.name===editing.name)?.candidates.map(ip=><Button key={ip} size="compact" disabled={testing} onClick={()=>changeEditing({...editing,target:ip})}>{ip}</Button>)}
         </div>}
       </Field>
-      <div className="actions"><Button onClick={()=>setEditing(null)}>取消</Button><Button variant="primary" disabled={!all.some(r=>r.name===editing.name)} onClick={()=>{apply([editing]);setEditing(null);}}>应用到待保存配置</Button></div>
+      {testResult && <p role="status" className={testResult.ok ? "accent" : "poor"}>{testResult.message}</p>}
+      <div className="actions">
+        <Button disabled={testing || !editedRow?.active || !testTarget} title={editedRow?.active ? "测试当前探测目标" : "接口运行后可测试"} onClick={() => void testProbe()}>{testing ? "测试中…" : "测试"}</Button>
+        <Button disabled={testing} onClick={() => changeEditing(null)}>取消</Button>
+        <Button variant="primary" disabled={testing || !editedRow} onClick={() => { apply([editing]); changeEditing(null); }}>应用到待保存配置</Button>
+      </div>
     </Modal>}
   </section>;
 }

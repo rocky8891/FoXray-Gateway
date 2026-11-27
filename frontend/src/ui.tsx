@@ -2,6 +2,7 @@ import "./info_spacing.css";
 import { InfoContent } from "./info_content";
 import { ActionMenu, type MenuAction } from "./action_menu";
 import { useTableColumnSizing } from "./table_column_sizing";
+import { fixedTableColumnWidth } from "./table_column_policy";
 import { CopyButton, Pagination, usePagination } from "./resource_controls";
 import { labelIcon } from "./ui_icons";
 import {
@@ -934,6 +935,7 @@ export function RowActions({
 }
 export type Column<T> = {
   width?: string;
+  fixedWidth?: number;
   maxWidth?: number;
   fitContent?: boolean;
   key: string;
@@ -974,15 +976,7 @@ export function Table<T>({
   toolbar?: ReactNode;
   resizeInModal?: boolean;
 }) {
-  const edgeWidth = (c: Column<T>) =>
-    c.label === "选择" || ["selected", "select"].includes(c.key)
-      ? 36
-      : c.label === "序号" || c.key === "serial"
-        ? 42
-        : ["操作", "详情"].includes(c.label) ||
-            ["actions", "details"].includes(c.key)
-          ? 48
-          : 0;
+  const edgeWidth = (c: Column<T>) => fixedTableColumnWidth(c, columns.indexOf(c), columns.length);
   const minTableWidth = columns.reduce(
     (sum, c) => sum + (edgeWidth(c) || (c.width && /^\d+px$/.test(c.width) ? Number.parseFloat(c.width) : 140)),
     0,
@@ -1019,29 +1013,6 @@ export function Table<T>({
     const scope = tableRef.current?.closest("dialog, main");
     setWidthSlot(scope && columnSizingKey ? scope.querySelector<HTMLElement>(`[data-table-width-slot="${CSS.escape(columnSizingKey)}"]`) : null);
   }, [columnSizingKey, toolbar, rows.length]);
-  const [firstWidth, setFirstWidth] = useState(64);
-  useLayoutEffect(() => {
-    const table = tableRef.current;
-    if (!table) return;
-    const measure = () => {
-      const cells = Array.from(
-        table.querySelectorAll<HTMLElement>(".first-cell-content"),
-      );
-      const width = Math.ceil(
-        Math.max(
-          32,
-          ...cells.map((cell) => cell.getBoundingClientRect().width),
-        ) + 32,
-      );
-      setFirstWidth((old) => (old === width ? old : width));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    table
-      .querySelectorAll(".first-cell-content")
-      .forEach((cell) => observer.observe(cell));
-    return () => observer.disconnect();
-  }, [rows, columns]);
   const widthControl = (
     <div className="adaptive-table-width-control">
           <Button onClick={sizing.reset}><svg viewBox="0 0 1024 1024" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M422.4 486.4H288l57.6-57.6c12.8-12.8 12.8-25.6 0-38.4-12.8-6.4-25.6-6.4-38.4 0L224 480V128h-64v768h64V544l83.2 89.6c12.8 6.4 25.6 6.4 38.4 0 12.8-12.8 12.8-25.6 0-38.4l-57.6-57.6h134.4c12.8 0 25.6-12.8 25.6-25.6s-12.8-25.6-25.6-25.6zM480 192h64v640h-64zM800 128v352l-83.2-89.6c-12.8-6.4-25.6-6.4-38.4 0-12.8 12.8-12.8 25.6 0 38.4l57.6 57.6H601.6c-12.8 0-25.6 12.8-25.6 25.6s12.8 25.6 25.6 25.6h134.4l-57.6 57.6c-12.8 12.8-12.8 25.6 0 38.4 6.4 12.8 25.6 12.8 32 0l83.2-89.6V896h64V128h-57.6z" /></svg>自动列宽</Button>
@@ -1060,9 +1031,10 @@ export function Table<T>({
               : "content-width-table balanced-columns" + (sizing.enabled ? " adaptive-columns" : "")
           }
           ref={tableRef}
+          data-fixed-layout="true"
           style={
             {
-              "--first-column-width": firstWidth + "px",
+              "--first-column-width": (columns.length ? sizing.width(columns[0]) : 0) + "px",
               "--table-min-width": (sizing.enabled ? sizing.total : minTableWidth) + "px",
               minWidth: sizing.enabled ? sizing.total : minTableWidth,
               ...(sizing.enabled ? { "--adaptive-table-width": sizing.total + "px" } : {}),
@@ -1086,6 +1058,8 @@ export function Table<T>({
                   className={c.className}
                   data-column={c.key}
                   data-label={c.label}
+                  data-fixed-column={sizing.fixed(c) || undefined}
+                  style={sizing.fixed(c) ? { "--fixed-column-width": sizing.width(c) + "px" } as React.CSSProperties : undefined}
                   aria-sort={c.sortDirection}
                 >
                   {sizing.enabled ? <><span className="adaptive-column-heading">{c.heading || c.label}</span>{sizing.handle(c)}</> : <>
@@ -1119,8 +1093,10 @@ export function Table<T>({
                       className={c.className}
                       data-column={c.key}
                       data-label={c.label}
+                      data-fixed-column={sizing.fixed(c) || undefined}
+                      style={sizing.fixed(c) ? { "--fixed-column-width": sizing.width(c) + "px" } as React.CSSProperties : undefined}
                     >
-                      {sizing.enabled ? <div className="adaptive-cell-content" title={typeof row === "object" && row !== null ? undefined : String(row)}>
+                      {sizing.enabled ? <div className="adaptive-cell-content" ref={element => { if (element && sizing.fixed(c)) element.title = element.textContent?.trim() || ""; }} title={typeof row === "object" && row !== null ? undefined : String(row)}>
                         {c.label === "操作" || c.key === "actions" ? rowActions(c.render(row,index),"第"+(index+1)+"行") : c.render(row,index)}
                       </div> : <>
                       {columnIndex === 0 ? (
