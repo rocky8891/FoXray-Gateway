@@ -10,7 +10,7 @@ from pathlib import Path
 import unittest
 import zipfile
 
-spec = importlib.util.spec_from_file_location("upgrade_current", Path(__file__).parents[1] / "upgrade_v0.9.71.py")
+spec = importlib.util.spec_from_file_location("upgrade_current", Path(__file__).parents[1] / "upgrade_v0.9.72.py")
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 

@@ -116,3 +116,34 @@ func TestAttributedConnectionProtocolCounts(t *testing.T) {
 		t.Fatal("attributed protocol counts lost")
 	}
 }
+
+func TestGlobalHistoryIntervalPreservesAndClearsItemOverrides(t *testing.T) {
+	a, _ := fixture(t)
+	if err := writeJSON(filepath.Join(a.base, "host-monitor-policy.json"), M{"storage_interval": 45}); err != nil {
+		t.Fatal(err)
+	}
+	a.loadMonitorData()
+	if a.historyInterval("xray", "latency") != 1 || a.historyInterval("wireguard", "traffic") != 60 || a.historyInterval("host", "metrics") != 45 {
+		t.Fatal("existing history intervals were not preserved")
+	}
+	if err := a.saveHistoryInterval("xray", "latency", 12); err != nil {
+		t.Fatal(err)
+	}
+	defaults := standardMonitorData()
+	defaults["storage_interval"] = 5
+	if err := a.saveMonitorData("all", "", defaults); err != nil {
+		t.Fatal(err)
+	}
+	if a.historyInterval("xray", "latency") != 12 || a.historyInterval("wireguard", "traffic") != 5 || a.historyInterval("host", "metrics") != 45 {
+		t.Fatal("global interval replaced an override or did not apply to inheriting data")
+	}
+	for _, item := range [][2]string{{"xray", "latency"}, {"host", "metrics"}} {
+		if err := a.saveMonitorData(item[0], item[1], M{"independent": false, "history_only": true, "storage_interval": nil}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a.loadMonitorData()
+	if a.historyInterval("xray", "latency") != 5 || a.historyInterval("host", "metrics") != 10 {
+		t.Fatal("cleared override was restored on reload or host minimum was ignored")
+	}
+}

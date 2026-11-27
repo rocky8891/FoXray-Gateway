@@ -10,7 +10,7 @@ import { MonitorItemsSettings } from "./monitor_items";
 import { NumberInput } from "./ui";
 import { SaveCard, SettingsSaveProvider } from "./settings_save";
 import { useEffect, useState } from "react";
-import { record, type Dict, type State } from "./api";
+import { type Dict, type State } from "./api";
 import { HostSettings } from "./host";
 import { ErrorLine, Field, PageHeader, Panel, useResource } from "./ui";
 import type { Act } from "./nodes";
@@ -42,53 +42,6 @@ function NodeDetectionSettings({
       fields={<ProbeIntervalField module={module} act={act} />}
       title="延迟"
       act={act}
-    />
-  );
-}
-
-function HostDataSettings({ act }: { act: Act }) {
-  const r = useResource<Dict>("/api/system", 10000),
-    [storage, setStorage] = useState<number | null>(null);
-  const saved = Number(record(r.data?.policy).storage_interval ?? 60);
-  return (
-    <DataPolicyCard
-      module="host"
-      kind="metrics"
-      title="监控数据"
-      act={act}
-      ready={!!r.data}
-      extraDirty={storage != null && storage !== saved}
-      validate={() => {
-        const n = storage ?? saved,
-          min = Math.max(10, Number(record(r.data?.policy).interval || 2));
-        return Number.isInteger(n) && n >= min && n <= 3600
-          ? ""
-          : `历史写入间隔须为${min}～3600秒的整数，且不能小于采集间隔`;
-      }}
-      fields={
-        <Field
-          label="历史写入间隔（秒）"
-          info={<ul><li><strong>取值范围：</strong>10～3600 秒。</li><li><strong>作用：</strong>汇总已采集的服务器指标并写入历史。</li><li><strong>频率关系：</strong>不改变采集、页面刷新或主动探测间隔；历史记录频率不会高于采集频率。</li></ul>}
-        >
-          <NumberInput
-            aria-label="服务器历史写入间隔（秒）"
-            min={10}
-            max={3600}
-            value={storage ?? saved}
-            onChange={(e) => setStorage(Number(e.target.value))}
-          />
-        </Field>
-      }
-      extraDefaults={() => setStorage(60)}
-      extraDiscard={() => setStorage(null)}
-      extraSave={async () => {
-        if (storage == null || storage === saved) return true;
-        if (!(await act("/api/system/policy", { storage_interval: storage })))
-          return false;
-        await r.refresh();
-        setStorage(null);
-        return true;
-      }}
     />
   );
 }
@@ -266,7 +219,7 @@ export function MonitoringSettings({
             ) : <MonitorItemsSettings module={active} act={act} />}
             {active === "server" ? (
               <>
-                <HostDataSettings act={act} />
+                <DataPolicyCard module="host" kind="metrics" title="监控数据" act={act} />
                 <DataPolicyCard
                   module={active === "server" ? "host" : active}
                   kind="connections"

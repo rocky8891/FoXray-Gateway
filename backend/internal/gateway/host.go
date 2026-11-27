@@ -170,7 +170,7 @@ func (h *HostMonitor) collect() {
 	if len(h.window) > 1800 {
 		h.window = h.window[len(h.window)-1800:]
 	}
-	if time.Since(h.lastFlush) >= time.Duration(num(h.policy["storage_interval"]))*time.Second {
+	if time.Since(h.lastFlush) >= time.Duration(h.app.historyInterval("host", "metrics"))*time.Second {
 		_ = h.flushLocked()
 		h.lastFlush = time.Now()
 	}
@@ -237,7 +237,9 @@ func (h *HostMonitor) close() {
 func (h *HostMonitor) snapshot() M {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return M{"current": clone(h.current), "policy": clone(h.policy), "effective_interval": num(h.app.monitorDataPolicy("host", "metrics")["interval"])}
+	policy := clone(h.policy)
+	policy["storage_interval"] = h.app.historyInterval("host", "metrics")
+	return M{"current": clone(h.current), "policy": policy, "effective_interval": num(h.app.monitorDataPolicy("host", "metrics")["interval"])}
 }
 func (h *HostMonitor) history(q url.Values) M {
 	end := now()
@@ -337,7 +339,14 @@ func (h *HostMonitor) configure(input M) error {
 	if _, ok := next["enabled"].(bool); !ok {
 		return errors.New("监控开关无效")
 	}
-	if e := writeJSON(filepath.Join(h.app.base, "host-monitor-policy.json"), next); e != nil {
+	path := filepath.Join(h.app.base, "host-monitor-policy.json")
+	stored := M{}
+	_ = readJSON(path, &stored)
+	legacy := clone(next)
+	if stored["storage_interval"] == nil && input["storage_interval"] == nil {
+		delete(legacy, "storage_interval")
+	}
+	if e := writeJSON(path, legacy); e != nil {
 		return e
 	}
 	if input["interval"] != nil || input["retention_days"] != nil || input["max_storage_mb"] != nil {
@@ -349,6 +358,11 @@ func (h *HostMonitor) configure(input M) error {
 		}
 		p["independent"] = true
 		if err := h.app.saveMonitorData("host", "metrics", p); err != nil {
+			return err
+		}
+	}
+	if value, ok := input["storage_interval"]; ok {
+		if err := h.app.saveHistoryInterval("host", "metrics", value); err != nil {
 			return err
 		}
 	}

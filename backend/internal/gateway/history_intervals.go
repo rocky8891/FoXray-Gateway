@@ -55,6 +55,15 @@ func (a *App) historyIntervalLocked(module, kind string) float64 {
 	if n >= 1 && n <= 3600 {
 		return n
 	}
+	return a.defaultHistoryIntervalLocked(kind)
+}
+func (a *App) defaultHistoryIntervalLocked(kind string) float64 {
+	if value := num(a.monitorData["history_default"]); value >= 1 && value <= 3600 {
+		if kind == "metrics" {
+			return max(10, value)
+		}
+		return value
+	}
 	return defaultHistoryInterval(kind)
 }
 func (a *App) historyInterval(module, kind string) float64 {
@@ -63,7 +72,7 @@ func (a *App) historyInterval(module, kind string) float64 {
 	return a.historyIntervalLocked(module, kind)
 }
 func (a *App) saveHistoryInterval(module, kind string, value any) error {
-	if !validMonitorData(module, kind) || kind == "metrics" {
+	if !validMonitorData(module, kind) {
 		return errors.New("历史记录类型无效")
 	}
 	return a.saveMonitorData(module, kind, M{"independent": a.monitorDataView(module, kind)["independent"], "storage_interval": value, "history_only": true})

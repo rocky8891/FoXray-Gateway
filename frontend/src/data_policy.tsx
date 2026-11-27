@@ -53,11 +53,14 @@ export function DataPolicyCard({
   );
   const [draft, setDraft] = useState<Dict | null>(null);
   const [validationError, setValidationError] = useState("");
-  const [storageDraft, setStorageDraft] = useState<number | null>(null);
-  const hasHistory = module !== "all" && kind !== "metrics";
-  const storageDefault = kind === "latency" ? 1 : 60;
-  const storage =
-    storageDraft ?? Number(resource.data?.storage_interval ?? storageDefault);
+  const [historyDraft, setHistoryDraft] = useState<string>();
+  const globalHistory = module === "all";
+  const savedHistory = globalHistory || resource.data?.storage_override
+    ? String(resource.data?.storage_interval ?? "")
+    : "";
+  const history = historyDraft ?? savedHistory;
+  const historyMin = kind === "metrics" ? 10 : 1;
+  const inheritedHistory = resource.data?.storage_default;
   const policy = {
     interval: 2,
     retention_days: 30,
@@ -91,7 +94,7 @@ export function DataPolicyCard({
             <li><strong>默认值按「服务 × 监控数据类型」应用</strong>。服务器指标（CPU、负载、内存、磁盘等）共用一组，服务器连接另算一组。Xray、WARP、WireGuard 各自的流量、延迟、连接分别计算，同组的节点或接口共用上限。启用「独立设置」的项目优先使用自己的配置。</li>
             <li><strong>历史保留天数</strong>。每组清理超过保留天数的记录。如果先达到容量上限，更早的记录会提前清理。</li>
             <li><strong>历史保留上限</strong>。这是每组历史数据的估算上限。例如设为 1024 MiB 时，Xray 的流量、延迟和连接各有 1024 MiB。流量和延迟按每条 256 字节估算。清理后 SQLite 文件可能保持原大小，释放的空间可供后续写入复用。</li>
-            <li><strong>后台采集间隔</strong>。跟随全局设置的服务器指标、流量和连接按此间隔采集。历史写入、页面刷新和主动延迟探测有各自的间隔设置。</li>
+            <li><strong>后台采集间隔</strong>。跟随全局设置的服务器指标、流量和连接按此间隔采集。历史写入、页面刷新和主动延迟探测分别设置。历史写入间隔也可按项覆盖。</li>
           </ul>
         ) : undefined}
       />
@@ -143,26 +146,29 @@ export function DataPolicyCard({
               />
             </Field>
           ))}
-          {hasHistory && (
-            <Field
-              label="历史写入间隔（秒）"
-              info={
-                kind === "latency"
-                  ? <ul><li><strong>取值范围：</strong>1～3600 秒，默认 1 秒。</li><li><strong>记录内容：</strong>保存已有检测结果；默认值通常可以保留每次检测。</li><li><strong>频率关系：</strong>不改变真连接或 ICMP 探测频率，实际写入不会快于检测。</li></ul>
-                  : kind === "connections"
-                    ? <ul><li><strong>取值范围：</strong>1～3600 秒。</li><li><strong>记录密度：</strong>控制连接数历史保存频率，不会快于实际采集。</li><li><strong>明细与图表：</strong>明细按批次写入，图表按查询范围合并；不补造历史记录。</li></ul>
-                    : <ul><li><strong>取值范围：</strong>1～3600 秒，默认 60 秒。</li><li><strong>采集与写入：</strong>实时采集产生当前速率，本项决定历史保存密度；实际写入不会快于采集。</li><li><strong>生效范围：</strong>短间隔只影响新数据。图表可能继续合并历史点，页面刷新只负责读取。</li></ul>
-              }
-            >
-              <NumberInput
-                aria-label="历史写入间隔（秒）"
-                min={1}
-                max={3600}
-                value={storage}
-                onChange={(e) => setStorageDraft(Number(e.target.value))}
-              />
-            </Field>
-          )}
+          <Field
+            label={globalHistory ? "默认历史写入间隔（秒）" : "历史写入间隔（秒）"}
+            info={globalHistory ? (
+              <ul>
+                <li>设置后应用于跟随全局的监控数据。留空时沿用按指标类型预设的间隔。</li>
+                <li>范围为 1～3600 秒。服务器指标至少 10 秒。实际写入频率受采集或探测频率限制。</li>
+              </ul>
+            ) : (
+              <ul>
+                <li>填写 {historyMin}～3600 秒，为本项单独设置历史写入间隔。</li>
+                <li>留空跟随全局。采集频率、页面刷新和主动探测各自配置。</li>
+              </ul>
+            )}
+          >
+            <NumberInput
+              aria-label={globalHistory ? "默认历史写入间隔（秒）" : "历史写入间隔（秒）"}
+              min={historyMin}
+              max={3600}
+              value={history}
+              placeholder={globalHistory ? "按指标类型预设" : inheritedHistory == null ? "跟随全局" : `跟随全局 · ${inheritedHistory} 秒`}
+              onChange={e => setHistoryDraft(e.target.value)}
+            />
+          </Field>
           {kind !== "latency" && fields}
         </div>
       </SettingsSection>
@@ -178,15 +184,13 @@ export function DataPolicyCard({
             independent:
               module === "all" || Boolean(resource.data?.independent),
           }) ||
-          (storageDraft != null &&
-            storageDraft !==
-              Number(resource.data?.storage_interval ?? storageDefault))
+          history !== savedHistory
         }
         disabled={!resource.data || !ready}
         title={title}
         defaults={() => {
           extraDefaults?.();
-          setStorageDraft(storageDefault);
+          setHistoryDraft("");
           setDraft(
             module === "all"
               ? { interval: 2, retention_days: 30, max_storage_mb: 256 }
@@ -196,10 +200,11 @@ export function DataPolicyCard({
         discard={() => {
           extraDiscard?.();
           setDraft(null);
-          setStorageDraft(null);
+          setHistoryDraft(undefined);
         }}
         save={async () => {
-          const error = validate?.() || "";
+          const validHistory = history === "" || (/^\d+$/.test(history) && Number(history) >= historyMin && Number(history) <= 3600);
+          const error = validHistory ? validate?.() || "" : `历史写入间隔须为 ${historyMin}～3600 秒的整数`;
           setValidationError(error);
           if (error) return false;
           const ok = await act(
@@ -209,14 +214,14 @@ export function DataPolicyCard({
               retention_days: Number(policy.retention_days),
               max_storage_mb: Number(policy.max_storage_mb),
               ...(module === "all" ? {} : { independent }),
-              ...(hasHistory ? { storage_interval: storage } : {}),
+              ...(history !== savedHistory ? { storage_interval: history === "" ? null : Number(history) } : {}),
             },
           );
           if (ok) {
             if (extraSave && !(await extraSave())) return false;
             await resource.refresh();
             setDraft(null);
-            setStorageDraft(null);
+            setHistoryDraft(undefined);
           }
           return ok;
         }}

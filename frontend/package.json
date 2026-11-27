@@ -1,11 +1,11 @@
 {
   "name": "foxray-gateway-web",
-  "version": "0.9.71",
+  "version": "0.9.72",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "node scripts/build_help_v0.9.71.mjs && node scripts/check_radius_v0.9.71.mjs && node node_modules/typescript/lib/tsc.js -b && vite build",
+    "build": "node scripts/build_help_v0.9.72.mjs && node scripts/check_radius_v0.9.72.mjs && node node_modules/typescript/lib/tsc.js -b && vite build",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {

@@ -62,6 +62,13 @@ func (a *App) loadMonitorData() {
 	}
 	a.monitorData = M{"defaults": defaults, "overrides": overrides, "history_intervals": history}
 	_ = readJSON(filepath.Join(a.base, "monitor-data-policy.json"), &a.monitorData)
+	stored := obj(a.monitorData["history_intervals"])
+	if _, exists := stored["host:metrics"]; !exists {
+		if value, err := integer(host["storage_interval"], 10, 3600); err == nil {
+			stored["host:metrics"] = value
+			a.monitorData["history_intervals"] = stored
+		}
+	}
 }
 func (a *App) monitorDataPolicy(module, kind string) M {
 	a.dataMu.RLock()
@@ -80,9 +87,9 @@ func (a *App) monitorDataView(module, kind string) M {
 	a.dataMu.RLock()
 	defer a.dataMu.RUnlock()
 	if module == "all" {
-		return M{"policy": clone(obj(a.monitorData["defaults"]))}
+		return M{"policy": clone(obj(a.monitorData["defaults"])), "storage_interval": a.monitorData["history_default"]}
 	}
-	return M{"policy": policy, "independent": len(obj(obj(a.monitorData["overrides"])[module+":"+kind])) > 0, "global": clone(obj(a.monitorData["defaults"])), "storage_interval": a.historyIntervalLocked(module, kind)}
+	return M{"policy": policy, "independent": len(obj(obj(a.monitorData["overrides"])[module+":"+kind])) > 0, "global": clone(obj(a.monitorData["defaults"])), "storage_interval": a.historyIntervalLocked(module, kind), "storage_override": num(obj(a.monitorData["history_intervals"])[module+":"+kind]) > 0, "storage_default": a.defaultHistoryIntervalLocked(kind)}
 }
 func (a *App) saveMonitorData(module, kind string, data M) error {
 	if module != "all" && !validMonitorData(module, kind) {
@@ -94,17 +101,19 @@ func (a *App) saveMonitorData(module, kind string, data M) error {
 			return errors.New("监控数据设置包含未知字段")
 		}
 	}
-	if value, exists := data["storage_interval"]; exists {
-		if module == "all" || kind == "metrics" {
-			return errors.New("请在对应服务的监控项中设置历史记录间隔")
-		}
-		if _, err := integer(value, 1, 3600); err != nil {
-			return errors.New("历史记录间隔（秒）允许范围：1～3600")
-		}
-	}
 	historyOnly := yes(data["history_only"])
-	if historyOnly && data["storage_interval"] == nil {
-		return errors.New("历史记录间隔不能为空")
+	storage, hasStorage := data["storage_interval"]
+	if historyOnly && (!hasStorage || module == "all") {
+		return errors.New("历史记录间隔设置无效")
+	}
+	if hasStorage && storage != nil {
+		minimum := 1
+		if kind == "metrics" {
+			minimum = 10
+		}
+		if _, err := integer(storage, minimum, 3600); err != nil {
+			return fmt.Errorf("历史记录间隔（秒）允许范围：%d～3600", minimum)
+		}
 	}
 	independent := true
 	if module != "all" {
@@ -137,10 +146,18 @@ func (a *App) saveMonitorData(module, kind string, data M) error {
 		}
 		next["overrides"] = overrides
 	}
-	if value, exists := data["storage_interval"]; exists {
-		history := obj(next["history_intervals"])
-		history[module+":"+kind] = value
-		next["history_intervals"] = history
+	if hasStorage {
+		if module == "all" {
+			next["history_default"] = storage
+		} else {
+			history := obj(next["history_intervals"])
+			if storage == nil {
+				// Zero preserves an explicit choice to inherit over any legacy host setting.
+				storage = 0
+			}
+			history[module+":"+kind] = storage
+			next["history_intervals"] = history
+		}
 	}
 	if err := writeJSON(filepath.Join(a.base, "monitor-data-policy.json"), next); err != nil {
 		return err
