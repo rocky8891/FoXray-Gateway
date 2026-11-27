@@ -7191,5 +7191,4 @@ header .brand{align-items:center}header .brand .brand-logo{width:44px;height:44p
   }
 }
 
-.account-login-settings > .save-card-footer { margin-top: var(--group-gap); }
-.account-login-card > .form-grid + .form-grid { margin-top: 16px; }
+.account-login-fields > .form-grid + .form-grid { margin-top: 16px; }

@@ -1,15 +1,16 @@
-"""Build FoXray Gateway v0.9.1; see build_release_v0.9.1_README.md."""
+"""Build FoXray Gateway v0.9.71; see build_release_v0.9.71_README.md."""
 import argparse
 import hashlib
 import io
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.9.1"
+VERSION = "0.9.71"
 
 
 def command(*args):
@@ -69,7 +70,7 @@ def main():
     args = parser.parse_args()
     if not args.go:
         parser.error("Go executable required")
-    if command("git", "status", "--porcelain").strip():
+    if command("git", "status", "--porcelain", "--", ".", ":(exclude)assets").strip():
         raise ValueError("commit source changes before packaging")
     package = json.loads((ROOT / "frontend/package.json").read_text(encoding="utf8"))
     lock = json.loads((ROOT / "frontend/package-lock.json").read_text(encoding="utf8"))
@@ -89,7 +90,10 @@ def main():
     with zipfile.ZipFile(io.BytesIO(command("git", "archive", "--format=zip", "HEAD"))) as archive:
         source = {name: archive.read(name) for name in archive.namelist() if not name.endswith("/")}
     for name, raw in source.items():
-        if name.endswith(".md") or name == "LICENSE" or name.startswith(("docs/", "release-notes/", "rules/", "third_party/")) or name in ["install_v0.9.1.sh", "upgrade_v0.9.1.py"]:
+        versioned = re.search(r"v(0\.9\.[0-9]+)", name)
+        if versioned and versioned.group(1) != VERSION:
+            continue
+        if name.endswith(".md") or name == "LICENSE" or name.startswith(("docs/", "release-notes/", "rules/", "third_party/")) or name in ["install_v0.9.71.sh", "upgrade_v0.9.71.py", "prepare_offline_v0.9.71.sh"]:
             files[name] = raw
     for path in (ROOT / "frontend/dist").rglob("*"):
         if path.is_file():

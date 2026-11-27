@@ -5,7 +5,7 @@ import { ActionMenu } from "./action_menu";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Eye, EyeOff, LockKeyhole, LogOut, Shield, UserCircle, Users } from "lucide-react";
 import { HomeMonitorScreen } from "./home_monitor_screen";
-import { Button, ErrorLine, Field, Modal, PageHeader, Panel, useResource } from "./ui";
+import { Button, ErrorLine, Field, Modal, PageHeader, Panel, SettingsSection, useResource } from "./ui";
 
 type LoginMode = "account" | "password" | "off";
 type Session = { authenticated: boolean; username: string; initial: boolean; mode: LoginMode; home_monitor?: boolean };
@@ -130,37 +130,39 @@ export function ManagementUserSettings() {
   return <form className="account-login-settings" onSubmit={save}>
     <Panel className="presentation-settings account-login-card">
       <PageHeader title="账号与登录" icon={<Users size={20} />} actions={saved?.mode && saved.mode !== "off" && <Button disabled={busy} onClick={() => void managementRequest("/api/management/logout", {}).then(() => window.dispatchEvent(new Event("foxray:auth-expired"))).catch(() => setError("退出失败"))}>退出登录</Button>} />
-      <div className="form-grid">
-        <Field label="登录方式"><select value={mode} disabled={busy} onChange={e => setDraft(d => ({ ...d, mode: e.target.value as LoginMode }))}>
-          <option value="account">用户名和密码</option>
-          <option value="password">仅密码登录</option>
-          <option value="off">关闭认证登录</option>
-        </select></Field>
-        {mode === "password" && <Field label="使用该账号的密码"><select value={account} disabled={busy} onChange={e => setDraft(d => ({ ...d, account: e.target.value }))}>
-          {saved?.users.map(user => <option key={user} value={user}>{user}</option>)}
-        </select></Field>}
+      <SettingsSection className="account-login-fields">
+        <div className="form-grid">
+          <Field label="登录方式"><select value={mode} disabled={busy} onChange={e => setDraft(d => ({ ...d, mode: e.target.value as LoginMode }))}>
+            <option value="account">用户名和密码</option>
+            <option value="password">仅密码登录</option>
+            <option value="off">关闭认证登录</option>
+          </select></Field>
+          {mode === "password" && <Field label="使用该账号的密码"><select value={account} disabled={busy} onChange={e => setDraft(d => ({ ...d, account: e.target.value }))}>
+            {saved?.users.map(user => <option key={user} value={user}>{user}</option>)}
+          </select></Field>}
+        </div>
+        {mode === "off" && <p className="hint">关闭后，能访问管理地址的人无需登录即可操作 FoXray。</p>}
+        <div className="form-grid">
+          <Field label="用户"><select value={target} disabled={busy} onChange={e => { setTarget(e.target.value); setName(e.target.value); setPassword(""); }}>
+            <option value="">新增用户</option>
+            {saved?.users.map(user => <option key={user} value={user}>{user}</option>)}
+          </select></Field>
+          <Field label="用户名"><input value={name} disabled={busy} onChange={e => setName(e.target.value)} maxLength={32} autoComplete="off" /></Field>
+          <Field label="新密码" hint={target ? "留空保留该用户的密码" : "填写该用户的密码"}><input type="password" autoComplete="new-password" maxLength={256} disabled={busy} value={password} onChange={e => setPassword(e.target.value)} /></Field>
+        </div>
+        <div className="form-grid">
+          <Field label="登录会话保持时间（小时）" hint="1～168 小时。下次登录时生效。"><input type="number" min={1} max={168} step={1} value={hours} disabled={busy} onChange={e => setDraft(d => ({ ...d, hours: e.target.value }))} /></Field>
+          <Field label="首页常驻监控" hint="管理会话到期后，已打开的首页继续显示只读指标。"><label className="check"><input type="checkbox" checked={homeMonitor} disabled={busy} onChange={e => setDraft(d => ({ ...d, homeMonitor: e.target.checked }))} />启用首页常驻监控</label></Field>
+        </div>
+        {userChanged && !userValid && <p className="hint">请填写有效的用户名。新增用户时还须填写密码。</p>}
+        <ErrorLine error={error || status.error} />
+      </SettingsSection>
+      <div className="save-card-footer" aria-label="账号与登录保存工具栏" role="group">
+        <Button disabled={busy || !saved} onClick={() => reset(true)}>恢复默认</Button>
+        <Button disabled={busy || !saved || !dirty} onClick={() => reset()}>放弃保存</Button>
+        <Button type="submit" variant="primary" highlighted={canSave} disabled={busy || !canSave}>保存并应用</Button>
       </div>
-      {mode === "off" && <p className="hint">关闭后，能访问管理地址的人无需登录即可操作 FoXray。</p>}
-      <div className="form-grid">
-        <Field label="用户"><select value={target} disabled={busy} onChange={e => { setTarget(e.target.value); setName(e.target.value); setPassword(""); }}>
-          <option value="">新增用户</option>
-          {saved?.users.map(user => <option key={user} value={user}>{user}</option>)}
-        </select></Field>
-        <Field label="用户名"><input value={name} disabled={busy} onChange={e => setName(e.target.value)} maxLength={32} autoComplete="off" /></Field>
-        <Field label="新密码" hint={target ? "留空保留该用户的密码" : "填写该用户的密码"}><input type="password" autoComplete="new-password" maxLength={256} disabled={busy} value={password} onChange={e => setPassword(e.target.value)} /></Field>
-      </div>
-      <div className="form-grid">
-        <Field label="登录会话保持时间（小时）" hint="1～168 小时。下次登录时生效。"><input type="number" min={1} max={168} step={1} value={hours} disabled={busy} onChange={e => setDraft(d => ({ ...d, hours: e.target.value }))} /></Field>
-        <Field label="首页常驻监控" hint="管理会话到期后，已打开的首页继续显示只读指标。"><label className="check"><input type="checkbox" checked={homeMonitor} disabled={busy} onChange={e => setDraft(d => ({ ...d, homeMonitor: e.target.checked }))} />启用首页常驻监控</label></Field>
-      </div>
-      {userChanged && !userValid && <p className="hint">请填写有效的用户名。新增用户时还须填写密码。</p>}
-      <ErrorLine error={error || status.error} />
     </Panel>
-    <div className="save-card-footer" aria-label="账号与登录保存工具栏" role="group">
-      <Button disabled={busy || !saved} onClick={() => reset(true)}>恢复默认</Button>
-      <Button disabled={busy || !saved || !dirty} onClick={() => reset()}>放弃保存</Button>
-      <Button type="submit" variant="primary" highlighted={canSave} disabled={busy || !canSave}>保存并应用</Button>
-    </div>
   </form>;
 }
 

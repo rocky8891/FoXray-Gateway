@@ -1,4 +1,4 @@
-"""FoXray Gateway 0.9.1 management-only deployment; see upgrade_v0.9.1_README.md."""
+"""FoXray Gateway 0.9.71 management-only deployment; see upgrade_v0.9.71_README.md."""
 import argparse
 import hashlib
 import io
@@ -11,7 +11,7 @@ import time
 import urllib.request
 import zipfile
 
-VERSION = "0.9.1"
+VERSION = "0.9.71"
 
 def digest(value):
     return hashlib.sha256(value).hexdigest()
@@ -63,6 +63,24 @@ def snapshot(health):
     state = get_json(base, "/api/state")
     selected = {key: state.get(key) for key in
                 ["config", "native", "manager_settings", "icmp_policy", "components", "monitoring_items", "proxy"]}
+    # Canonicalize only newly introduced defaults, preserving explicit choices.
+    # Adding keys in 0.9.4 does not itself apply DNS interception or reload Xray.
+    if isinstance(selected.get("config"), dict):
+        configuration = dict(selected["config"])
+        defaults = {"dns_direct_servers": ["114.114.114.114", "114.114.115.115", "223.5.5.5", "223.6.6.6", "119.29.29.29"],
+                    "dns_proxy_servers": ["1.1.1.1", "8.8.8.8"], "lan_dns_intercept": True,
+                    "dns_force_proxy": False, "domain_identification": False}
+        for key, value in defaults.items():
+            configuration.setdefault(key, value)
+        selected["config"] = configuration
+    # Version 0.9.1 omits this display-only default from its public snapshot.
+    settings = selected.get("manager_settings")
+    if isinstance(settings, dict):
+        settings = dict(settings)
+        presentation = dict(settings.get("presentation") or {})
+        presentation.setdefault("home_header_auto_hide", False)
+        settings["presentation"] = presentation
+        selected["manager_settings"] = settings
     selected["exit"] = {key: state.get("state", {}).get(key) for key in ["active", "applied", "active_since"]}
     selected["host_policy"] = get_json(base, "/api/system").get("policy", {})
     routes = get_json(base, "/api/network/routes")

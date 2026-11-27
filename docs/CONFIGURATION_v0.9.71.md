@@ -1,6 +1,6 @@
-# FoXray Gateway v0.9.1 配置参考
+# FoXray Gateway v0.9.71 配置参考
 
-程序：`foxray_v0.9.1`。优先从控制台保存，避免同时手工修改正在运行的配置。
+程序：`foxray_v0.9.71`。优先从控制台保存，避免同时手工修改正在运行的配置。
 
 ## 命令行与服务
 
@@ -13,7 +13,7 @@
 | --- | --- |
 | `--base` | 运行数据目录，默认`/opt/foxray` |
 | `--ui` | 前端静态资源目录 |
-| `--listen` | HTTP监听，v0.9.1新进程默认`0.0.0.0:18880`；升级保留既有服务参数 |
+| `--listen` | HTTP监听，v0.9.71新进程默认`0.0.0.0:18880`；升级保留既有服务参数 |
 | `--read-only` | 只读验证，关闭周期任务与常规写操作；不是权限隔离沙箱 |
 | `--initialize` / `--ensure-module` | 安装器使用的初始化/组件准备入口，可能修改系统，不用于日常健康检查 |
 | `--apply-manager-update` | 应用已校验管理程序更新计划，可能重启管理服务 |
@@ -49,3 +49,20 @@
 FoXray、Xray-core、WARP 和 WireGuard 工具版本独立比较与更新。
 
 `0.0.0.0` 表示监听全部 IPv4 网卡，浏览器使用服务器实际 IP，例如 `http://<服务器IP>:18880`。本机健康检查可继续使用 `127.0.0.1`。直接通过服务器接口 IP 访问时自动识别本次连接的本地地址；自定义域名按 `FOXRAY_ALLOWED_HOSTS` 配置。
+
+
+## 页面显示偏好
+
+`presentation.content_width_percent` 设置首页宽度，默认 95%。`presentation.module_width_percent` 设置非首页宽度，默认 95%。两项均接受 80～100 的整数；100 时主页侧边工具自动收起。`presentation.home_header_auto_hide` 为布尔值、默认 false，仅控制首页顶部导航的自动隐藏，不停止任何服务。`overview_show_clock`、`overview_show_data_status` 控制单行页尾；指定节点使用 `nodes_visibility_mode` 与 `nodes_visible_ids`，显示数量由 `nodes_limit` 控制（0 为全部）。
+
+## DNS与域名识别
+
+| 配置字段 | 默认值 | 作用 |
+| --- | --- | --- |
+| `lan_dns_intercept` | `true` | 随IPv4 LAN接管范围启用UDP／TCP 53智能解析 |
+| `dns_force_proxy` | `false` | 自定义规则之后强制DNS走当前代理节点 |
+| `dns_direct_servers` | 114／阿里／腾讯公开DNS清单 | 直连上游，最多32个明确IP |
+| `dns_proxy_servers` | `1.1.1.1`、`8.8.8.8` | 代理上游及直连组故障备用 |
+| `domain_identification` | `false` | 通过核心嗅探和Webhook补充域名，不开启文件访问日志 |
+
+智能解析器使用1053端口，内核仅重定向当前受管LAN的传统DNS，并限制其他入口访问；核心直连／代理上游入口仅监听回环16953／16954。上游DNS报文通过TCP传输，支持各记录类型；DoH、DoT和IPv6不被本功能接管。全部对应上游或代理不可用会返回SERVFAIL。

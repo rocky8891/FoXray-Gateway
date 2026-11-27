@@ -82,7 +82,19 @@ export function DataPolicyCard({
             : ChartNoAxesCombined;
   return (
     <Panel className="data-policy-card">
-      <PageHeader title={title} icon={<Icon size={20} />} actions={actions} />
+      <PageHeader
+        title={title}
+        icon={<Icon size={20} />}
+        actions={actions}
+        description={module === "all" ? (
+          <ul>
+            <li><strong>默认值按「服务 × 监控数据类型」应用</strong>。服务器指标（CPU、负载、内存、磁盘等）共用一组，服务器连接另算一组。Xray、WARP、WireGuard 各自的流量、延迟、连接分别计算，同组的节点或接口共用上限。启用「独立设置」的项目优先使用自己的配置。</li>
+            <li><strong>历史保留天数</strong>。每组清理超过保留天数的记录。如果先达到容量上限，更早的记录会提前清理。</li>
+            <li><strong>历史保留上限</strong>。这是每组历史数据的估算上限。例如设为 1024 MiB 时，Xray 的流量、延迟和连接各有 1024 MiB。流量和延迟按每条 256 字节估算。清理后 SQLite 文件可能保持原大小，释放的空间可供后续写入复用。</li>
+            <li><strong>后台采集间隔</strong>。跟随全局设置的服务器指标、流量和连接按此间隔采集。历史写入、页面刷新和主动延迟探测有各自的间隔设置。</li>
+          </ul>
+        ) : undefined}
+      />
       <SettingsSection>
         {module !== "all" && (
           <label className="check policy-inheritance">
