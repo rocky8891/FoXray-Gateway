@@ -269,7 +269,7 @@ func (t *Traffic) flushDueLocked(at time.Time, force bool) error {
 	stamp := now()
 	for _, r := range due {
 		if r.pendingSeconds > 0 {
-			if _, e = tx.Exec("INSERT OR REPLACE INTO traffic_samples(node,t,up,down,seconds) VALUES(?,?,?,?,?)", r.ID, stamp, r.pendingUp, r.pendingDown, r.pendingSeconds); e != nil {
+			if _, e = tx.Exec("INSERT OR REPLACE INTO traffic_samples(node,t,up,down,seconds,up_peak,down_peak) VALUES(?,?,?,?,?,?,?)", r.ID, stamp, r.pendingUp, r.pendingDown, r.pendingSeconds, r.pendingUploadPeak, r.pendingDownloadPeak); e != nil {
 				return e
 			}
 		}

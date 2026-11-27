@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"testing"
+	"time"
 )
 
 func TestHistoryPageSearchAndStableCursor(t *testing.T) {
@@ -44,5 +45,17 @@ func TestHistoryTrafficPeakAndAverageHaveDistinctSemantics(t *testing.T) {
 	rows := view["items"].([]M)
 	if len(rows) != 1 || num(rows[0]["upload_bps"]) != 10 || num(rows[0]["upload_peak_bps"]) != 400 || num(rows[0]["upload"]) != 200 {
 		t.Fatalf("unexpected bucket: %v", view)
+	}
+}
+
+func TestTrafficFlushPersistsObservedPeaks(t *testing.T) {
+	app, _ := fixture(t)
+	app.traffic.rows["test-peak"] = &trafficReading{ID: "test-peak", pendingUp: 100, pendingDown: 200, pendingSeconds: 10, pendingUploadPeak: 999, pendingDownloadPeak: 888, lastStoredAt: time.Now().Add(-time.Minute)}
+	if err := app.traffic.flushLocked(); err != nil {
+		t.Fatal(err)
+	}
+	var up, down float64
+	if err := app.histdb.QueryRow("SELECT up_peak,down_peak FROM traffic_samples WHERE node='test-peak'").Scan(&up, &down); err != nil || up != 999 || down != 888 {
+		t.Fatalf("peak persisted as %v/%v: %v", up, down, err)
 	}
 }

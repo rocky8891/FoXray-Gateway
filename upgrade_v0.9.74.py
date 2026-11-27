@@ -1,4 +1,4 @@
-"""FoXray Gateway 0.9.49 management-only deployment; see upgrade_v0.9.49_README.md."""
+"""FoXray Gateway 0.9.74 management-only deployment; see upgrade_v0.9.74_README.md."""
 import argparse
 import hashlib
 import io
@@ -11,7 +11,7 @@ import time
 import urllib.request
 import zipfile
 
-VERSION = "0.9.49"
+VERSION = "0.9.74"
 
 def digest(value):
     return hashlib.sha256(value).hexdigest()
