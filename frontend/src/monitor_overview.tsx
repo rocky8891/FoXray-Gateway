@@ -1,3 +1,4 @@
+import { hostMetrics } from "./host_metrics";
 import { metricValueReserve } from "./metric_text_reserve";
 import "./interface_refinements.css";
 import { ConnectedTime } from "./connected_time";
@@ -25,7 +26,6 @@ import { list, record, type Dict, type State } from "./api";
 import { formatRate } from "./host";
 import { ErrorLine, Panel, useResource } from "./ui";
 import { ProductIcon } from "./product_icons";
-const pct = (v: unknown) => (v == null ? "—" : Number(v).toFixed(1) + "%");
 const delay = (v: unknown) =>
   v == null || Number(v) < 0 ? "未测" : Number(v).toFixed(1) + " ms";
 function uptime(v: unknown) {
@@ -231,6 +231,8 @@ function SummaryHeader({
         return;
       }
       card.dataset.adaptiveCircles = "true";
+      const grid = card.closest<HTMLElement>(".dashboard-exit-grid");
+      const equalSplit = grid?.matches(".overview-layout-equal-rows, .overview-layout-equal-columns") ?? false;
       let circleTypeScale = 1;
       if (!card.classList.contains("service-wireguard")) {
         const fit = circleLayout(width, height, circleStyle, !!card.closest(".overview-layout-top"));
@@ -266,11 +268,11 @@ function SummaryHeader({
               String(400 / diameter),
             );
             metric.style.setProperty("--summary-disk-inset", `${400 / diameter}%`);
-            const typeDiameter = !hostTopAnchor && fit.layout === "mixed" && diameter === fit.diameter
+            const typeDiameter = !equalSplit && !hostTopAnchor && fit.layout === "mixed" && diameter === fit.diameter
               ? Math.min(diameter, waveDiameter)
               : diameter;
-            const fontScale = hostTopAnchor
-              ? Math.max(1, diameter / 400)
+            const fontScale = equalSplit ? diameter / 200
+              : hostTopAnchor ? Math.max(1, diameter / 400)
               : responsiveType ? Math.max(0.5, typeDiameter / 200) : 1;
             fitText(metric, typeDiameter * 0.8, typeDiameter, fontScale);
           });
@@ -305,7 +307,6 @@ function SummaryHeader({
           parseFloat(
             getComputedStyle(card).getPropertyValue("--wg-circle-size"),
           ) || 0;
-        const grid = card.closest<HTMLElement>(".dashboard-exit-grid");
         const leftAnchor =
           grid?.classList.contains("overview-layout-sidebar") &&
           grid.dataset.overviewAnchor === "service-wireguard";
@@ -320,6 +321,7 @@ function SummaryHeader({
                 ? Math.min(available, circleLayout(width, height, "radial-mixed").diameter)
                 : available;
         card.style.setProperty("--summary-tunnel-diameter", `${Math.max(1, Math.floor(diameter))}px`);
+        if (equalSplit) circleTypeScale = Math.max(1, Math.floor(diameter)) / 200;
         const center =
           card.classList.contains("wg-circle-center") && diameter >= 180;
         card.dataset.wgNamePosition = center ? "center" : "top";
@@ -331,7 +333,7 @@ function SummaryHeader({
             const available = diameter * (center ? 0.27 : 0.82) - 12;
             row.style.setProperty(
               "--circle-name-size",
-              `${Math.min(14, diameter * 0.08, available / Math.max(1, textSize(name.textContent || "", name, 1)))}px`,
+              `${Math.max(1, Math.min(14 * circleTypeScale, diameter * 0.08, available / Math.max(1, textSize(name.textContent || "", name, 1))))}px`,
             );
           }
           row
@@ -344,13 +346,14 @@ function SummaryHeader({
                 metric,
                 diameter * (middle ? (center ? 0.27 : 0.4) : 0.62),
                 diameter * (middle ? 0.74 : 0.64),
+                circleTypeScale,
               );
             });
         });
       }
       alignInterfaceNames();
       // Mixed circles keep their own geometry-based fit; live values never size type.
-      if (card.dataset.circleLayout === "mixed") return;
+      if ((equalSplit && !card.classList.contains("service-wireguard")) || card.dataset.circleLayout === "mixed") return;
       const metrics = [
         ...card.querySelectorAll<HTMLElement>(".summary-metric"),
       ];
@@ -399,6 +402,8 @@ function SummaryHeader({
       characterData: true,
     });
     const appearance = new MutationObserver(measure);
+    const layoutGrid = card.closest(".dashboard-exit-grid");
+    if (layoutGrid) appearance.observe(layoutGrid, { attributes: true, attributeFilter: ["class"] });
     const page = card.closest(".overview-page");
     if (page)
       appearance.observe(page, {
@@ -583,7 +588,7 @@ export function ServiceOverviewCards({
       },
     };
   };
-  const system = useResource<Dict>("/api/system", 2000),
+  const system = useResource<Dict>("/api/system", 2000, cards.includes("service-host")),
     traffic = useResource<Dict>("/api/traffic", 2000),
     warp = useResource<Dict>("/api/warp", 15000),
     services = useResource<Dict>("/api/services", 15000);
@@ -595,9 +600,8 @@ export function ServiceOverviewCards({
     record(record(state.monitoring_items)._modules)[m] !== false;
   const current = record(system.data?.current),
     hostOn = moduleOn("host") && record(system.data?.policy).enabled !== false,
-    host = hostOn ? current : {},
-    partition = String(record(system.data?.policy).default_partition || "/"),
-    root = list(host.mounts).find((r) => r.path === partition);
+    hostSummary = hostMetrics(system.data || {});
+  const hostItems = record(record(state.monitoring_items).host);
   const connections = record(state.connection_monitor),
     rows = list(traffic.data?.items),
     xrayNode = state.nodes.find((n) => n.active),
@@ -658,58 +662,17 @@ export function ServiceOverviewCards({
             }
           >
             <div className="service-metric-grid">
-              <SummaryMetric
-                metricKey="cpu"
-                slot={hostOrder.indexOf("cpu")}
-                percent={
-                  host.cpu_percent == null ? null : Number(host.cpu_percent)
-                }
-                label="CPU使用率"
-                icon={Cpu}
-                tone="blue"
-                value={pct(host.cpu_percent)}
-              />
-              <SummaryMetric
-                metricKey="load"
-                slot={hostOrder.indexOf("load")}
-                percent={
-                  host.load1 == null
-                    ? null
-                    : (Number(host.load1) /
-                        Math.max(1, Number(host.cores || 1))) *
-                      100
-                }
-                label="平均负载"
-                icon={Activity}
-                tone="purple"
-                value={host.load1 == null ? "—" : Number(host.load1).toFixed(2)}
-              />
-              <SummaryMetric
-                metricKey="memory"
-                slot={hostOrder.indexOf("memory")}
-                percent={
-                  host.memory_percent == null
-                    ? null
-                    : Number(host.memory_percent)
-                }
-                label="内存使用率"
-                icon={MemoryStick}
-                tone="green"
-                value={pct(host.memory_percent)}
-              />
-              {record(record(state.monitoring_items).host).root !== false && (
-                <SummaryMetric
-                  metricKey="root"
-                  slot={hostOrder.indexOf("root")}
-                  percent={root?.percent == null ? null : Number(root.percent)}
-                  label={
-                    partition === "/" ? "根分区使用率" : `${partition}使用率`
-                  }
-                  icon={HardDrive}
-                  tone="orange"
-                  value={pct(root?.percent)}
-                />
-              )}
+              {([
+                ["cpu", Cpu, "blue"],
+                ["load", Activity, "purple"],
+                ["memory", MemoryStick, "green"],
+                ["root", HardDrive, "orange"],
+              ] as const).map(([key, icon, tone]) => hostItems[key] !== false && (
+                <SummaryMetric key={key} metricKey={key} slot={hostOrder.indexOf(key)}
+                  icon={icon} tone={tone} label={hostSummary[key].label}
+                  percent={hostOn ? hostSummary[key].percent : null}
+                  value={hostOn ? hostSummary[key].value : "—"} />
+              ))}
             </div>
           </div>
           <ErrorLine error={system.error} />

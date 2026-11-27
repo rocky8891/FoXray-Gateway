@@ -112,9 +112,15 @@ const liveSnapshots = new Map<
   string,
   { at: number; promise: Promise<unknown> }
 >();
-function liveSnapshot<T>(path: string): Promise<T> {
+const hostSnapshotChanged = "foxray:host-snapshot-changed";
+export function refreshHostSnapshot() {
+  liveSnapshots.delete("/api/system");
+  window.dispatchEvent(new Event(hostSnapshotChanged));
+}
+function liveSnapshot<T>(path: string, interval: number): Promise<T> {
   const cached = liveSnapshots.get(path);
-  if (cached && Date.now() - cached.at < 750)
+  const ttl = path === "/api/system" ? Math.max(750, interval - 100) : 750;
+  if (cached && Date.now() - cached.at < ttl)
     return cached.promise as Promise<T>;
   const entry = {
     at: Number.POSITIVE_INFINITY,
@@ -163,7 +169,7 @@ export function useResource<T>(path: string, interval = 10000, enabled = true, k
       const current = ++seq.current;
       try {
         const next = await (["/api/traffic", "/api/system"].includes(path)
-          ? liveSnapshot<T>(path)
+          ? liveSnapshot<T>(path, interval)
           : api<T>(path, undefined, controller.signal));
         if (current === seq.current) {
           setData(next);
@@ -213,17 +219,20 @@ export function useResource<T>(path: string, interval = 10000, enabled = true, k
     previousScope.current = scope;
     setLoading(true);
     void refresh();
+    const onHostChanged = () => void refresh(true);
+    if (path === "/api/system") window.addEventListener(hostSnapshotChanged, onHostChanged);
     const timer = setInterval(() => {
       if (!document.hidden) void refresh();
     }, interval);
     return () => {
       clearInterval(timer);
+      if (path === "/api/system") window.removeEventListener(hostSnapshotChanged, onHostChanged);
       health.delete(path);
       seq.current++;
       pending.current?.abort();
       pending.current = null;
     };
-  }, [refresh, interval, enabled, keepPreviousData]);
+  }, [refresh, interval, enabled, keepPreviousData, path]);
   return {
     data,
     error,

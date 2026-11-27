@@ -9,7 +9,6 @@ import {
 import { ListFilter, SortHeading } from "./list_controls";
 import { Search, RefreshCw, RotateCcw, PlugZap, Unplug } from "lucide-react";
 import { ActionMenu } from "./action_menu";
-import { HistoryIntervalSettings } from "./history_interval_settings";
 import { NumberInput } from "./ui";
 import { DNSPage } from "./dns";
 import { labelIcon } from "./ui_icons";
@@ -801,7 +800,7 @@ export function WarpSettings({ act }: { act: Act }) {
   const scout = useResource<Dict>("/api/warp/scout", 15000);
   return (
     <div className="module-service-settings warp-service-settings">
-    <SettingsSaveProvider expected={3}>
+    <SettingsSaveProvider expected={2}>
       <ServicePanel
         service="warp"
         data={services.data?.services.warp}
@@ -811,7 +810,6 @@ export function WarpSettings({ act }: { act: Act }) {
       <WarpMonitorSettings act={act} />
       <ErrorLine error={scout.error} />
       <WarpPolicy data={scout.data} act={act} refresh={scout.refresh} />
-      <HistoryIntervalSettings module="warp" act={act} />
     </SettingsSaveProvider>
     </div>
   );

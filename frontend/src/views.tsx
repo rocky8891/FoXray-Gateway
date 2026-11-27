@@ -11,10 +11,6 @@ import { ExportButton, PaginatedCards } from "./resource_controls";
 import { NodeManagementIcon } from "./requirement_icons";
 import { TrueLatencyIcon } from "./requirement_icons";
 import { useMonitorSections } from "./monitor_sections";
-import {
-  HistoryIntervalSettings,
-  type HistorySettingsActions,
-} from "./history_interval_settings";
 import { VPNExclusionsEditor } from "./vpn_exclusions";
 import {
   useDiagnosticRunner,
@@ -996,7 +992,6 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
     }));
     setDirty(true);
   };
-  const historyActions = useRef<HistorySettingsActions>(null);
   const proxySave = useRef<((ok: boolean) => void) | null>(null);
   const proxyDefaults = {
     enabled: false,
@@ -1553,11 +1548,6 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
             }
           />
         </Panel>
-        <HistoryIntervalSettings
-          module="xray"
-          act={act}
-          actionsRef={historyActions}
-        />
         <div
           className="save-all-footer xray-savebar"
           role="region"
@@ -1575,7 +1565,6 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
             <Button
               disabled={state.read_only}
               onClick={() => {
-                historyActions.current?.defaults();
                 restoreCard({
                   ...proxyDefaults,
                   ...detectDefaults,
@@ -1596,7 +1585,6 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
             <Button
               disabled={state.read_only}
               onClick={() => {
-                historyActions.current?.discard();
                 setDraft(structuredClone(state.config));
                 setIcmpDraft(structuredClone(state.icmp_policy));
                 setDirty(false);
@@ -1606,13 +1594,12 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
             </Button>
             <Button
               variant="primary"
-              highlighted={dirty || !!historyActions.current?.dirty}
+              highlighted={dirty}
               disabled={
                 sum !== 100 || !draft.score_metrics.length || state.read_only
               }
               onClick={() => {
                 if (dirty) setConfirm("save");
-                else void historyActions.current?.save();
               }}
             >
               全部保存并应用
@@ -1674,11 +1661,8 @@ export function XrayPage({ state, act }: { state: State; act: Act }) {
                       ].map((k) => [k, draft[k]]),
                     )
                   : { ...state.config, enabled: action === "enable" },
-            ).then(async (ok) => {
-              if (ok && action === "save") {
-                setDirty(false);
-                await historyActions.current?.save();
-              }
+            ).then((ok) => {
+              if (ok && action === "save") setDirty(false);
               if (action === "proxy") {
                 proxySave.current?.(ok);
                 proxySave.current = null;

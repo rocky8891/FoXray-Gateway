@@ -352,10 +352,13 @@ func (h *HostMonitor) configure(input M) error {
 			return err
 		}
 	}
+	collectionChanged := yes(h.policy["enabled"]) != yes(next["enabled"]) || num(h.policy["interval"]) != num(next["interval"])
 	h.policy = next
-	select {
-	case h.wake <- struct{}{}:
-	default:
+	if collectionChanged {
+		select {
+		case h.wake <- struct{}{}:
+		default:
+		}
 	}
 	return nil
 }

@@ -43,6 +43,7 @@ import {
   PageHeader,
   Panel,
   useResource,
+  refreshHostSnapshot,
   SecondaryNav,
 } from "./ui";
 import { Nodes, Subscriptions, type Act } from "./nodes";
@@ -366,6 +367,7 @@ function App() {
         const result = await api<Dict>(path, data);
         if (result.ok === false || result.error)
           throw new Error(String(result.error || "操作未完成"));
+        if (route === "/api/system/policy") refreshHostSnapshot();
         receive?.(result);
         const messages: Record<string, string> = {
           "/api/monitoring/probe-intervals":

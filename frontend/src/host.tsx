@@ -1,3 +1,4 @@
+import { hostMetrics, formatCapacity, LOAD_OPTIONS, CPU_OPTIONS, MEMORY_OPTIONS } from "./host_metrics";
 import { hasChanges } from "./settings_save";
 import type { HomeRandomTheme } from "./overview_random_theme";
 import { MetricHover } from "./metric_hover";
@@ -63,17 +64,7 @@ import {
   Modal,
 } from "./ui";
 import { Home, type Act } from "./nodes";
-export function formatCapacity(value: unknown) {
-  let n = Number(value);
-  if (!Number.isFinite(n)) return "—";
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
-  let i = 0;
-  while (n >= 1024 && i < 4) {
-    n /= 1024;
-    i++;
-  }
-  return n.toFixed(i ? 2 : 0) + " " + units[i];
-}
+export { formatCapacity } from "./host_metrics";
 export function formatRate(value: unknown) {
   const n = Number(value);
   if (value == null || !Number.isFinite(n)) return "—";
@@ -309,7 +300,7 @@ function Gauge({
         </svg>
         <strong>
           {valid ? displayValue?.amount || n.toFixed(1) : "—"}
-          {valid && <small>{displayValue?.unit || "%"}</small>}
+          {valid && <small>{displayValue?.unit ?? "%"}</small>}
         </strong>
         <div className="gauge-heading">
           {selector || (
@@ -328,44 +319,29 @@ function Gauge({
 export function PerformanceOverview({
   data,
   items = {},
+  act,
 }: {
   data: Dict;
   items?: Dict;
+  act?: Act;
 }) {
-  const [load, setLoad] = useState("load1"),
-    [cpu, setCPU] = useState("cpu_percent"),
-    [memory, setMemory] = useState("memory_percent"),
-    [partition, setPartition] = useState("/");
-  useEffect(() => {
-    const policy = record(data.policy);
-    setLoad(String(policy.default_load || "load1"));
-    setCPU(String(policy.default_cpu || "cpu_percent"));
-    setMemory(String(policy.default_memory || "memory_percent"));
-    setPartition(String(policy.default_partition || "/"));
-  }, [data.policy && JSON.stringify(data.policy)]);
+  const metrics = hostMetrics(data);
   const current = record(data.current);
-  const rootMount = list(current.mounts).find((m) => m.path === partition);
-  const field = (key: string) =>
-    current[key] == null ? null : Number(current[key]);
-  const loadValue = field(load),
-    cpuValue = field(cpu),
-    memoryRaw = field(memory),
-    memoryTotal = field("memory_total");
-  const memoryValue =
-    memory === "memory_percent"
-      ? memoryRaw
-      : memoryRaw != null && memoryTotal && memoryTotal > 0
-        ? (memoryRaw / memoryTotal) * 100
-        : null;
-  const capacity =
-    memoryRaw == null ? null : formatCapacity(memoryRaw).split(" ");
+  const { key: load } = metrics.load;
+  const { key: cpu, percent: cpuValue } = metrics.cpu;
+  const { key: memory, percent: memoryValue } = metrics.memory;
+  const { key: partition } = metrics.root;
+  const mount = list(current.mounts).find(m => m.path === partition);
+  const changeDefault = (key: string) => (value: string) => {
+    if (act) void act("/api/system/policy", { [key]: value });
+  };
   const selector = (
     label: string,
     value: string,
     change: (value: string) => void,
     options: string[][],
     icon: ReactNode,
-  ) => (
+  ) => act ? (
     <div className="gauge-metric-selector">
       <IconSelect
         label={label}
@@ -386,7 +362,7 @@ export function PerformanceOverview({
         }))}
       />
     </div>
-  );
+  ) : undefined;
   return (
     <div
       className="performance-overview"
@@ -402,19 +378,13 @@ export function PerformanceOverview({
             metric="load"
             tone="purple"
             icon={<Activity size={18} />}
-            value={
-              loadValue == null
-                ? null
-                : (loadValue / Number(current.cores || 1)) * 100
-            }
-            label={
-              "平均负载 · " +
-              (LOAD_OPTIONS.find(([key]) => key === load)?.[1] || "")
-            }
+            value={metrics.load.percent}
+            label={metrics.load.label}
+            displayValue={{ amount: metrics.load.value, unit: "" }}
             selector={selector(
               "负载主页指标",
               load,
-              setLoad,
+              changeDefault("default_load"),
               LOAD_OPTIONS.map(([key, title]) => [key, "负载 · " + title]),
               <Activity size={18} />,
             )}
@@ -432,13 +402,11 @@ export function PerformanceOverview({
             tone="blue"
             icon={<Cpu size={18} />}
             value={cpuValue}
-            label={
-              "CPU · " + (CPU_OPTIONS.find(([key]) => key === cpu)?.[1] || "")
-            }
+            label={metrics.cpu.label}
             selector={selector(
               "CPU主页指标",
               cpu,
-              setCPU,
+              changeDefault("default_cpu"),
               CPU_OPTIONS.map(([key, title]) => [key, "CPU · " + title]),
               <Cpu size={18} />,
             )}
@@ -456,22 +424,15 @@ export function PerformanceOverview({
             tone="green"
             icon={<MemoryStick size={18} />}
             value={memoryValue}
-            label={
-              "内存 · " +
-              (MEMORY_OPTIONS.find(([key]) => key === memory)?.[1] || "")
-            }
+            label={metrics.memory.label}
             selector={selector(
               "内存主页指标",
               memory,
-              setMemory,
+              changeDefault("default_memory"),
               MEMORY_OPTIONS.map(([key, title]) => [key, "内存 · " + title]),
               <MemoryStick size={18} />,
             )}
-            displayValue={
-              memory !== "memory_percent" && capacity
-                ? { amount: capacity[0], unit: capacity[1] }
-                : undefined
-            }
+            displayValue={memory !== "memory_percent" ? { amount: metrics.memory.value, unit: "" } : undefined}
             caption={
               memory === "memory_percent"
                 ? `${formatCapacity(current.memory_used)} / ${formatCapacity(current.memory_total)}`
@@ -484,12 +445,12 @@ export function PerformanceOverview({
             metric="root"
             tone="orange"
             icon={<HardDrive size={18} />}
-            value={rootMount?.percent}
-            label={partition === "/" ? "根分区使用率" : `${partition}使用率`}
+            value={metrics.root.percent}
+            label={metrics.root.label}
             selector={selector(
               "分区主页指标",
               partition,
-              setPartition,
+              changeDefault("default_partition"),
               [
                 ...new Set([
                   partition,
@@ -501,7 +462,7 @@ export function PerformanceOverview({
               ]),
               <HardDrive size={18} />,
             )}
-            caption={`${formatCapacity(rootMount?.used)} / ${formatCapacity(rootMount?.total)}`}
+            caption={`${formatCapacity(mount?.used)} / ${formatCapacity(mount?.total)}`}
           />
         )}
       </div>
@@ -697,25 +658,6 @@ export const HostChart = memo(
     a.domain?.[0] === b.domain?.[0] &&
     a.domain?.[1] === b.domain?.[1],
 );
-const LOAD_OPTIONS = [
-  ["load1", "1 分钟"],
-  ["load5", "5 分钟"],
-  ["load15", "15 分钟"],
-];
-const CPU_OPTIONS = [
-  ["cpu_percent", "使用率"],
-  ["cpu_hi", "hi · 硬中断"],
-  ["cpu_si", "si · 软中断"],
-  ["cpu_st", "st · 等待宿主机"],
-];
-const MEMORY_OPTIONS = [
-  ["memory_percent", "使用率"],
-  ["memory_used", "used"],
-  ["memory_free", "free"],
-  ["memory_shared", "shared"],
-  ["memory_buff_cache", "buff/cache"],
-  ["memory_available", "available"],
-];
 function MetricPicker({
   label,
   options,
@@ -909,18 +851,17 @@ export const HostHistoryPage = memo(function HostHistoryPage({
         ? "activity"
         : "rate",
     );
-  const initialized = useRef(false);
-  useEffect(() => {
-    if (system.data && !initialized.current) {
-      initialized.current = true;
-      const p = record(system.data.policy);
-      setNic(String(p.default_interface || "physical"));
-      setDisk(String(p.default_disk || "physical"));
-      setLoads([String(p.default_load || "load1")]);
-      setCPUs([String(p.default_cpu || "cpu_percent")]);
-      setMemories([String(p.default_memory || "memory_percent")]);
-    }
-  }, [system.data]);
+  const policy = record(system.data?.policy);
+  const defaultNic = String(policy.default_interface || "physical");
+  const defaultDisk = String(policy.default_disk || "physical");
+  const defaultLoad = String(policy.default_load || "load1");
+  const defaultCPU = String(policy.default_cpu || "cpu_percent");
+  const defaultMemory = String(policy.default_memory || "memory_percent");
+  useEffect(() => setNic(defaultNic), [defaultNic]);
+  useEffect(() => setDisk(defaultDisk), [defaultDisk]);
+  useEffect(() => setLoads([defaultLoad]), [defaultLoad]);
+  useEffect(() => setCPUs([defaultCPU]), [defaultCPU]);
+  useEffect(() => setMemories([defaultMemory]), [defaultMemory]);
   const query = "?" + timeRange.query;
   const history = useResource<Dict>("/api/system/history" + query, 60000),
     items = list(history.data?.items),
@@ -1106,7 +1047,7 @@ export const HostHistoryPage = memo(function HostHistoryPage({
             (key) => enabledItems[key] !== false,
           ) &&
           record(system.data.current).supported !== false && (
-            <PerformanceOverview data={system.data} items={enabledItems} />
+            <PerformanceOverview data={system.data} items={enabledItems} act={act} />
           )}
       </Panel>
       <div
@@ -1373,7 +1314,7 @@ export function HostSettings({ act, embedded = false }: { act: Act; embedded?: b
                   ["default_memory", "默认内存", MEMORY_OPTIONS],
                 ] as [string, string, string[][]][]
               ).map(([key, label, options]) => (
-                <Field key={key} label={label} info={key === "default_load" ? "平均负载表示系统运行和等待任务的压力，不等同于CPU使用率。这里选择详细监控页默认查看的1、5或15分钟负载；主页圆盘固定显示1分钟负载，进度按CPU核数归一化，达到或超过核数时为满环。" : undefined}>
+                <Field key={key} label={label} info={key === "default_load" ? "平均负载表示系统运行和等待任务的压力，不等同于CPU使用率。这里选择两页共用的 1、5 或 15 分钟负载。圆环按 CPU 核数计算进度。" : undefined}>
                   <select
                     value={String(form[key] || options[0]?.[0] || "/")}
                     onChange={(e) => set(key, e.target.value)}

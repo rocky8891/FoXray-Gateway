@@ -1,6 +1,5 @@
 import { WireGuardProbeTargets } from "./wg_probe_targets";
 import { hasChanges } from "./settings_save";
-import { HistoryIntervalSettings } from "./history_interval_settings";
 import { NumberInput } from "./ui";
 import { WireGuardServicePanel } from "./version_panel";
 import type { TimeRange } from "./time_range";
@@ -36,7 +35,7 @@ export function WireGuardSettings({ act }: { act: Act }) {
   const set = (k: string, v: unknown) => setDraft({ ...p, [k]: v });
   return (
     <div className="module-service-settings wireguard-service-settings">
-    <SettingsSaveProvider expected={2}>
+    <SettingsSaveProvider expected={1}>
       <WireGuardServicePanel act={act} />
       <Panel className="compact-settings-card">
         <PageHeader
@@ -89,7 +88,6 @@ export function WireGuardSettings({ act }: { act: Act }) {
           }}
         />
       </Panel>
-      <HistoryIntervalSettings module="wireguard" act={act} />
     </SettingsSaveProvider>
     </div>
   );

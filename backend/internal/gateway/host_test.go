@@ -47,3 +47,28 @@ func TestDiskAwaitAndIOPSUseDeltasAndWeightedHistory(t *testing.T) {
 		t.Fatal("reset counters must not become negative IOPS")
 	}
 }
+
+func TestHostDisplayDefaultsReuseCurrentSample(t *testing.T) {
+	a, _ := fixture(t)
+	a.host.current = M{"supported": true, "time": 12., "load1": .25, "load5": .75}
+	if err := a.host.configure(M{"default_load": "load5", "default_cpu": "cpu_hi"}); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := a.host.snapshot()
+	if obj(snapshot["policy"])["default_load"] != "load5" || num(obj(snapshot["current"])["time"]) != 12 {
+		t.Fatal("changed display policy did not reuse the existing sample")
+	}
+	select {
+	case <-a.host.wake:
+		t.Fatal("display-only change woke the collector")
+	default:
+	}
+	if err := a.host.configure(M{"enabled": false}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-a.host.wake:
+	default:
+		t.Fatal("collection toggle should wake the collector")
+	}
+}

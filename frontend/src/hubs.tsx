@@ -1,5 +1,5 @@
 import { HelpCenter } from "./help_center";
-import { HomeHeaderToggleIcon } from "./home_header";
+import { SettingsIcon } from "./requirement_icons";
 import type { OverviewView } from "./overview_policy";
 import { ConnectionIcon } from "./monitor_icons";
 import { monitorEnabled } from "./monitor_items";
@@ -97,7 +97,7 @@ export function ModuleHeading({
             aria-selected={value === id}
             onClick={() => onChange(id)}
           >
-            {id === "global" && title === "设置" ? <span className="settings-foxray-logo"><HomeHeaderToggleIcon /></span> : labelIcon(label, 14)}
+            {id === "global" && title === "设置" ? <SettingsIcon size={14} /> : labelIcon(label, 14)}
             {label}
             {["global", "xray", "warp", "wireguard"].includes(id) && (
               <UpdateBadge service={id === "global" ? "foxray" : id} />
@@ -344,7 +344,7 @@ export function GlobalSettingsHub({ state, act }: { state: State; act: Act }) {
     ...(state.components.xray ? [["xray", "Xray"]] : []),
     ...(state.components.warp ? [["warp", "WARP"]] : []),
     ...(state.components.wireguard ? [["wireguard", "WireGuard"]] : []),
-    ["global", "FoXray"],
+    ["global", "全局设置"],
     ["help", "帮助中心"],
   ];
   const active = tabs.some(([id]) => id === tab) ? tab : "global";
