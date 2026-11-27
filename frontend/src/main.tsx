@@ -155,6 +155,28 @@ function App() {
     refresh,
   } = useResource<State>("/api/state", statusRefresh);
   useEffect(() => {
+    sessionStorage.setItem("foxray.home-monitor-page", page === "overview" ? "yes" : "no");
+    if (page !== "overview") return;
+    const controller = new AbortController();
+    const renew = () => {
+      if (document.hidden) return;
+      void fetch("/api/management/home-monitor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+        signal: controller.signal,
+      }).catch(() => {});
+    };
+    renew();
+    const timer = window.setInterval(renew, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", renew);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", renew);
+    };
+  }, [page]);
+  useEffect(() => {
     setStatusRefresh(
       Math.max(1, Number(state?.manager_settings.status_refresh_seconds || 5)) *
         1000,

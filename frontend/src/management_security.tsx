@@ -4,11 +4,12 @@ import { createPortal } from "react-dom";
 import { ActionMenu } from "./action_menu";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Eye, EyeOff, LockKeyhole, LogOut, Shield, UserCircle, Users } from "lucide-react";
+import { HomeMonitorScreen } from "./home_monitor_screen";
 import { Button, ErrorLine, Field, Modal, PageHeader, Panel, useResource } from "./ui";
 
 type LoginMode = "account" | "password" | "off";
-type Session = { authenticated: boolean; username: string; initial: boolean; mode: LoginMode };
-export async function managementRequest<T>(path: string, data: Record<string, string | boolean>): Promise<T> {
+type Session = { authenticated: boolean; username: string; initial: boolean; mode: LoginMode; home_monitor?: boolean };
+export async function managementRequest<T>(path: string, data: Record<string, string | number | boolean>): Promise<T> {
   const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || "请求失败");
@@ -20,6 +21,7 @@ export function ManagementGate({ children }: { children: ReactNode }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [showLogin, setShowLogin] = useState(false);
   async function check() {
     setChecking(true);
     try {
@@ -39,6 +41,9 @@ export function ManagementGate({ children }: { children: ReactNode }) {
     return () => { window.removeEventListener("foxray:auth-expired", expired); window.removeEventListener("pageshow", restored); };
   }, []);
   if (session?.authenticated && !session.initial) return children;
+  if (session?.home_monitor && !session.initial && !showLogin && sessionStorage.getItem("foxray.home-monitor-page") === "yes") {
+    return <HomeMonitorScreen onLogin={() => setShowLogin(true)} />;
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
@@ -83,72 +88,80 @@ export function ManagementGate({ children }: { children: ReactNode }) {
 }
 
 export function ManagementUserSettings() {
-  const status = useResource<{ users: string[]; current: string; mode: LoginMode; password_account: string }>("/api/management/users", 15000);
+  const status = useResource<{ users: string[]; current: string; mode: LoginMode; password_account: string; session_hours: number; home_monitor_enabled: boolean }>("/api/management/users", 15000);
   const [target, setTarget] = useState("");
   const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [modeDraft, setMode] = useState<LoginMode>();
-  const [accountDraft, setAccount] = useState<string>();
-  const mode = modeDraft ?? status.data?.mode ?? "account";
-  const account = accountDraft ?? (status.data?.password_account || status.data?.current || status.data?.users[0] || "");
-  async function saveMode() {
-    if (busy || !status.data) return;
-    setBusy(true);
+  const [draft, setDraft] = useState<{ mode?: LoginMode; account?: string; hours?: string; homeMonitor?: boolean }>({});
+  const saved = status.data;
+  const mode = draft.mode ?? saved?.mode ?? "account";
+  const account = draft.account ?? (saved?.password_account || saved?.current || saved?.users[0] || "");
+  const hours = draft.hours ?? String(saved?.session_hours ?? 24);
+  const homeMonitor = draft.homeMonitor ?? saved?.home_monitor_enabled ?? false;
+  const validHours = /^\d+$/.test(hours) && Number(hours) >= 1 && Number(hours) <= 168;
+  const userChanged = name !== target || password !== "";
+  const userValid = !userChanged || (/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,31}$/.test(name) && (!!target || !!password));
+  const dirty = userChanged || mode !== saved?.mode || Number(hours) !== (saved?.session_hours ?? 24) || homeMonitor !== (saved?.home_monitor_enabled ?? false) || (mode === "password" && account !== saved?.password_account);
+  const canSave = !!saved && dirty && validHours && userValid && (mode !== "password" || !!account);
+  function resetUser() { setTarget(""); setName(""); setPassword(""); }
+  function reset(defaults = false) {
+    resetUser();
+    setDraft(defaults ? { mode: "account", hours: "24", homeMonitor: false } : {});
     setError("");
-    try {
-      await managementRequest("/api/management/login-mode", {mode, password_account: account});
-      window.location.reload();
-    } catch (failure) { setError(failure instanceof Error ? failure.message : "保存登录方式失败"); }
-    finally { setBusy(false); }
   }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = event.currentTarget;
-    setBusy(true); setError("");
+    if (busy || !canSave) return;
+    setBusy(true);
+    setError("");
     try {
-      const result = await managementRequest<{ relogin?: boolean }>("/api/management/users", {
-        old_name: target,
-        username: name,
-        password: String(new FormData(form).get("password") || ""),
+      const result = await managementRequest<{ relogin?: boolean }>("/api/management/account-settings", {
+        mode, password_account: account, session_hours: Number(hours), home_monitor_enabled: homeMonitor,
+        edit_user: userChanged, old_name: target, username: name, password,
       });
-      if (result.relogin) { window.dispatchEvent(new Event("foxray:auth-expired")); return; }
-      form.reset(); setName(""); setTarget(""); await status.refresh();
-    } catch (failure) { setError(failure instanceof Error ? failure.message : "保存失败"); }
+      reset();
+      if (result.relogin) window.dispatchEvent(new Event("foxray:auth-expired"));
+      else await status.refresh();
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "保存账号与登录失败"); }
     finally { setBusy(false); }
   }
-  return <Panel className="presentation-settings">
-    <PageHeader title="管理用户" icon={<Users size={20} />} />
-    <div className="settings-section">
+  return <form className="account-login-settings" onSubmit={save}>
+    <Panel className="presentation-settings account-login-card">
+      <PageHeader title="账号与登录" icon={<Users size={20} />} actions={saved?.mode && saved.mode !== "off" && <Button disabled={busy} onClick={() => void managementRequest("/api/management/logout", {}).then(() => window.dispatchEvent(new Event("foxray:auth-expired"))).catch(() => setError("退出失败"))}>退出登录</Button>} />
       <div className="form-grid">
-        <Field label="登录方式"><select value={mode} disabled={busy} onChange={event => setMode(event.target.value as LoginMode)}>
+        <Field label="登录方式"><select value={mode} disabled={busy} onChange={e => setDraft(d => ({ ...d, mode: e.target.value as LoginMode }))}>
           <option value="account">用户名和密码</option>
           <option value="password">仅密码登录</option>
           <option value="off">关闭认证登录</option>
         </select></Field>
-        {mode === "password" && <Field label="使用该账号的密码"><select value={account} disabled={busy} onChange={event => setAccount(event.target.value)}>
-          {status.data?.users.map(user => <option key={user} value={user}>{user}</option>)}
+        {mode === "password" && <Field label="使用该账号的密码"><select value={account} disabled={busy} onChange={e => setDraft(d => ({ ...d, account: e.target.value }))}>
+          {saved?.users.map(user => <option key={user} value={user}>{user}</option>)}
         </select></Field>}
       </div>
       {mode === "off" && <p className="hint">关闭后，能访问管理地址的人无需登录即可操作 FoXray。</p>}
-      <div className="save-card-footer"><Button onClick={() => void saveMode()} disabled={busy || !status.data || (mode === "password" && !account) || (mode === status.data?.mode && (mode !== "password" || account === status.data.password_account))}>保存登录方式</Button></div>
-    </div>
-    <form onSubmit={save}>
-      <div className="settings-section form-grid">
-        <Field label="用户"><select value={target} onChange={event => {setTarget(event.target.value);setName(event.target.value);}}>
+      <div className="form-grid">
+        <Field label="用户"><select value={target} disabled={busy} onChange={e => { setTarget(e.target.value); setName(e.target.value); setPassword(""); }}>
           <option value="">新增用户</option>
-          {status.data?.users.map(user => <option key={user} value={user}>{user}</option>)}
+          {saved?.users.map(user => <option key={user} value={user}>{user}</option>)}
         </select></Field>
-        <Field label="用户名"><input value={name} onChange={event => setName(event.target.value)} required maxLength={32} autoComplete="off" /></Field>
-        <Field label="新密码" hint={target ? "留空保留该用户的密码" : "填写该用户的密码"}><input name="password" type="password" autoComplete="new-password" maxLength={256} required={!target} /></Field>
+        <Field label="用户名"><input value={name} disabled={busy} onChange={e => setName(e.target.value)} maxLength={32} autoComplete="off" /></Field>
+        <Field label="新密码" hint={target ? "留空保留该用户的密码" : "填写该用户的密码"}><input type="password" autoComplete="new-password" maxLength={256} disabled={busy} value={password} onChange={e => setPassword(e.target.value)} /></Field>
       </div>
+      <div className="form-grid">
+        <Field label="登录会话保持时间（小时）" hint="1～168 小时。下次登录时生效。"><input type="number" min={1} max={168} step={1} value={hours} disabled={busy} onChange={e => setDraft(d => ({ ...d, hours: e.target.value }))} /></Field>
+        <Field label="首页常驻监控" hint="管理会话到期后，已打开的首页继续显示只读指标。"><label className="check"><input type="checkbox" checked={homeMonitor} disabled={busy} onChange={e => setDraft(d => ({ ...d, homeMonitor: e.target.checked }))} />启用首页常驻监控</label></Field>
+      </div>
+      {userChanged && !userValid && <p className="hint">请填写有效的用户名。新增用户时还须填写密码。</p>}
       <ErrorLine error={error || status.error} />
-      <div className="save-card-footer">
-        <Button type="submit" variant="primary" disabled={busy || !status.data}>保存用户</Button>
-        {status.data?.mode !== "off" && <Button disabled={busy} onClick={() => void managementRequest("/api/management/logout", {}).then(() => window.dispatchEvent(new Event("foxray:auth-expired"))).catch(() => setError("退出失败"))}>退出登录</Button>}
-      </div>
-    </form>
-  </Panel>;
+    </Panel>
+    <div className="save-card-footer" aria-label="账号与登录保存工具栏" role="group">
+      <Button disabled={busy || !saved} onClick={() => reset(true)}>恢复默认</Button>
+      <Button disabled={busy || !saved || !dirty} onClick={() => reset()}>放弃保存</Button>
+      <Button type="submit" variant="primary" highlighted={canSave} disabled={busy || !canSave}>保存并应用</Button>
+    </div>
+  </form>;
 }
 
 export function ManagementUserMenu() {

@@ -352,6 +352,14 @@
     "kind": "页面说明"
   },
   {
+    "id": "info-41dc4460ff1033a2",
+    "title": "首页常驻监控",
+    "category": "首页与外观",
+    "body": "只读 · 最近读取 （当前值）\n正在读取监控数据…",
+    "origin": "home_monitor_screen",
+    "kind": "页面说明"
+  },
+  {
     "id": "info-9343c69ed6b5ce49",
     "title": "运行状态",
     "category": "监控与统计",
@@ -444,6 +452,22 @@
     "title": "新密码",
     "category": "账号与 HTTPS",
     "body": "留空保留该用户的密码\n填写该用户的密码",
+    "origin": "management_security",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-1bf8414c38a3d8de",
+    "title": "登录会话保持时间（小时）",
+    "category": "账号与 HTTPS",
+    "body": "1～168 小时。下次登录时生效。",
+    "origin": "management_security",
+    "kind": "页面说明"
+  },
+  {
+    "id": "info-63cb13f9666644d7",
+    "title": "首页常驻监控",
+    "category": "账号与 HTTPS",
+    "body": "管理会话到期后，已打开的首页继续显示只读指标。",
     "origin": "management_security",
     "kind": "页面说明"
   },

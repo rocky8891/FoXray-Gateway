@@ -238,17 +238,21 @@ export function MonitoringSettings({
     <>
       <SettingsSaveProvider
         key={active}
-        expected={active === "overview" ? 1 : 4}
+        expected={active === "overview" ? 2 : 4}
       >
         {active === "overview" ? (
-          <PresentationSettings
-            overview
-            act={act}
-            state={state}
-            configureDefault
-            editorView={overviewView}
-            onEditorViewChange={setOverviewView}
-          />
+          <>
+            <PresentationSettings
+              overview
+              act={act}
+              state={state}
+              configureDefault
+              usePageSave
+              editorView={overviewView}
+              onEditorViewChange={setOverviewView}
+            />
+            <DisplaySettings act={act} />
+          </>
         ) : (
           <>
             {active === "server" ? (

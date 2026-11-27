@@ -110,6 +110,7 @@ export function PresentationSettings({
   editorView,
   onEditorViewChange,
   titleInDialog = false,
+  usePageSave = false,
 }: {
   act: Act;
   overview?: boolean;
@@ -120,6 +121,7 @@ export function PresentationSettings({
   editorView?: OverviewView;
   onEditorViewChange?: (view: OverviewView) => void;
   titleInDialog?: boolean;
+  usePageSave?: boolean;
 }) {
   return overview ? (
     <OverviewLayoutSettings
@@ -130,6 +132,7 @@ export function PresentationSettings({
       editorView={editorView}
       onEditorViewChange={onEditorViewChange}
       titleInDialog={titleInDialog}
+      usePageSave={usePageSave}
     />
   ) : (
     <>
@@ -423,6 +426,7 @@ function OverviewLayoutSettings({
   editorView,
   onEditorViewChange,
   titleInDialog,
+  usePageSave,
 }: {
   act: Act;
   state?: State;
@@ -431,6 +435,7 @@ function OverviewLayoutSettings({
   editorView?: OverviewView;
   onEditorViewChange?: (view: OverviewView) => void;
   titleInDialog: boolean;
+  usePageSave: boolean;
 }) {
   const [peek, setPeek] = useState(false);
   useEffect(() => {
@@ -722,6 +727,96 @@ function OverviewLayoutSettings({
       </Button>
     </div>
   );
+  const saveCard = (
+    <SaveCard
+      dirty={hasChanges(draft, {
+        ...defaults,
+        ...themedAppearance(state?.manager_settings.presentation),
+        ...themedAppearance(r.data),
+      })}
+      showActions={!usePageSave}
+      duplicateTarget={topSaveTarget}
+      localActionsEnabled={!!r.data}
+      title="配置与同步"
+      defaultsLabel="全部恢复默认"
+      saveLabel="全部保存并应用"
+      disabled={!r.data || !!surfaceError || sectionBusy}
+      defaults={() =>
+        setDraft({
+          ...draft,
+          overview_show_clock: false,
+          overview_show_data_status: false,
+          overview_surfaces: {},
+          overview_text: {},
+          ...(configureDefault
+            ? { default_overview_view: "services" }
+            : {}),
+          ...(view === "services"
+            ? {
+                services_style: "metrics",
+                services_wireguard_interfaces: [],
+                services_host_order: ["cpu", "load", "memory", "root"],
+                services_wireguard_style: "center",
+                services_wireguard_ring_color: "",
+                services_wireguard_ring_opacity: 100,
+                services_wireguard_ring_shadow: 0,
+                services_wireguard_label_size: 14,
+                services_wireguard_count: 2,
+                services_wireguard_axis: "auto",
+                services_wireguard_diameter: 0,
+                services_wireguard_value_size: 24,
+                ...DEFAULT_SERVICE_THEME,
+                services_xray_order: SERVICE_METRICS,
+                services_warp_order: SERVICE_METRICS,
+                services_wireguard_metric_orders: {},
+              }
+            : {}),
+          [prefix + "layout"]:
+            view === "services"
+              ? DEFAULT_SERVICE_THEME.services_layout
+              : "grid",
+          [prefix + (view === "nodes" ? "order" : "cards")]:
+            view === "services"
+              ? SERVICE_CARDS
+              : view === "nodes"
+                ? []
+                : EXIT_CARDS,
+          ...(view === "nodes"
+            ? {
+                nodes_limit: 0,
+                nodes_visibility_mode: "all",
+                nodes_visible_ids: [],
+              }
+            : {}),
+        })
+      }
+      discard={() => setDraft({})}
+      save={async () => {
+        setSectionBusy(true);
+        try {
+          const submitted = draft;
+          if (
+            Object.keys(submitted).length &&
+            !(await act("/api/monitoring/presentation", submitted))
+          )
+            return false;
+          await r.refresh();
+          setDraft((current) =>
+            Object.fromEntries(
+              Object.entries(current).filter(
+                ([key, value]) =>
+                  !(key in submitted) ||
+                  JSON.stringify(value) !== JSON.stringify(submitted[key]),
+              ),
+            ),
+          );
+          return true;
+        } finally {
+          setSectionBusy(false);
+        }
+      }}
+    />
+  );
   return (
     <>
       {peek &&
@@ -784,7 +879,7 @@ function OverviewLayoutSettings({
                     }
                   />
                 )}
-                <div className="overview-top-save" ref={setTopSaveTarget} />
+                {!usePageSave && <div className="overview-top-save" ref={setTopSaveTarget} />}
               </div>
             }
           >
@@ -1486,106 +1581,27 @@ function OverviewLayoutSettings({
           )}
         </div>
       </div>
-      <div className="save-all-footer overview-sync-footer">
-        <div className="overview-sync-copy">
-          <h2 className="metric-heading tone-green">
-            <SlidersHorizontal size={18} />
-            配置与同步
-            <SettingInfo
-              label="配置与同步"
-              text={<>在此统一保存本页配置；恢复默认与放弃保存仅修改草稿。</>}
-            />
-          </h2>
+      {usePageSave ? (
+        <>
+          <ErrorLine error={r.error || sectionError} />
+          {saveCard}
+        </>
+      ) : (
+        <div className="save-all-footer overview-sync-footer">
+          <div className="overview-sync-copy">
+            <h2 className="metric-heading tone-green">
+              <SlidersHorizontal size={18} />
+              配置与同步
+              <SettingInfo
+                label="配置与同步"
+                text={<>在此统一保存本页配置；恢复默认与放弃保存仅修改草稿。</>}
+              />
+            </h2>
+          </div>
+          <ErrorLine error={r.error || sectionError} />
+          {saveCard}
         </div>
-        <ErrorLine error={r.error || sectionError} />
-        <SaveCard
-          dirty={hasChanges(draft, {
-            ...defaults,
-            ...themedAppearance(state?.manager_settings.presentation),
-            ...themedAppearance(r.data),
-          })}
-          duplicateTarget={topSaveTarget}
-          localActionsEnabled={!!r.data}
-          title="配置与同步"
-          defaultsLabel="全部恢复默认"
-          saveLabel="全部保存并应用"
-          disabled={!r.data || !!surfaceError || sectionBusy}
-          defaults={() =>
-            setDraft({
-              ...draft,
-              overview_show_clock: false,
-              overview_show_data_status: false,
-              overview_surfaces: {},
-              overview_text: {},
-              ...(configureDefault
-                ? { default_overview_view: "services" }
-                : {}),
-              ...(view === "services"
-                ? {
-                    services_style: "metrics",
-                    services_wireguard_interfaces: [],
-                    services_host_order: ["cpu", "load", "memory", "root"],
-                    services_wireguard_style: "center",
-                    services_wireguard_ring_color: "",
-                    services_wireguard_ring_opacity: 100,
-                    services_wireguard_ring_shadow: 0,
-                    services_wireguard_label_size: 14,
-                    services_wireguard_count: 2,
-                    services_wireguard_axis: "auto",
-                    services_wireguard_diameter: 0,
-                    services_wireguard_value_size: 24,
-                    ...DEFAULT_SERVICE_THEME,
-                    services_xray_order: SERVICE_METRICS,
-                    services_warp_order: SERVICE_METRICS,
-                    services_wireguard_metric_orders: {},
-                  }
-                : {}),
-              [prefix + "layout"]:
-                view === "services"
-                  ? DEFAULT_SERVICE_THEME.services_layout
-                  : "grid",
-              [prefix + (view === "nodes" ? "order" : "cards")]:
-                view === "services"
-                  ? SERVICE_CARDS
-                  : view === "nodes"
-                    ? []
-                    : EXIT_CARDS,
-              ...(view === "nodes"
-                ? {
-                    nodes_limit: 0,
-                    nodes_visibility_mode: "all",
-                    nodes_visible_ids: [],
-                  }
-                : {}),
-            })
-          }
-          discard={() => setDraft({})}
-          save={async () => {
-            setSectionBusy(true);
-            try {
-              const submitted = draft;
-              if (
-                Object.keys(submitted).length &&
-                !(await act("/api/monitoring/presentation", submitted))
-              )
-                return false;
-              await r.refresh();
-              setDraft((current) =>
-                Object.fromEntries(
-                  Object.entries(current).filter(
-                    ([key, value]) =>
-                      !(key in submitted) ||
-                      JSON.stringify(value) !== JSON.stringify(submitted[key]),
-                  ),
-                ),
-              );
-              return true;
-            } finally {
-              setSectionBusy(false);
-            }
-          }}
-        />
-      </div>
+      )}
     </>
   );
 }

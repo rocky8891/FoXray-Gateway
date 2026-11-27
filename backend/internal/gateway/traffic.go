@@ -298,10 +298,16 @@ func (t *Traffic) run() {
 func (t *Traffic) snapshot() M {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	intervals := map[string]float64{}
+	for _, module := range []string{"xray", "warp", "wireguard"} {
+		intervals[module] = num(t.modulePolicyLocked(module)["interval"])
+	}
+	stamp := now()
 	rows := []trafficReading{}
 	for _, r := range t.rows {
 		copy := *r
-		if now()-copy.At > max(8., num(t.policy["interval"])*3) {
+		interval := intervals[trafficModule(copy.ID)]
+		if stamp-copy.At > max(8., interval*3) {
 			copy.Available = false
 			copy.UploadRate, copy.DownloadRate = 0, 0
 			copy.Status = "未继续采样或出口已移除"
@@ -310,7 +316,7 @@ func (t *Traffic) snapshot() M {
 	}
 	enabled := M{}
 	_ = readJSON(filepath.Join(t.app.base, "private", "traffic-policy.json"), &enabled)
-	return M{"items": rows, "interval": num(t.policy["interval"]), "storage_interval": t.historyIntervalLocked(""), "storage_intervals": clone(t.historyPolicy), "enabled": yes(enabled["enabled"]), "note": "Xray 为代理出口字节，WARP 为命名空间内隧道 IP 字节；包含该出口内的探测流量，不作为运营商计费依据。历史按各模块的记录间隔汇总，查询时按范围合并；可在监控设置调整记录间隔。"}
+	return M{"items": rows, "interval": min(intervals["xray"], intervals["warp"], intervals["wireguard"]), "storage_interval": t.historyIntervalLocked(""), "storage_intervals": clone(t.historyPolicy), "enabled": yes(enabled["enabled"]), "note": "Xray 为代理出口字节，WARP 为命名空间内隧道 IP 字节；包含该出口内的探测流量，不作为运营商计费依据。历史按各模块的记录间隔汇总，查询时按范围合并；可在监控设置调整记录间隔。"}
 }
 func (t *Traffic) history(q url.Values) M { return t.historyContext(context.Background(), q) }
 func (t *Traffic) historyContext(ctx context.Context, q url.Values) M {

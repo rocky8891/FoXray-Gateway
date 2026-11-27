@@ -3,6 +3,7 @@ package gateway
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestManagementAuthentication(t *testing.T) {
@@ -50,7 +52,7 @@ func TestManagementAuthentication(t *testing.T) {
 		t.Fatal(login.Code)
 	}
 	cookie := login.Result().Cookies()[0]
-	if !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode {
+	if !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode || cookie.MaxAge != 24*3600 {
 		t.Fatal("insecure cookie")
 	}
 	if got := request("GET", "/api/management/users", nil, cookie).Code; got != 200 {
@@ -314,5 +316,96 @@ func TestManagementCloudflareTokenRevealRequiresHTTPSAndSession(t *testing.T) {
 	guard.mode = "off"
 	if got := request("https", endpoint, body, nil).Code; got != 403 {
 		t.Fatal(got)
+	}
+}
+
+func TestHomeMonitorSurvivesManagementExpiryWithoutManagementAccess(t *testing.T) {
+	app, _ := fixture(t)
+	app.readonly = false
+	guard, err := NewManagementSecurity(app, "127.0.0.1:18880")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer guard.Close()
+	guard.users["fixture"] = managementUser{Digest: make([]byte, 32), Salt: make([]byte, 16)}
+	cookie := &http.Cookie{Name: "foxray_http_session", Value: strings.Repeat("a", 64)}
+	id := sha256.Sum256([]byte(cookie.Value))
+	guard.sessions[id] = managementSession{"fixture", time.Now().Add(time.Hour)}
+	request := func(method, path, body string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(method, "http://127.0.0.1"+path, strings.NewReader(body))
+		r.RemoteAddr = "127.0.0.1:49200"
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Origin", "http://127.0.0.1")
+		for _, c := range cookies {
+			r.AddCookie(c)
+		}
+		w := httptest.NewRecorder()
+		guard.ServeHTTP(w, r)
+		return w
+	}
+	const monitor = "/api/management/home-monitor"
+	const policy = "/api/management/login-policy"
+	if w := request("POST", monitor, "{}", cookie); w.Code != 200 || len(w.Result().Cookies()) != 0 {
+		t.Fatal("monitor enabled by default")
+	}
+	if w := request("POST", policy, `{"session_hours":36,"home_monitor_enabled":true}`, cookie); w.Code != 200 {
+		t.Fatal(w.Code)
+	}
+	w := request("POST", monitor, "{}", cookie)
+	if w.Code != 200 || len(w.Result().Cookies()) != 1 {
+		t.Fatal("monitor permission was not issued")
+	}
+	display := w.Result().Cookies()[0]
+	guard.sessions[id] = managementSession{"fixture", time.Now().Add(-time.Minute)}
+	if w := request("GET", monitor, "", display); w.Code != 200 || w.Header().Get("Cache-Control") != "no-store" {
+		t.Fatal("monitor snapshot unavailable after management expiry")
+	}
+	for _, path := range []string{"/api/state", "/api/management/users", "/api/traffic"} {
+		if w := request("GET", path, "", display); w.Code != 401 {
+			t.Errorf("monitor permission allowed %s: %d", path, w.Code)
+		}
+	}
+	if w := request("POST", policy, `{"session_hours":1,"home_monitor_enabled":false}`, display); w.Code != 401 {
+		t.Fatal("monitor could write settings")
+	}
+	guard.sessions[id] = managementSession{"fixture", time.Now().Add(time.Hour)}
+	if w := request("POST", policy, `{"session_hours":36,"home_monitor_enabled":false}`, cookie); w.Code != 200 {
+		t.Fatal(w.Code)
+	}
+	if w := request("GET", monitor, "", display); w.Code != 401 {
+		t.Fatal("monitor permission survived disabling the feature")
+	}
+}
+
+func TestAccountSettingsRejectsInvalidModeWithoutSavingUserOrPolicy(t *testing.T) {
+	app, _ := fixture(t)
+	app.readonly = false
+	guard, err := NewManagementSecurity(app, "127.0.0.1:18880")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer guard.Close()
+	guard.mode = "off"
+	submit := func(body string) int {
+		req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/api/management/account-settings", strings.NewReader(body))
+		req.RemoteAddr = "127.0.0.1:49200"
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Origin", "http://127.0.0.1")
+		response := httptest.NewRecorder()
+		guard.ServeHTTP(response, req)
+		return response.Code
+	}
+	if code := submit(`{"mode":"password","password_account":"missing","session_hours":36,"home_monitor_enabled":true,"edit_user":true,"username":"fixture","password":"synthetic test input"}`); code != 400 {
+		t.Fatalf("status %d", code)
+	}
+	if _, exists := guard.users["fixture"]; exists || guard.loginPolicy.SessionHours != 24 || guard.loginPolicy.HomeMonitor {
+		t.Fatal("invalid request changed settings")
+	}
+	if code := submit(`{"mode":"password","password_account":"fixture","session_hours":36,"home_monitor_enabled":true,"edit_user":true,"username":"fixture","password":"synthetic test input"}`); code != 200 {
+		t.Fatalf("status %d", code)
+	}
+	var saved managementAccounts
+	if err := readJSON(guard.userPath(), &saved); err != nil || saved.Mode != "password" || saved.PasswordAccount != "fixture" || len(saved.Users["fixture"].Digest) != 32 || saved.LoginPolicy != (loginPolicy{SessionHours: 36, HomeMonitor: true}) {
+		t.Fatal("combined settings were not persisted")
 	}
 }

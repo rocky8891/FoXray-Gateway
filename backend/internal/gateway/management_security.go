@@ -42,6 +42,7 @@ type managementAccounts struct {
 	Users           map[string]managementUser `json:"users"`
 	Mode            string                    `json:"mode"`
 	PasswordAccount string                    `json:"password_account,omitempty"`
+	LoginPolicy     loginPolicy               `json:"login_policy"`
 }
 
 type managementSession struct {
@@ -61,6 +62,8 @@ type ManagementSecurity struct {
 	passwordAccount string
 	generation      uint64
 	sessions        map[[32]byte]managementSession
+	loginPolicy     loginPolicy
+	homeSessions    map[[32]byte]managementSession
 	attempts        map[string]loginAttempt
 	logins          chan struct{}
 	tls             *managementTLS
@@ -68,7 +71,7 @@ type ManagementSecurity struct {
 }
 
 func NewManagementSecurity(app *App, address string) (*ManagementSecurity, error) {
-	guard := &ManagementSecurity{app: app, sessions: make(map[[32]byte]managementSession), attempts: make(map[string]loginAttempt), mode: "account", logins: make(chan struct{}, 2)}
+	guard := &ManagementSecurity{app: app, sessions: make(map[[32]byte]managementSession), attempts: make(map[string]loginAttempt), mode: "account", loginPolicy: loginPolicy{SessionHours: 24}, homeSessions: make(map[[32]byte]managementSession), logins: make(chan struct{}, 2)}
 	raw, err := os.ReadFile(guard.userPath())
 	if errors.Is(err, os.ErrNotExist) {
 		guard.users = map[string]managementUser{"admin": {}}
@@ -78,6 +81,9 @@ func NewManagementSecurity(app *App, address string) (*ManagementSecurity, error
 		var saved managementAccounts
 		if json.Unmarshal(raw, &saved) == nil && saved.Users != nil {
 			guard.users, guard.mode, guard.passwordAccount = saved.Users, saved.Mode, saved.PasswordAccount
+			if saved.LoginPolicy.SessionHours >= 1 && saved.LoginPolicy.SessionHours <= 168 {
+				guard.loginPolicy = saved.LoginPolicy
+			}
 		} else if err = json.Unmarshal(raw, &guard.users); err != nil {
 			return nil, errors.New("管理账号文件无效")
 		}
@@ -113,7 +119,7 @@ func validLoginMode(mode string) bool {
 }
 
 func (g *ManagementSecurity) saveAccounts(users map[string]managementUser, mode, account string) error {
-	payload, err := json.Marshal(managementAccounts{Users: users, Mode: mode, PasswordAccount: account})
+	payload, err := json.Marshal(managementAccounts{Users: users, Mode: mode, PasswordAccount: account, LoginPolicy: g.loginPolicy})
 	if err != nil {
 		return err
 	}
@@ -197,7 +203,8 @@ func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	username, initial, authenticated, mode := g.readSession(r)
 	if route == "/api/management/session" && r.Method == http.MethodGet {
-		writeResponse(w, 200, M{"authenticated": authenticated, "username": username, "initial": initial, "mode": mode})
+		w.Header().Set("Cache-Control", "no-store")
+		writeResponse(w, 200, M{"authenticated": authenticated, "username": username, "initial": initial, "mode": mode, "home_monitor": g.homeSession(r, false)})
 		return
 	}
 	if route == "/api/management/login" && r.Method == http.MethodPost {
@@ -207,6 +214,10 @@ func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// v0.9.48 authorizes updates before switching binaries and probes /api/state.
 	if !authenticated && route == "/api/state" && r.Method == http.MethodGet && g.legacyUpgradeProbe(r, ip) {
 		writeResponse(w, 200, M{"version": Version})
+		return
+	}
+	if route == "/api/management/home-monitor" && r.Method == http.MethodGet {
+		g.serveHomeMonitor(w, r)
 		return
 	}
 	if !authenticated {
@@ -219,8 +230,14 @@ func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if cookie != nil {
 			delete(g.sessions, sha256.Sum256([]byte(cookie.Value)))
 		}
+		if home, err := r.Cookie(homeMonitorCookie(r)); err == nil {
+			delete(g.homeSessions, sha256.Sum256([]byte(home.Value)))
+		}
 		g.mu.Unlock()
 		http.SetCookie(w, &http.Cookie{Name: managementCookieName(r), Path: "/", MaxAge: -1, HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteStrictMode})
+		if _, err := r.Cookie(homeMonitorCookie(r)); err == nil {
+			http.SetCookie(w, &http.Cookie{Name: homeMonitorCookie(r), Path: "/api/management/", MaxAge: -1, HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteStrictMode})
+		}
 		writeResponse(w, 200, M{"ok": true})
 		return
 	}
@@ -230,6 +247,18 @@ func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if initial {
 		writeResponse(w, 403, M{"error": "请先设置新的管理密码"})
+		return
+	}
+	if route == "/api/management/account-settings" && r.Method == http.MethodPost && !g.app.readonly {
+		g.saveAccountSettings(w, r, username, mode)
+		return
+	}
+	if route == "/api/management/login-policy" && r.Method == http.MethodPost && !g.app.readonly {
+		g.saveLoginPolicy(w, r)
+		return
+	}
+	if route == "/api/management/home-monitor" && r.Method == http.MethodPost {
+		g.openHomeMonitor(w, r, username)
 		return
 	}
 	if route == "/api/management/login-mode" && r.Method == http.MethodPost && !g.app.readonly {
@@ -243,9 +272,10 @@ func (g *ManagementSecurity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			users = append(users, name)
 		}
 		passwordAccount := g.passwordAccount
+		policy := g.loginPolicy
 		g.mu.Unlock()
 		sort.Strings(users)
-		writeResponse(w, 200, M{"users": users, "current": username, "mode": mode, "password_account": passwordAccount})
+		writeResponse(w, 200, M{"users": users, "current": username, "mode": mode, "password_account": passwordAccount, "session_hours": policy.SessionHours, "home_monitor_enabled": policy.HomeMonitor})
 		return
 	}
 	if route == "/api/management/ddns" {
@@ -357,6 +387,7 @@ func (g *ManagementSecurity) changeLoginMode(w http.ResponseWriter, r *http.Requ
 		g.mode, g.passwordAccount = mode, account
 		g.generation++
 		clear(g.sessions)
+		clear(g.homeSessions)
 	}
 	writeResponse(w, 200, M{"ok": true})
 }
@@ -431,8 +462,9 @@ func (g *ManagementSecurity) login(w http.ResponseWriter, r *http.Request, host 
 		writeResponse(w, 503, M{"error": "登录会话已达到上限"})
 		return
 	}
-	g.sessions[sha256.Sum256([]byte(value))] = managementSession{name, now.Add(8 * time.Hour)}
-	http.SetCookie(w, &http.Cookie{Name: managementCookieName(r), Value: value, Path: "/", MaxAge: 8 * 3600, SameSite: http.SameSiteStrictMode, HttpOnly: true, Secure: r.TLS != nil})
+	hours := g.loginPolicy.SessionHours
+	g.sessions[sha256.Sum256([]byte(value))] = managementSession{name, now.Add(time.Duration(hours) * time.Hour)}
+	http.SetCookie(w, &http.Cookie{Name: managementCookieName(r), Value: value, Path: "/", MaxAge: hours * 3600, SameSite: http.SameSiteStrictMode, HttpOnly: true, Secure: r.TLS != nil})
 	writeResponse(w, 200, M{"authenticated": true, "username": name, "initial": len(user.Digest) == 0, "mode": mode})
 }
 
@@ -497,6 +529,11 @@ func (g *ManagementSecurity) saveUser(w http.ResponseWriter, r *http.Request, ac
 	for id, session := range g.sessions {
 		if session.Username == oldName {
 			delete(g.sessions, id)
+		}
+	}
+	for id, session := range g.homeSessions {
+		if session.Username == oldName {
+			delete(g.homeSessions, id)
 		}
 	}
 	writeResponse(w, 200, M{"ok": true, "relogin": actor != "" && oldName == actor})

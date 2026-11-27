@@ -3,7 +3,6 @@ package gateway
 import (
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 func TestTrafficRetentionAndSizeKeepNewestAndLifetimeTotals(t *testing.T) {
@@ -78,13 +77,27 @@ func TestMonitorPoliciesValidateAndDoNotTouchNetwork(t *testing.T) {
 	}
 }
 
-func TestLongTrafficIntervalDoesNotDiscardCountersOrBecomeStale(t *testing.T) {
+func TestTrafficSnapshotUsesCurrentIntervalForEachModule(t *testing.T) {
 	a, _ := fixture(t)
-	a.traffic.policy["interval"] = 60
-	a.traffic.rows["n"] = &trafficReading{ID: "n", Available: true, At: now() - 40, previousAt: time.Now().Add(-60 * time.Second)}
-	row := a.traffic.snapshot()["items"].([]trafficReading)[0]
-	if !row.Available {
-		t.Fatal("configured interval treated as stale")
+	a.traffic.policy["interval"] = 1 // The old in-memory interval must not expire newly reconfigured samples.
+	for module, interval := range map[string]int{"xray": 10, "wireguard": 60, "warp": 2} {
+		if err := a.saveMonitorData(module, "traffic", M{"independent": true, "interval": interval, "retention_days": 30, "max_storage_mb": 256}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stamp := now()
+	for id, age := range map[string]float64{"n": 9, "wg:fresh": 40, "wg:stale": 200, "warp": 10} {
+		a.traffic.rows[id] = &trafficReading{ID: id, Available: true, At: stamp - age, UploadRate: 123}
+	}
+	snapshot := a.traffic.snapshot()
+	if got := num(snapshot["interval"]); got != 2 {
+		t.Fatalf("snapshot interval = %v, want 2", got)
+	}
+	wantAvailable := map[string]bool{"n": true, "wg:fresh": true, "wg:stale": false, "warp": false}
+	for _, row := range snapshot["items"].([]trafficReading) {
+		if row.Available != wantAvailable[row.ID] || (row.UploadRate != 0) != wantAvailable[row.ID] {
+			t.Errorf("%s availability = %v, upload = %v", row.ID, row.Available, row.UploadRate)
+		}
 	}
 }
 
