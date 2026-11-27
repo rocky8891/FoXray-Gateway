@@ -144,7 +144,7 @@ export function useResource<T>(path: string, interval = 10000, enabled = true, k
   const liveRefresh = useContext(LiveRefreshContext);
   if (
     ["/api/traffic", "/api/system"].includes(path) ||
-    /^\/api\/connections(?:\?|$)/.test(path)
+    (/^\/api\/connections(?:\?|$)/.test(path) && !path.includes("scope=history"))
   )
     interval = liveRefresh;
   if (

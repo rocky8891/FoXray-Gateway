@@ -114,7 +114,7 @@ func TestTrafficRetentionPoliciesPersistIndependently(t *testing.T) {
 	if e := a.traffic.configureModule("xray", M{"interval": 10, "retention_days": 1, "max_storage_mb": 1}); e != nil {
 		t.Fatal(e)
 	}
-	if num(a.traffic.modulePolicyLocked("warp")["interval"]) != 2 {
+	if num(a.traffic.modulePolicyLocked("warp")["interval"]) != 10 {
 		t.Fatal("xray modified WARP sampling")
 	}
 	var n int

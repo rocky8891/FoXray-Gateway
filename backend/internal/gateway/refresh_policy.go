@@ -18,7 +18,7 @@ func (a *App) realtimeInterval(fallback float64) float64 {
 func (a *App) displayPolicy() M {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return M{"status_refresh_seconds": first(a.settings["status_refresh_seconds"], 5), "chart_refresh_seconds": first(a.settings["chart_refresh_seconds"], 10), "live_refresh_seconds": first(a.settings["live_refresh_seconds"], 2), "live_sampling_seconds": first(a.settings["live_sampling_seconds"], 0), "traffic_chart_window_seconds": first(a.settings["traffic_chart_window_seconds"], 30)}
+	return M{"status_refresh_seconds": first(a.settings["status_refresh_seconds"], 5), "chart_refresh_seconds": first(a.settings["chart_refresh_seconds"], 15), "live_refresh_seconds": first(a.settings["live_refresh_seconds"], 5), "live_sampling_seconds": first(a.settings["live_sampling_seconds"], 0), "traffic_chart_window_seconds": first(a.settings["traffic_chart_window_seconds"], 30)}
 }
 func (a *App) saveDisplayPolicy(data M) error {
 	bounds := map[string][2]int{"status_refresh_seconds": {1, 3600}, "chart_refresh_seconds": {1, 3600}, "live_refresh_seconds": {1, 3600}, "live_sampling_seconds": {0, 300}, "traffic_chart_window_seconds": {1, 3600}}

@@ -308,7 +308,7 @@ export function NetworkPage({
               {text(r.name)}
             </button>
             {!!r.remark && <small className="wg-interface-remark" title={String(r.remark)}>{String(r.remark)}</small>}
-            {r.protected && <small className="accent wg-protection-label">受保护<SettingInfo label="接口保护" text={<ul><li><strong>保护状态：</strong>该接口已开启保护，修改或启停需要额外确认。可在「操作 → 接口保护」中单独开启或关闭。</li><li><strong>用途备注：</strong>在「操作 → 编辑」修改。</li><li><strong>接口角色：</strong>在「操作 → 编辑 → 角色、路由与 LAN 转发」设置。修改角色不会取消接口保护。</li></ul>} /></small>}
+            {r.protected && <small className="accent wg-protection-label">受保护</small>}
           </>
         ),
       },
@@ -588,9 +588,11 @@ export function NetworkPage({
                 <li><strong>操作方式：</strong><ul>
                   <li>启动、停止立即改变选中接口的运行状态。</li>
                   <li>开启、关闭自启只修改开机启动设置。</li>
-                  <li>接口保护独立保存，只修改保护标记，不启停接口。</li>
                   <li>批量启停、自启和删除逐项生成预览；核对后才执行。</li>
                 </ul></li>
+                <li><strong>接口保护：</strong>标为「受保护」的接口，修改或启停时需要额外确认。可在「操作 → 接口保护」中独立开启或关闭，保存保护状态不会启停接口。</li>
+                <li><strong>用途备注：</strong>在「操作 → 编辑」中修改。</li>
+                <li><strong>接口角色：</strong>在「操作 → 编辑 → 角色、路由与 LAN 转发」中设置。修改角色不会取消接口保护。</li>
                 <li><strong>编辑与删除：</strong>在行操作菜单中处理。备注修改不重启接口；运行中修改地址、路由等配置可能重启该接口，影响范围以变更预览为准。</li>
               </ul>}
               {kind !== "wireguard" && (

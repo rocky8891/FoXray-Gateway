@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/url"
@@ -16,7 +17,7 @@ type HostMonitor struct {
 	mu                        sync.Mutex
 	current, previous, policy M
 	window                    []M
-	lastFlush                 time.Time
+	lastFlush, lastCleanup    time.Time
 	done                      chan struct{}
 	wake                      chan struct{}
 	started                   bool
@@ -187,15 +188,19 @@ func (h *HostMonitor) flushLocked() error {
 	if _, e = h.app.histdb.Exec("INSERT OR REPLACE INTO host_samples(t,payload) VALUES(?,?)", sample["time"], string(b)); e != nil {
 		return e
 	}
+	h.window = nil
+	if time.Since(h.lastCleanup) < 5*time.Minute {
+		return nil
+	}
+	h.lastCleanup = time.Now()
 	var size, count int64
 	_ = h.app.histdb.QueryRow("SELECT COALESCE(SUM(length(payload)+64),0),COUNT(*) FROM host_samples").Scan(&size, &count)
 	budget := num(h.app.monitorDataPolicy("host", "metrics")["max_storage_mb"]) * 1024 * 1024
 	if float64(size) > budget && count > 0 {
 		drop := min(count, int64(float64(count)*(float64(size)-budget)/float64(size))+1)
-		_, _ = h.app.histdb.Exec("DELETE FROM host_samples WHERE rowid IN (SELECT rowid FROM host_samples ORDER BY t LIMIT ?)", drop)
+		_, _ = h.app.histdb.Exec("DELETE FROM host_samples WHERE rowid IN (SELECT rowid FROM host_samples ORDER BY t LIMIT ?)", min(drop, 2000))
 	}
-	h.window = nil
-	_, _ = h.app.histdb.Exec("DELETE FROM host_samples WHERE t<?", now()-num(h.app.monitorDataPolicy("host", "metrics")["retention_days"])*86400)
+	_, _ = h.app.histdb.Exec("DELETE FROM host_samples WHERE rowid IN (SELECT rowid FROM host_samples WHERE t<? ORDER BY t LIMIT 2000)", now()-num(h.app.monitorDataPolicy("host", "metrics")["retention_days"])*86400)
 	return nil
 }
 func (h *HostMonitor) start() {
@@ -258,7 +263,9 @@ func (h *HostMonitor) history(q url.Values) M {
 		start = end - 365*86400
 	}
 	bucket := max(60., (end-start)/600)
-	rows, e := h.app.histdb.Query("SELECT MIN(t),payload FROM host_samples WHERE t>=? AND t<=? GROUP BY CAST((t-?)/? AS INTEGER) ORDER BY t", start, end, start, bucket)
+	ctx, cancel := context.WithTimeout(context.Background(), historyQueryTimeout)
+	defer cancel()
+	rows, e := h.app.historyReader().QueryContext(ctx, "SELECT MIN(t),payload FROM host_samples WHERE t>=? AND t<=? GROUP BY CAST((t-?)/? AS INTEGER) ORDER BY t", start, end, start, bucket)
 	items := []M{}
 	if e == nil {
 		defer rows.Close()

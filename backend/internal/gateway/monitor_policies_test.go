@@ -43,7 +43,7 @@ func TestTrafficRetentionAndSizeKeepNewestAndLifetimeTotals(t *testing.T) {
 	if up != 1234 || down != 5678 {
 		t.Fatal("cleanup reset lifetime totals")
 	}
-	_, _ = a.histdb.Exec("INSERT INTO traffic_samples VALUES('old',?,1,1,1)", stamp-3*86400)
+	_, _ = a.histdb.Exec("INSERT INTO traffic_samples(node,t,up,down,seconds) VALUES('old',?,1,1,1)", stamp-3*86400)
 	if err = a.traffic.configure(M{"interval": 60, "retention_days": 1, "max_storage_mb": 1}); err != nil {
 		t.Fatal(err)
 	}

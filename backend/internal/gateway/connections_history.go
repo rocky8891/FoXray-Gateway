@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -34,6 +35,7 @@ func (m *ConnectionMonitor) saveBusinessHistory(rows []M, stamp float64) {
 		_, err = db.Exec(`CREATE TABLE IF NOT EXISTS business_flows(id TEXT PRIMARY KEY,module TEXT,first REAL,last REAL,payload TEXT);
 CREATE INDEX IF NOT EXISTS business_flow_time ON business_flows(module,last);
 CREATE INDEX IF NOT EXISTS business_flow_last ON business_flows(last);
+CREATE INDEX IF NOT EXISTS business_flow_page ON business_flows(module,last,id);
 CREATE TABLE IF NOT EXISTS business_samples(t INTEGER,module TEXT,device TEXT,protocol TEXT,node TEXT,count INTEGER,upload REAL,download REAL,PRIMARY KEY(t,module,device,protocol,node));
 CREATE INDEX IF NOT EXISTS business_sample_scope ON business_samples(module,t);
 CREATE TABLE IF NOT EXISTS business_node_samples(node TEXT,t INTEGER,count INTEGER,PRIMARY KEY(node,t));`)
@@ -138,14 +140,16 @@ CREATE TABLE IF NOT EXISTS business_node_samples(node TEXT,t INTEGER,count INTEG
 		}
 		_, err = tx.Exec(`INSERT INTO business_samples VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(t,module,device,protocol,node) DO UPDATE SET count=MAX(count,excluded.count),upload=CASE WHEN upload IS NULL THEN excluded.upload WHEN excluded.upload IS NULL THEN upload ELSE MAX(upload,excluded.upload) END,download=CASE WHEN download IS NULL THEN excluded.download WHEN excluded.download IS NULL THEN download ELSE MAX(download,excluded.download) END`, g["_minute"], businessSampleModule(str(g["module"])), g["device"], g["protocol"], g["node"], g["count"], g["upload"], g["download"])
 	}
-	if err == nil && minute != m.lastBusinessCleanup {
+	cleanupDue := m.lastBusinessCleanup == 0 || minute-m.lastBusinessCleanup >= 300
+	if err == nil && cleanupDue {
 		for _, module := range []string{"host", "xray", "warp", "wireguard"} {
 			policy := m.app.monitorDataPolicy(module, "connections")
 			cutoff := stamp - num(policy["retention_days"])*86400
-			if _, err = tx.Exec("DELETE FROM business_flows WHERE module=? AND last<?", module, cutoff); err != nil {
+			detailCutoff := stamp - min(7, num(policy["retention_days"]))*86400
+			if _, err = tx.Exec("DELETE FROM business_flows WHERE rowid IN (SELECT rowid FROM business_flows WHERE module=? AND last<? ORDER BY last LIMIT 2000)", module, detailCutoff); err != nil {
 				break
 			}
-			if _, err = tx.Exec("DELETE FROM business_samples WHERE module IN (?,?) AND t<?", module, businessSampleModule(module), cutoff); err != nil {
+			if _, err = tx.Exec("DELETE FROM business_samples WHERE rowid IN (SELECT rowid FROM business_samples WHERE module IN (?,?) AND t<? ORDER BY t LIMIT 2000)", module, businessSampleModule(module), cutoff); err != nil {
 				break
 			}
 			var bytes, count int64
@@ -162,7 +166,7 @@ CREATE TABLE IF NOT EXISTS business_node_samples(node TEXT,t INTEGER,count INTEG
 			if module != "host" {
 				nodeScope = monitorScope(module)
 			}
-			if _, err = tx.Exec("DELETE FROM business_node_samples WHERE ("+nodeScope+") AND t<?", cutoff); err != nil {
+			if _, err = tx.Exec("DELETE FROM business_node_samples WHERE rowid IN (SELECT rowid FROM business_node_samples WHERE ("+nodeScope+") AND t<? ORDER BY t LIMIT 2000)", cutoff); err != nil {
 				break
 			}
 			var nodeCount int64
@@ -171,30 +175,28 @@ CREATE TABLE IF NOT EXISTS business_node_samples(node TEXT,t INTEGER,count INTEG
 				break
 			}
 			budget := int64(num(policy["max_storage_mb"]) * 1024 * 1024)
-			excess := bytes + samples*160 + nodeCount*96 - budget
-			if excess > 0 && count > 0 {
-				drop := min(count, (excess*count/max(int64(1), bytes))+1)
+			detailExcess := bytes - min(budget, 256*1024*1024)
+			if detailExcess > 0 && count > 0 {
+				drop := min(2000, count, (detailExcess*count/max(int64(1), bytes))+1)
 				_, err = tx.Exec("DELETE FROM business_flows WHERE rowid IN (SELECT rowid FROM business_flows WHERE module=? ORDER BY last LIMIT ?)", module, drop)
 				if err != nil {
 					break
 				}
-				excess -= drop * bytes / count
 			}
-			if excess > 0 {
-				drop := min(samples, excess/160+1)
+			if excess := samples*160 + nodeCount*96 - budget; excess > 0 {
+				drop := min(2000, samples, excess/160+1)
 				_, err = tx.Exec("DELETE FROM business_samples WHERE rowid IN (SELECT rowid FROM business_samples WHERE module IN (?,?) ORDER BY t LIMIT ?)", module, businessSampleModule(module), drop)
 				if err != nil {
 					break
 				}
 				excess -= drop * 160
-			}
-			if excess > 0 {
-				_, err = tx.Exec("DELETE FROM business_node_samples WHERE rowid IN (SELECT rowid FROM business_node_samples WHERE "+nodeScope+" ORDER BY t LIMIT ?)", excess/96+1)
-				if err != nil {
-					break
+				if excess > 0 {
+					_, err = tx.Exec("DELETE FROM business_node_samples WHERE rowid IN (SELECT rowid FROM business_node_samples WHERE "+nodeScope+" ORDER BY t LIMIT ?)", min(int64(2000), excess/96+1))
+					if err != nil {
+						break
+					}
 				}
 			}
-
 		}
 	}
 
@@ -208,7 +210,9 @@ CREATE TABLE IF NOT EXISTS business_node_samples(node TEXT,t INTEGER,count INTEG
 		m.lastPersist = stamp
 		m.persisted = signatures
 		m.pendingGroups = map[string]M{}
-		m.lastBusinessCleanup = minute
+		if cleanupDue {
+			m.lastBusinessCleanup = minute
+		}
 	}
 }
 
@@ -222,7 +226,9 @@ func connectionMatches(r M, q url.Values) bool {
 	return search == "" || strings.Contains(strings.ToLower(str(r["source"])+" "+str(r["destination"])+" "+str(r["node_name"])+" "+str(r["interface"])+" "+str(r["domain"])+" "+str(r["application"])), search)
 }
 
-func (m *ConnectionMonitor) query(q url.Values) M {
+func (m *ConnectionMonitor) query(q url.Values) M { return m.queryContext(context.Background(), q) }
+
+func (m *ConnectionMonitor) queryContext(ctx context.Context, q url.Values) M {
 	start, end, valid := connectionRange(q)
 	if !valid {
 		return M{"items": []M{}, "error": "时间范围无效"}
@@ -249,8 +255,13 @@ func (m *ConnectionMonitor) query(q url.Values) M {
 		snapshot["items"] = rows
 		return snapshot
 	}
+	if q.Has("limit") {
+		return m.historicalConnectionPage(ctx, q, start, end)
+	}
+	ctx, cancel := context.WithTimeout(ctx, historyQueryTimeout)
+	defer cancel()
 	rows := []M{}
-	result, err := m.queryHistoricalFlows(q, start, end)
+	result, err := m.queryHistoricalFlows(ctx, q, start, end)
 	truncated := false
 	if err == nil {
 		defer result.Close()
@@ -270,7 +281,7 @@ func (m *ConnectionMonitor) query(q url.Values) M {
 		}
 		err = result.Err()
 	}
-	out := M{"items": rows, "start": start, "end": end, "truncated": truncated, "summaries": m.snapshot(q.Get("module"))["summaries"], "time": now(), "note": "按本模块保留策略保存的连接元数据，单次查询最多10000条；字节为该连接的观测累计值，包含所选区间外已累计部分。图表仅统计所选时间范围。"}
+	out := M{"items": rows, "start": start, "end": end, "truncated": truncated, "summaries": m.historySummaries(), "time": now(), "note": "按本模块保留策略保存的连接元数据，单次查询最多10000条；字节为该连接的观测累计值，包含所选区间外已累计部分。图表仅统计所选时间范围。"}
 	if err != nil {
 		out["error"] = "业务连接历史不可读取，等待首次成功采样"
 	}
@@ -278,6 +289,12 @@ func (m *ConnectionMonitor) query(q url.Values) M {
 }
 
 func (m *ConnectionMonitor) businessHistory(q url.Values) M {
+	return m.businessHistoryContext(context.Background(), q)
+}
+
+func (m *ConnectionMonitor) businessHistoryContext(ctx context.Context, q url.Values) M {
+	ctx, cancel := context.WithTimeout(ctx, historyQueryTimeout)
+	defer cancel()
 	start, end, valid := connectionRange(q)
 	if !valid {
 		return M{"items": []M{}, "error": "时间范围无效"}
@@ -291,7 +308,7 @@ func (m *ConnectionMonitor) businessHistory(q url.Values) M {
 		}
 	}
 	args = append([]any{width, width}, args...)
-	result, err := m.app.histdb.Query(`SELECT CAST(t/? AS INTEGER)*?,MAX(n),MAX(u),MAX(d) FROM (SELECT t,SUM(count) n,SUM(upload) u,SUM(download) d FROM business_samples WHERE `+where+` GROUP BY t) GROUP BY 1 ORDER BY 1`, args...)
+	result, err := m.app.historyReader().QueryContext(ctx, `SELECT CAST(t/? AS INTEGER)*?,MAX(n),MAX(u),MAX(d) FROM (SELECT t,SUM(count) n,SUM(upload) u,SUM(download) d FROM business_samples WHERE `+where+` GROUP BY t) GROUP BY 1 ORDER BY 1`, args...)
 	items := []M{}
 	if err == nil {
 		defer result.Close()
@@ -311,7 +328,7 @@ func (m *ConnectionMonitor) businessHistory(q url.Values) M {
 		}
 		err = result.Err()
 	}
-	out := M{"items": items, "start": start, "end": end, "note": "业务连接曲线按分钟记录观测峰值，按本模块保留周期和大小清理；缺失采样不补零。"}
+	out := M{"items": items, "start": start, "end": end, "note": "业务连接曲线按历史写入间隔记录观测峰值，按本模块保留周期和大小清理；缺失采样不补零。"}
 	if err != nil {
 		out["error"] = "业务连接历史尚不可用，等待首次成功采样"
 	}
@@ -324,7 +341,7 @@ func (m *ConnectionMonitor) setHistoryError(value string) {
 	m.mu.Unlock()
 }
 
-func (m *ConnectionMonitor) queryHistoricalFlows(q url.Values, start, end float64) (*sql.Rows, error) {
+func (m *ConnectionMonitor) queryHistoricalFlows(ctx context.Context, q url.Values, start, end float64) (*sql.Rows, error) {
 	where := "module=? AND last>=? AND first<=?"
 	args := []any{q.Get("module"), start, end}
 	for key, field := range map[string]string{"protocol": "protocol", "interface": "interface", "node": "node_id"} {
@@ -333,5 +350,5 @@ func (m *ConnectionMonitor) queryHistoricalFlows(q url.Values, start, end float6
 			args = append(args, value)
 		}
 	}
-	return m.app.histdb.Query("SELECT payload FROM business_flows WHERE "+where+" ORDER BY last DESC LIMIT 10001", args...)
+	return m.app.historyReader().QueryContext(ctx, "SELECT payload FROM business_flows WHERE "+where+" ORDER BY last DESC LIMIT 10001", args...)
 }

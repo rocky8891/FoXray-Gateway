@@ -51,8 +51,8 @@ export function DisplaySettings({ act }: { act: Act }) {
     [draft, setDraft] = useState<Dict | null>(null);
   const p = {
     status_refresh_seconds: 5,
-    chart_refresh_seconds: 10,
-    live_refresh_seconds: 2,
+    chart_refresh_seconds: 15,
+    live_refresh_seconds: 5,
     live_sampling_seconds: 0,
     traffic_chart_window_seconds: 30,
     ...(draft || r.data),
@@ -131,8 +131,8 @@ export function DisplaySettings({ act }: { act: Act }) {
         defaults={() =>
           setDraft({
             status_refresh_seconds: 5,
-            chart_refresh_seconds: 10,
-            live_refresh_seconds: 2,
+            chart_refresh_seconds: 15,
+            live_refresh_seconds: 5,
             live_sampling_seconds: 0,
             traffic_chart_window_seconds: 30,
           })

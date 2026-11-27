@@ -14,7 +14,7 @@ import (
 func (a *App) wgMonitorPolicy() M {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	p := M{"enabled": false, "interval": 60, "count": 3, "size": 56, "timeout": 2, "targets": M{}}
+	p := M{"enabled": false, "interval": 30, "count": 3, "size": 56, "timeout": 2, "targets": M{}}
 	for k, v := range obj(a.settings["wireguard_monitor"]) {
 		p[k] = v
 	}

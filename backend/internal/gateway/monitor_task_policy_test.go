@@ -79,7 +79,7 @@ func TestTrafficWindowUsesByteWeightedRateAndKeepsTotals(t *testing.T) {
 	a.traffic.saveHistoryPolicy("xray", M{"storage_interval": 1})
 	base := float64(int64(now())/60*60 - 120)
 	for i, r := range []struct{ bytes, seconds float64 }{{100, 1}, {900, 3}} {
-		if _, err := a.histdb.Exec("INSERT INTO traffic_samples VALUES(?,?,?,?,?)", "weighted", base+10+float64(i)*10, 0, r.bytes, r.seconds); err != nil {
+		if _, err := a.histdb.Exec("INSERT INTO traffic_samples(node,t,up,down,seconds) VALUES(?,?,?,?,?)", "weighted", base+10+float64(i)*10, 0, r.bytes, r.seconds); err != nil {
 			t.Fatal(err)
 		}
 	}

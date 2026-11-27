@@ -79,13 +79,14 @@ func TestMonitorMasterSwitchesPreserveItemsAndProbes(t *testing.T) {
 
 func TestTrafficJitterKeepsRealTimestampsAcrossRefresh(t *testing.T) {
 	a, _ := fixture(t)
+	obj(a.monitorData["defaults"])["interval"] = 2
 	if err := a.traffic.saveHistoryPolicy("xray", M{"storage_interval": 1}); err != nil {
 		t.Fatal(err)
 	}
 	base := float64(int64(now())/2*2) - 40
 	for i := 0; i < 8; i++ {
 		stamp := base + 1.9 + float64(i)*2.1
-		if _, err := a.histdb.Exec("INSERT INTO traffic_samples VALUES(?,?,?,?,?)", "jitter", stamp, 10, 20, 2.1); err != nil {
+		if _, err := a.histdb.Exec("INSERT INTO traffic_samples(node,t,up,down,seconds) VALUES(?,?,?,?,?)", "jitter", stamp, 10, 20, 2.1); err != nil {
 			t.Fatal(err)
 		}
 	}

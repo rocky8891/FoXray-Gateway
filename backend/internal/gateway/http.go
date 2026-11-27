@@ -268,11 +268,13 @@ func (a *App) getAPI(w http.ResponseWriter, r *http.Request) {
 	case path == "/api/network/dns":
 		writeResponse(w, 200, a.network.DNSView(q.Get("scope"), q.Get("interface")))
 	case path == "/api/connections/business-history":
-		writeResponse(w, 200, a.connections.businessHistory(q))
+		writeResponse(w, 200, a.connections.businessHistoryContext(r.Context(), q))
 	case path == "/api/connections/history":
 		writeResponse(w, 200, a.connections.history(q))
 	case path == "/api/connections":
-		writeResponse(w, 200, a.connections.query(q))
+		writeResponse(w, 200, a.connections.queryContext(r.Context(), q))
+	case path == "/api/connections/history-detail":
+		writeResponse(w, 200, a.connections.historicalConnectionDetail(r.Context(), q.Get("module"), q.Get("id")))
 	case path == "/api/traffic":
 		writeResponse(w, 200, a.traffic.snapshot())
 	case path == "/api/traffic/policy":
@@ -740,7 +742,9 @@ func (a *App) latencyHistory(q url.Values) M {
 	}
 	query += " GROUP BY node,CAST(t/? AS INTEGER) ORDER BY t"
 	args = append(args, bucket)
-	rows, e := a.histdb.Query(query, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), historyQueryTimeout)
+	defer cancel()
+	rows, e := a.historyReader().QueryContext(ctx, query, args...)
 	series := M{}
 	if e == nil {
 		defer rows.Close()

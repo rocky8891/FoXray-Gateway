@@ -538,7 +538,9 @@ export function TrafficPage({
             <select value={metric} onChange={(e) => setMetric(e.target.value)}>
               <option value="both">上传 / 下载合计</option>
               <option value="download_bps">下载速率</option>
-              <option value="upload_bps">上传速率</option>
+              <option value="upload_bps">上传平均速率</option>
+              <option value="upload_peak_bps">上传观测速率峰值</option>
+              <option value="download_peak_bps">下载观测速率峰值</option>
               <option value="total_rate">上传＋下载</option>
             </select>
           </Field>

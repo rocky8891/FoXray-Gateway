@@ -55,12 +55,13 @@ func TestLatencyHistoryThrottlePreservesPerNodeAndProtocol(t *testing.T) {
 
 func TestDenseTrafficHistoryUsesActualSamplingCadence(t *testing.T) {
 	a, _ := fixture(t)
+	obj(a.monitorData["defaults"])["interval"] = 2
 	if err := a.traffic.saveHistoryPolicy("xray", M{"storage_interval": 1}); err != nil {
 		t.Fatal(err)
 	}
 	base := float64(int64(now())/2*2) - 20
 	for i := 0; i < 8; i++ {
-		if _, err := a.histdb.Exec("INSERT INTO traffic_samples VALUES(?,?,?,?,?)", "dense-regression", base+float64(i*2), 100, 200, 2); err != nil {
+		if _, err := a.histdb.Exec("INSERT INTO traffic_samples(node,t,up,down,seconds) VALUES(?,?,?,?,?)", "dense-regression", base+float64(i*2), 100, 200, 2); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -120,6 +121,9 @@ func TestAttributedConnectionProtocolCounts(t *testing.T) {
 func TestGlobalHistoryIntervalPreservesAndClearsItemOverrides(t *testing.T) {
 	a, _ := fixture(t)
 	if err := writeJSON(filepath.Join(a.base, "host-monitor-policy.json"), M{"storage_interval": 45}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(a.base, "monitor-data-policy.json"), M{"defaults": standardMonitorData(), "overrides": M{}, "history_intervals": M{}}); err != nil {
 		t.Fatal(err)
 	}
 	a.loadMonitorData()

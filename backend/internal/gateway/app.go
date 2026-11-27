@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	_ "modernc.org/sqlite"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -56,7 +57,7 @@ type App struct {
 	geoMu                                   sync.RWMutex
 	geo                                     M
 	jobs                                    jobSet
-	logdb, histdb                           *sql.DB
+	logdb, histdb, historyReadDB            *sql.DB
 	network                                 *Network
 	warpMu                                  sync.Mutex
 	warpOperate                             sync.Mutex
@@ -83,7 +84,7 @@ func New(base, ui string, readonly bool) (*App, error) {
 	a.monitoringItems = defaultMonitorItems()
 	_ = readJSON(filepath.Join(base, "monitoring-items.json"), &a.monitoringItems)
 	a.monitoringItems["host"] = canonicalHostMonitorItems(obj(a.monitoringItems["host"]))
-	a.cfg = M{"enabled": false, "mode": "manual", "fallback_active": false, "selected": "direct", "interval": 30, "latency_enabled": true, "latency_concurrency": 4, "speed_url": "https://cachefly.cachefly.net/100mb.test", "speed_timeout": 15, "speed_enabled": true, "speed_size_mb": 50, "speed_concurrency": 1, "timeout": 10, "failures": 3, "hold": 300, "improvement": 5, "confirmations": 3, "route_profile": "bypass_cn", "capture_host": true, "capture_lan": true, "score_latency_window_minutes": 30, "score_latency_min_samples": 1, "score_metrics": []any{"latency"}, "score_weights": M{"latency": 80, "loss": 10, "speed": 10}, "latency_url": "https://www.google.com/generate_204", "custom_rules": []any{}, "rule_sets": []any{}, "active_rule_set": "", "bypass_ips": []any{}, "vpn_exclusions": defaultVPNExclusions(), "dns_direct_servers": defaultDirectDNSServers(), "domain_identification": false, "dns_force_proxy": false, "lan_dns_intercept": true, "dns_proxy_servers": defaultProxyDNSServers(), "endpoints": []any{}}
+	a.cfg = M{"enabled": false, "mode": "manual", "fallback_active": false, "selected": "direct", "interval": 60, "latency_enabled": true, "latency_concurrency": 4, "speed_url": "https://cachefly.cachefly.net/100mb.test", "speed_timeout": 15, "speed_enabled": true, "speed_size_mb": 50, "speed_concurrency": 1, "timeout": 10, "failures": 3, "hold": 300, "improvement": 5, "confirmations": 3, "route_profile": "bypass_cn", "capture_host": true, "capture_lan": true, "score_latency_window_minutes": 30, "score_latency_min_samples": 1, "score_metrics": []any{"latency"}, "score_weights": M{"latency": 80, "loss": 10, "speed": 10}, "latency_url": "https://www.google.com/generate_204", "custom_rules": []any{}, "rule_sets": []any{}, "active_rule_set": "", "bypass_ips": []any{}, "vpn_exclusions": defaultVPNExclusions(), "dns_direct_servers": defaultDirectDNSServers(), "domain_identification": false, "dns_force_proxy": false, "lan_dns_intercept": true, "dns_proxy_servers": defaultProxyDNSServers(), "endpoints": []any{}}
 	if e := readJSON(filepath.Join(base, "config.json"), &a.cfg); e != nil && !os.IsNotExist(e) {
 		cancel()
 		return nil, errors.New("代理配置无法读取")
@@ -95,7 +96,7 @@ func New(base, ui string, readonly bool) (*App, error) {
 		cancel()
 		return nil, errors.New("节点数据无法读取")
 	}
-	a.settings = M{"log_retention_days": 30, "measurement_retention_days": 30, "log_max_rows": 10000, "chart_refresh_seconds": 10}
+	a.settings = M{"log_retention_days": 30, "measurement_retention_days": 30, "log_max_rows": 10000, "chart_refresh_seconds": 15}
 	_ = readJSON(filepath.Join(base, "manager-settings.json"), &a.settings)
 	a.loadMonitorData()
 	a.icmp = M{"enabled": false, "interval": 300, "count": 20, "size": 56, "timeout": 2}
@@ -188,8 +189,34 @@ func New(base, ui string, readonly bool) (*App, error) {
 		return nil, e
 	}
 
+	historyPath, err := filepath.Abs(filepath.Join(base, "latency-history.sqlite3"))
+	if err != nil {
+		return nil, err
+	}
+	uri := url.URL{Scheme: "file", Path: filepath.ToSlash(historyPath)}
+	// File URI paths require a leading slash before a Windows drive letter.
+	if filepath.VolumeName(historyPath) != "" {
+		uri.Path = "/" + uri.Path
+	}
+	uri.RawQuery = "mode=ro&_pragma=busy_timeout(2000)"
+	a.historyReadDB, e = sql.Open("sqlite", uri.String())
+	if e != nil {
+		return nil, e
+	}
+	a.historyReadDB.SetMaxOpenConns(2)
+	a.historyReadDB.SetMaxIdleConns(2)
 	return a, nil
 }
+
+const historyQueryTimeout = 5 * time.Second
+
+func (a *App) historyReader() *sql.DB {
+	if a.historyReadDB != nil {
+		return a.historyReadDB
+	}
+	return a.histdb
+}
+
 func openDB(path string) (*sql.DB, error) {
 	if e := os.MkdirAll(filepath.Dir(path), 0700); e != nil {
 		return nil, e
@@ -221,6 +248,9 @@ func (a *App) Close() {
 	}
 	if a.logdb != nil {
 		a.logdb.Close()
+	}
+	if a.historyReadDB != nil {
+		a.historyReadDB.Close()
 	}
 	if a.histdb != nil {
 		a.histdb.Close()

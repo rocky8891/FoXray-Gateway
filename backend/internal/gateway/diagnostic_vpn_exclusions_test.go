@@ -125,6 +125,7 @@ func TestBatchAdoptionOnlyChangesManagementMetadata(t *testing.T) {
 }
 func TestTrafficStorageIntervalsIndependentAndDenseHistory(t *testing.T) {
 	a, _ := fixture(t)
+	obj(a.monitorData["defaults"])["interval"] = 2
 	m := a.traffic
 	if err := m.saveHistoryPolicy("xray", M{"storage_interval": 1}); err != nil {
 		t.Fatal(err)
@@ -148,7 +149,7 @@ func TestTrafficStorageIntervalsIndependentAndDenseHistory(t *testing.T) {
 		t.Fatal("shutdown did not flush pending module")
 	}
 	for i := 1; i <= 4; i++ {
-		_, err := a.histdb.Exec("INSERT INTO traffic_samples VALUES(?,?,?,?,?)", "dense", now()-float64(i*2), 10, 20, 2)
+		_, err := a.histdb.Exec("INSERT INTO traffic_samples(node,t,up,down,seconds) VALUES(?,?,?,?,?)", "dense", now()-float64(i*2), 10, 20, 2)
 		if err != nil {
 			t.Fatal(err)
 		}

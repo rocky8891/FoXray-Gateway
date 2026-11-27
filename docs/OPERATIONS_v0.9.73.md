@@ -1,4 +1,4 @@
-# FoXray Gateway v0.9.28 运维与排障
+# FoXray Gateway v0.9.73 运维与排障
 
 ## 日常检查
 

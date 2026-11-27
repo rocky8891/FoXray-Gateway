@@ -1,4 +1,4 @@
-"""Build FoXray Gateway v0.9.28; see build_release_v0.9.28_README.md."""
+"""Build FoXray Gateway v0.9.73; see build_release_v0.9.73_README.md."""
 import argparse
 import hashlib
 import io
@@ -10,7 +10,7 @@ import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.9.28"
+VERSION = "0.9.73"
 
 
 def command(*args):
@@ -90,9 +90,10 @@ def main():
     with zipfile.ZipFile(io.BytesIO(command("git", "archive", "--format=zip", "HEAD"))) as archive:
         source = {name: archive.read(name) for name in archive.namelist() if not name.endswith("/")}
     for name, raw in source.items():
-        if re.search(r"0\.9\.(?:[1-9]|1[0-9]|2[0-6])(?![0-9])", name):
+        versioned = re.search(r"v(0\.9\.[0-9]+)", name)
+        if versioned and versioned.group(1) != VERSION:
             continue
-        if name.endswith(".md") or name == "LICENSE" or name.startswith(("docs/", "release-notes/", "rules/", "third_party/")) or name in ["install_v0.9.28.sh", "upgrade_v0.9.28.py", "prepare_offline_v0.9.28.sh"]:
+        if name.endswith(".md") or name == "LICENSE" or name.startswith(("docs/", "release-notes/", "rules/", "third_party/")) or name in ["install_v0.9.73.sh", "upgrade_v0.9.73.py", "prepare_offline_v0.9.73.sh"]:
             files[name] = raw
     for path in (ROOT / "frontend/dist").rglob("*"):
         if path.is_file():

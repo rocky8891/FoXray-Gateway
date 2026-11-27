@@ -700,7 +700,7 @@ function App() {
             value={
               Math.max(
                 1,
-                Number(state?.manager_settings.live_refresh_seconds || 2),
+                Number(state?.manager_settings.live_refresh_seconds || 5),
               ) * 1000
             }
           >
@@ -708,7 +708,7 @@ function App() {
               value={
                 Math.max(
                   1,
-                  Number(state?.manager_settings.chart_refresh_seconds || 10),
+                  Number(state?.manager_settings.chart_refresh_seconds || 15),
                 ) * 1000
               }
             >

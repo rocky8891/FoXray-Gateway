@@ -14,7 +14,7 @@ import {
   List,
   Search,
 } from "lucide-react";
-import { list, record, timestamp, type Dict } from "./api";
+import { api, list, record, timestamp, type Dict } from "./api";
 import { TimeRangeControl, type TimeRange } from "./time_range";
 import { formatCapacity, formatRate, HostChart } from "./host";
 import {
@@ -61,7 +61,10 @@ export function ConnectionsPage({
   });
   const [query, setQuery] = useState(""),
     [protocol, setProtocol] = useState("all"),
-    [detail, setDetail] = useState<Dict | null>(null);
+    [detail, setDetail] = useState<Dict | null>(null),
+    [detailRequest, setDetailRequest] = useState(false),
+    [detailError, setDetailError] = useState(""),
+    [historyPage, setHistoryPage] = useState<{ key: string; cursors: string[] }>({ key: "", cursors: [] });
   useEffect(() => {
     setNode("all");
     setIface("all");
@@ -78,9 +81,24 @@ export function ConnectionsPage({
     encodeURIComponent(iface) +
     "&node=" +
     encodeURIComponent(node);
+  const historyMode = scope === "history";
+  const queryKey = filters + "&" + range.query + "&query=" + encodeURIComponent(query);
+  const cursors = historyPage.key === queryKey ? historyPage.cursors : [];
+  const cursor = cursors.at(-1) || "";
+  const fetchDetail = async (row: Dict) => {
+    if (!historyMode) { setDetail(row); return; }
+    setDetailRequest(true);
+    setDetailError("");
+    try {
+      const result = await api<Dict>(`/api/connections/history-detail?module=${module}&id=${encodeURIComponent(String(row.id))}`);
+      if (!result.item) throw new Error(String(result.error || "连接详情不可用"));
+      setDetail(record(result.item));
+    } catch (error) { setDetailError(String(error)); }
+    finally { setDetailRequest(false); }
+  };
   const r = useResource<Dict>(
-    "/api/connections?" + filters + "&scope=" + scope + "&" + range.query,
-    2000,
+    "/api/connections?" + filters + "&scope=" + scope + "&" + range.query + (historyMode ? "&limit=50&query=" + encodeURIComponent(query) + "&cursor=" + encodeURIComponent(cursor) : ""),
+    historyMode ? 60000 : 2000,
   );
   const chart = useResource<Dict>(
     "/api/connections/business-history?" + filters + "&" + range.query,
@@ -89,7 +107,7 @@ export function ConnectionsPage({
   const summary = record(record(r.data?.summaries)[module]);
   const proxyReady = module !== "xray" || scope === "transport" || summary.count_scope === "confirmed-proxy-v2";
   const rows = list(r.data?.items).filter(
-    (v) =>
+    (v) => historyMode || (
       (status === "all" || v.state === status) &&
       (protocol === "all" || v.protocol === protocol) &&
       [
@@ -101,7 +119,7 @@ export function ConnectionsPage({
       ]
         .join(" ")
         .toLowerCase()
-        .includes(query.toLowerCase()),
+        .includes(query.toLowerCase())),
   );
   const total = (key: string) => {
     const valid = rows.filter((v) => v[key] != null);
@@ -361,11 +379,12 @@ export function ConnectionsPage({
         ),
         details: (
           <Panel className="connections-table-panel">
-            <PageHeader title="连接详情" icon={<List size={20} />} description={<ul><li><strong>排序筛选：</strong>通过列头按字段操作；字节、速率和时长按数值比较。</li><li><strong>数据范围：</strong>只筛选当前已加载的连接，不改变上方历史曲线。</li></ul>} />
+            <PageHeader title="连接详情" icon={<List size={20} />} description={<ul><li><strong>排序筛选：</strong>通过列头按字段操作；字节、速率和时长按数值比较。</li><li><strong>数据范围：</strong>历史关键词搜索覆盖所选时间范围，列头操作作用于当前页，不改变上方历史曲线。</li></ul>} />
             <Table
               columnSizingKey={"connections-" + module}
               toolbar={detailsTable.toolbar}
               rows={detailsTable.rows}
+              paginate={!historyMode}
               paginationResetKey={detailsTable.paginationKey + "|" + [query,protocol,iface,node,status].join("|")}
               total={list(r.data?.items).length}
               rowKey={(v) => String(v.id)}
@@ -462,12 +481,18 @@ export function ConnectionsPage({
                   key: "actions",
                   label: "操作",
                   render: (v) => (
-                    <Button onClick={() => setDetail(v)}>详情</Button>
+                    <Button disabled={detailRequest} onClick={() => void fetchDetail(v)}>详情</Button>
                   ),
                 },
               ])}
             />
 
+            {historyMode && <div className="save-card-footer">
+              <Button disabled={r.loading || cursors.length === 0} onClick={() => setHistoryPage({ key: queryKey, cursors: cursors.slice(0, -1) })}>上一页</Button>
+              <span>第 {cursors.length + 1} 页</span>
+              <Button disabled={r.loading || !r.data?.next_cursor} onClick={() => setHistoryPage({ key: queryKey, cursors: [...cursors, String(r.data?.next_cursor)] })}>下一页</Button>
+            </div>}
+            <ErrorLine error={detailError} />
             {detail && (
               <Modal
                 title="活动连接详情"

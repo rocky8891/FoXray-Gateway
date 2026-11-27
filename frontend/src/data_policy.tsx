@@ -62,7 +62,7 @@ export function DataPolicyCard({
   const historyMin = kind === "metrics" ? 10 : 1;
   const inheritedHistory = resource.data?.storage_default;
   const policy = {
-    interval: 2,
+    interval: 10,
     retention_days: 30,
     max_storage_mb: 256,
     ...record(resource.data?.policy),
@@ -177,7 +177,7 @@ export function DataPolicyCard({
         dirty={
           extraDirty ||
           hasChanges(draft, {
-            interval: 2,
+            interval: 10,
             retention_days: 30,
             max_storage_mb: 256,
             ...record(resource.data?.policy),
@@ -190,10 +190,10 @@ export function DataPolicyCard({
         title={title}
         defaults={() => {
           extraDefaults?.();
-          setHistoryDraft("");
+          setHistoryDraft(globalHistory ? "30" : "");
           setDraft(
             module === "all"
-              ? { interval: 2, retention_days: 30, max_storage_mb: 256 }
+              ? { interval: 10, retention_days: 30, max_storage_mb: 256 }
               : { ...record(resource.data?.global), independent: false },
           );
         }}

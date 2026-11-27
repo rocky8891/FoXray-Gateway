@@ -9,6 +9,7 @@ import (
 
 func TestMonitorDefaultsAndIndependentPrecedence(t *testing.T) {
 	a, f := fixture(t)
+	probeInterval := num(a.cfg["interval"])
 	if err := a.saveMonitorData("all", "", M{"interval": 5, "retention_days": 20, "max_storage_mb": 8}); err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +27,7 @@ func TestMonitorDefaultsAndIndependentPrecedence(t *testing.T) {
 			t.Fatal("global connections policy not inherited")
 		}
 	}
-	if num(a.cfg["interval"]) != 30 || num(a.icmp["interval"]) != 300 || len(f.calls) > 0 {
+	if num(a.cfg["interval"]) != probeInterval || num(a.icmp["interval"]) != 300 || len(f.calls) > 0 {
 		t.Fatal("passive policy changed probes or services")
 	}
 	if err := a.saveMonitorData("xray", "traffic", M{"independent": false}); err != nil {

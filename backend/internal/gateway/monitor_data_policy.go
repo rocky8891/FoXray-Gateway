@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-func standardMonitorData() M { return M{"interval": 2, "retention_days": 30, "max_storage_mb": 256} }
+func standardMonitorData() M { return M{"interval": 10, "retention_days": 30, "max_storage_mb": 256} }
 func validMonitorData(module, kind string) bool {
 	return module == "host" && (kind == "metrics" || kind == "connections") || (module == "xray" || module == "warp" || module == "wireguard") && (kind == "traffic" || kind == "latency" || kind == "connections")
 }
@@ -18,11 +18,11 @@ func (a *App) loadMonitorData() {
 	if n := num(a.settings["measurement_retention_days"]); n >= 1 && n <= 365 {
 		defaults["retention_days"] = n
 	}
-	overrides := M{}
+	overrides := M{"host:metrics": M{"interval": 5}, "xray:traffic": M{"max_storage_mb": 1024}}
 	add := func(key string, legacy M) {
-		row := M{}
+		row := clone(obj(overrides[key]))
 		for _, field := range []string{"interval", "retention_days", "max_storage_mb"} {
-			if v, exists := legacy[field]; exists && num(v) != num(standardMonitorData()[field]) {
+			if v, exists := legacy[field]; exists && num(v) != num(M{"interval": 2, "retention_days": 30, "max_storage_mb": 256}[field]) {
 				row[field] = v
 			}
 		}
@@ -54,14 +54,17 @@ func (a *App) loadMonitorData() {
 	}
 	legacyHistory := M{}
 	_ = readJSON(filepath.Join(a.base, "traffic-history-policy.json"), &legacyHistory)
-	history := M{}
+	history := M{"xray:traffic": 10, "warp:traffic": 60, "wireguard:traffic": 60}
 	for module, v := range legacyHistory {
 		if num(v) >= 1 && num(v) <= 3600 {
 			history[module+":traffic"] = v
 		}
 	}
-	a.monitorData = M{"defaults": defaults, "overrides": overrides, "history_intervals": history}
-	_ = readJSON(filepath.Join(a.base, "monitor-data-policy.json"), &a.monitorData)
+	a.monitorData = M{"defaults": defaults, "overrides": overrides, "history_intervals": history, "history_default": 30}
+	var persisted M
+	if readJSON(filepath.Join(a.base, "monitor-data-policy.json"), &persisted) == nil && persisted != nil {
+		a.monitorData = persisted
+	}
 	stored := obj(a.monitorData["history_intervals"])
 	if _, exists := stored["host:metrics"]; !exists {
 		if value, err := integer(host["storage_interval"], 10, 3600); err == nil {

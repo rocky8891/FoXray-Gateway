@@ -15,6 +15,7 @@ type trafficTransport func(*http.Request) (*http.Response, error)
 func (f trafficTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 func TestTrafficResetKeepsTotalsAndFailureDoesNotBecomeZeroSample(t *testing.T) {
 	a, _ := fixture(t)
+	obj(a.monitorData["defaults"])["interval"] = 2
 	a.components["warp"] = false
 	a.native["nodes"] = []any{M{"id": "n-test", "name": "test", "enabled": true}}
 	_ = writeJSON(filepath.Join(a.base, "private", "traffic-policy.json"), M{"enabled": true})

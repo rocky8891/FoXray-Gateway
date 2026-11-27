@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 
@@ -25,24 +26,25 @@ type trafficCounter struct {
 	Status    string
 }
 type trafficReading struct {
-	InterfaceUp            uint64  `json:"interface_upload,omitempty"`
-	InterfaceDown          uint64  `json:"interface_download,omitempty"`
-	ID                     string  `json:"id"`
-	Name                   string  `json:"name"`
-	Source                 string  `json:"source"`
-	At                     float64 `json:"time"`
-	Available              bool    `json:"available"`
-	Status                 string  `json:"status"`
-	UploadRate             float64 `json:"upload_bps"`
-	DownloadRate           float64 `json:"download_bps"`
-	TotalUp                uint64  `json:"total_upload"`
-	TotalDown              uint64  `json:"total_download"`
-	previous               trafficCounter
-	previousAt             time.Time
-	lastStoredAt           time.Time
-	previousInterval       float64
-	pendingUp, pendingDown uint64
-	pendingSeconds         float64
+	InterfaceUp                            uint64  `json:"interface_upload,omitempty"`
+	InterfaceDown                          uint64  `json:"interface_download,omitempty"`
+	ID                                     string  `json:"id"`
+	Name                                   string  `json:"name"`
+	Source                                 string  `json:"source"`
+	At                                     float64 `json:"time"`
+	Available                              bool    `json:"available"`
+	Status                                 string  `json:"status"`
+	UploadRate                             float64 `json:"upload_bps"`
+	DownloadRate                           float64 `json:"download_bps"`
+	TotalUp                                uint64  `json:"total_upload"`
+	TotalDown                              uint64  `json:"total_download"`
+	previous                               trafficCounter
+	previousAt                             time.Time
+	lastStoredAt                           time.Time
+	previousInterval                       float64
+	pendingUp, pendingDown                 uint64
+	pendingSeconds                         float64
+	pendingUploadPeak, pendingDownloadPeak float64
 }
 type Traffic struct {
 	lastCleanup    time.Time
@@ -68,6 +70,18 @@ func NewTraffic(a *App) (*Traffic, error) {
 	for _, q := range []string{`CREATE TABLE IF NOT EXISTS traffic_samples(node TEXT,t REAL,up INTEGER,down INTEGER,seconds REAL,PRIMARY KEY(node,t))`, `CREATE INDEX IF NOT EXISTS traffic_history_cover ON traffic_samples(t,node,up,down,seconds)`, `CREATE TABLE IF NOT EXISTS traffic_totals(node TEXT PRIMARY KEY,name TEXT,source TEXT,up INTEGER,down INTEGER)`} {
 		if _, e := a.histdb.Exec(q); e != nil {
 			return nil, e
+		}
+	}
+	// Existing rows retain NULL peaks because their underlying samples are unavailable.
+	for _, column := range []string{"up_peak", "down_peak"} {
+		var exists int
+		if err := a.histdb.QueryRow("SELECT COUNT(*) FROM pragma_table_info('traffic_samples') WHERE name=?", column).Scan(&exists); err != nil {
+			return nil, err
+		}
+		if exists == 0 {
+			if _, err := a.histdb.Exec("ALTER TABLE traffic_samples ADD COLUMN " + column + " REAL"); err != nil {
+				return nil, err
+			}
 		}
 	}
 	t := &Traffic{app: a, rows: map[string]*trafficReading{}, done: make(chan struct{}), client: &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{Proxy: nil, MaxIdleConns: 2, MaxIdleConnsPerHost: 2}}}
@@ -227,6 +241,8 @@ func (t *Traffic) collect() {
 				row.pendingUp += up
 				row.pendingDown += down
 				row.pendingSeconds += elapsed
+				row.pendingUploadPeak = max(row.pendingUploadPeak, row.UploadRate)
+				row.pendingDownloadPeak = max(row.pendingDownloadPeak, row.DownloadRate)
 			}
 		}
 		row.previous, row.previousAt = current, stamp
@@ -266,6 +282,7 @@ func (t *Traffic) flushDueLocked(at time.Time, force bool) error {
 	}
 	for _, r := range due {
 		r.pendingUp, r.pendingDown, r.pendingSeconds = 0, 0, 0
+		r.pendingUploadPeak, r.pendingDownloadPeak = 0, 0
 		r.lastStoredAt = at
 	}
 	t.cleanupError = ""
@@ -345,16 +362,18 @@ func (t *Traffic) historyContext(ctx context.Context, q url.Values) M {
 		width = max(width, float64(window))
 	}
 	args := []any{width, start, end}
-	sql := "SELECT node,CAST(t/? AS INTEGER),MIN(t),SUM(up),SUM(down),SUM(seconds) FROM traffic_samples WHERE t>=? AND t<=?"
+	query := "SELECT node,CAST(t/? AS INTEGER),MIN(t),SUM(up),SUM(down),SUM(seconds),MAX(up_peak),MAX(down_peak) FROM traffic_samples WHERE t>=? AND t<=?"
 	if module := q.Get("module"); module != "" {
-		sql += " AND (" + monitorScope(module) + ")"
+		query += " AND (" + monitorScope(module) + ")"
 	}
 	if node := q.Get("node"); node != "" && node != "all" {
-		sql += " AND node=?"
+		query += " AND node=?"
 		args = append(args, node)
 	}
-	sql += " GROUP BY node,2 ORDER BY node,2"
-	rows, e := t.app.histdb.QueryContext(ctx, sql, args...)
+	query += " GROUP BY node,2 ORDER BY node,2"
+	ctx, cancel := context.WithTimeout(ctx, historyQueryTimeout)
+	defer cancel()
+	rows, e := t.app.historyReader().QueryContext(ctx, query, args...)
 	items := []M{}
 	if e == nil {
 		defer rows.Close()
@@ -363,14 +382,22 @@ func (t *Traffic) historyContext(ctx context.Context, q url.Values) M {
 			var bucket int
 			var stamp, seconds float64
 			var up, down uint64
-			if e = rows.Scan(&node, &bucket, &stamp, &up, &down, &seconds); e != nil {
+			var upPeak, downPeak sql.NullFloat64
+			if e = rows.Scan(&node, &bucket, &stamp, &up, &down, &seconds, &upPeak, &downPeak); e != nil {
 				break
 			}
 			uploadRate, downloadRate := 0., 0.
 			if seconds > 0 {
 				uploadRate, downloadRate = float64(up)/seconds, float64(down)/seconds
 			}
-			items = append(items, M{"id": node, "time": stamp, "bucket_time": float64(bucket) * width, "upload_bps": uploadRate, "download_bps": downloadRate, "upload": up, "download": down, "seconds": seconds})
+			point := M{"id": node, "time": stamp, "bucket_time": float64(bucket) * width, "upload_bps": uploadRate, "download_bps": downloadRate, "upload": up, "download": down, "seconds": seconds}
+			if upPeak.Valid {
+				point["upload_peak_bps"] = upPeak.Float64
+			}
+			if downPeak.Valid {
+				point["download_peak_bps"] = downPeak.Float64
+			}
+			items = append(items, point)
 		}
 		if e == nil {
 			e = rows.Err()

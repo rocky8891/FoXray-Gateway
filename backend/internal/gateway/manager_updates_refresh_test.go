@@ -115,7 +115,7 @@ func TestManagerUpdateHealthFailureRollsBackOnlyManager(t *testing.T) {
 }
 func TestRefreshPolicyOneSecondIsOptIn(t *testing.T) {
 	a, _ := fixture(t)
-	if a.realtimeInterval(60) != 60 || num(a.displayPolicy()["live_refresh_seconds"]) != 2 {
+	if a.realtimeInterval(60) != 60 || num(a.displayPolicy()["live_refresh_seconds"]) != 5 {
 		t.Fatal("defaults changed")
 	}
 	if err := a.saveDisplayPolicy(M{"live_sampling_seconds": 1, "live_refresh_seconds": 1, "chart_refresh_seconds": 10}); err != nil {
